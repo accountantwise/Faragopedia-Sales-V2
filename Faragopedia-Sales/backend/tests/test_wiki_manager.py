@@ -1,7 +1,7 @@
 import asyncio
 import os
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from agent.wiki_manager import (
     WikiManager, WikiPage, FaragoIngestionResult, LintFinding, LintReport
 )
@@ -406,3 +406,126 @@ def test_safe_wiki_filename_rejects_traversal():
 def test_safe_wiki_filename_rejects_non_md():
     with pytest.raises(ValueError, match=".md"):
         safe_wiki_filename("clients/foo.txt")
+
+
+@pytest.mark.asyncio
+async def test_ingest_writes_pages_to_correct_subdirectory(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    sources = tmp_path / "sources"
+    wiki = tmp_path / "wiki"
+    sources.mkdir()
+    wiki.mkdir()
+    for sub in ["clients", "contacts", "prospects", "photographers", "productions"]:
+        (wiki / sub).mkdir()
+    (wiki / "index.md").write_text("# Index\n\n## Clients\n\n*No clients yet.*\n")
+
+    source_file = sources / "lv-brief.txt"
+    source_file.write_text("Louis Vuitton is an A-tier client. Contact: Sophie Martin.")
+
+    mock_result = FaragoIngestionResult(
+        pages=[
+            WikiPage(
+                path="clients/louis-vuitton.md",
+                content="---\ntype: client\nname: Louis Vuitton\ntier: A\nstatus: active\n---\n# Louis Vuitton\n\n## Overview\n\nLuxury fashion house.\n",
+                action="create"
+            ),
+            WikiPage(
+                path="contacts/sophie-martin.md",
+                content="---\ntype: contact\nname: Sophie Martin\norg: Louis Vuitton\n---\n# Sophie Martin\n\n## Role & Responsibilities\n\nKey contact at [[clients/louis-vuitton]].\n",
+                action="create"
+            ),
+        ],
+        log_entry="Ingested lv-brief.txt. Created 2 pages: clients/louis-vuitton, contacts/sophie-martin."
+    )
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(sources),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+
+    with patch.object(manager, '_run_ingest_llm', new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = mock_result
+        await manager.ingest_source("lv-brief.txt")
+
+    assert (wiki / "clients" / "louis-vuitton.md").exists()
+    lv_content = (wiki / "clients" / "louis-vuitton.md").read_text()
+    assert "tier: A" in lv_content
+
+    assert (wiki / "contacts" / "sophie-martin.md").exists()
+    sophie_content = (wiki / "contacts" / "sophie-martin.md").read_text()
+    assert "[[clients/louis-vuitton]]" in sophie_content
+
+    index_content = (wiki / "index.md").read_text()
+    assert "[[clients/louis-vuitton]]" in index_content
+
+    log_content = (wiki / "log.md").read_text()
+    assert "lv-brief.txt" in log_content
+
+    metadata = manager.get_sources_metadata()
+    assert metadata["lv-brief.txt"]["ingested"] is True
+
+
+@pytest.mark.asyncio
+async def test_ingest_source_not_found(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(tmp_path / "wiki"),
+            schema_dir=str(schema_dir)
+        )
+
+    with pytest.raises(FileNotFoundError):
+        await manager.ingest_source("nonexistent.txt")
+
+
+@pytest.mark.asyncio
+async def test_ingest_retries_on_llm_failure(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    sources = tmp_path / "sources"
+    wiki = tmp_path / "wiki"
+    sources.mkdir()
+    wiki.mkdir()
+    (wiki / "index.md").write_text("# Index")
+    (sources / "test.txt").write_text("Test content")
+
+    success_result = FaragoIngestionResult(
+        pages=[WikiPage(path="clients/test.md", content="# Test", action="create")],
+        log_entry="Ingested test.txt"
+    )
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(sources),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+
+    # Fail once, succeed on second attempt
+    (wiki / "clients").mkdir()
+    call_count = [0]
+    async def flaky_llm(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise ValueError("LLM output validation failed")
+        return success_result
+
+    with patch.object(manager, '_run_ingest_llm', side_effect=flaky_llm):
+        await manager.ingest_source("test.txt")
+
+    assert call_count[0] == 2
+    assert (wiki / "clients" / "test.md").exists()

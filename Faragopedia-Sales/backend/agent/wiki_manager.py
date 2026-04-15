@@ -13,15 +13,6 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
-class Entity(BaseModel):
-    name: str = Field(description="Name of the entity or concept")
-    summary: str = Field(description="One-sentence summary of the entity or concept")
-    details: str = Field(description="Detailed information about the entity or concept")
-
-class IngestionResult(BaseModel):
-    source_summary: str = Field(description="A concise summary of the source document")
-    entities: List[Entity] = Field(description="Key entities and concepts extracted from the document")
-
 class WikiPage(BaseModel):
     path: str = Field(description="Relative path for the wiki page, e.g. 'clients/louis-vuitton.md'")
     content: str = Field(description="Full markdown content including YAML frontmatter and all sections")
@@ -42,6 +33,30 @@ class LintReport(BaseModel):
 
 
 ENTITY_SUBDIRS = ["clients", "prospects", "contacts", "photographers", "productions"]
+
+INGEST_HUMAN_TEMPLATE = """You are ingesting a new source document into the Farago Projects wiki.
+
+Current wiki index:
+{index_content}
+
+Existing pages that may need updating:
+{existing_pages}
+
+Source document filename: {filename}
+Source document content:
+{source_content}
+
+Instructions:
+1. Identify all entities in the source that match the Farago schema: clients, prospects, contacts, photographers, productions.
+2. For each entity, produce a complete wiki page with valid YAML frontmatter matching the schema for that entity type.
+3. Use the exact file path format: "clients/brand-name.md", "photographers/first-last.md", "productions/YYYY-MM-client-description.md", etc.
+4. File names must be lowercase and hyphen-separated.
+5. For existing pages (action="update"), produce the full merged content.
+6. For new pages (action="create"), produce the full page with all schema sections.
+7. Always use [[subdir/page-name]] wikilink syntax for cross-references.
+8. Write a 2-3 line log_entry summarising what was ingested.
+
+{format_instructions}"""
 
 
 class WikiManager:
@@ -185,71 +200,99 @@ class WikiManager:
         with open(index_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
+    async def _run_ingest_llm(
+        self, filename: str, source_content: str, index_content: str, existing_pages: str
+    ) -> FaragoIngestionResult:
+        """Run the LLM ingest call. Extracted for testability."""
+        parser = PydanticOutputParser(pydantic_object=FaragoIngestionResult)
+        prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template("{system_prompt}"),
+            HumanMessagePromptTemplate.from_template(INGEST_HUMAN_TEMPLATE),
+        ])
+        chain = prompt | self.llm | parser
+        return await chain.ainvoke({
+            "system_prompt": self.system_prompt,
+            "index_content": index_content,
+            "existing_pages": existing_pages,
+            "filename": filename,
+            "source_content": source_content,
+            "format_instructions": parser.get_format_instructions(),
+        })
+
     async def ingest_source(self, file_name: str):
-        # Phase 1 — Read and LLM inference (runs concurrently across uploads)
+        """Phase 1: Read file and call LLM (concurrent). Phase 2: Write files (serialized)."""
         file_path = os.path.join(self.sources_dir, file_name)
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Source file not found: {file_path}")
 
+        # Read source content
         ext = os.path.splitext(file_name)[1].lower()
         content = ""
-
         try:
             if ext == ".pdf":
                 from langchain_community.document_loaders import PyPDFLoader
                 loader = PyPDFLoader(file_path)
                 docs = await asyncio.to_thread(loader.load)
                 content = "\n\n".join([doc.page_content for doc in docs])
-            elif ext in [".txt", ".md"]:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
             else:
-                # Basic fallback: attempt text read for everything else
                 with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
         except Exception as e:
-            # For background tasks, we log but don't want to crash the whole task loop
-            print(f"ERROR: Failed to read file {file_name}: {str(e)}")
-            self._append_to_log("error", f"Failed to read {file_name}: {str(e)}")
+            print(f"ERROR: Failed to read {file_name}: {e}")
+            self._append_to_log("error", f"Failed to read {file_name}: {e}")
             return
 
         if not content.strip():
             print(f"WARNING: No content extracted from {file_name}")
             return
 
-        parser = PydanticOutputParser(pydantic_object=IngestionResult)
+        # Load current index
+        index_path = os.path.join(self.wiki_dir, "index.md")
+        index_content = ""
+        if os.path.exists(index_path):
+            with open(index_path, "r", encoding="utf-8") as f:
+                index_content = f.read()
 
-        prompt = PromptTemplate(
-            template="Extract key information from the following document.\n{format_instructions}\nDocument:\n{content}\n",
-            input_variables=["content"],
-            partial_variables={"format_instructions": parser.get_format_instructions()},
-        )
+        # Load existing pages that may be updated (all current pages as context)
+        existing_pages_str = ""
+        for rel_path in self.list_pages():
+            full_path = os.path.join(self.wiki_dir, rel_path.replace("/", os.sep))
+            if os.path.exists(full_path):
+                with open(full_path, "r", encoding="utf-8") as f:
+                    existing_pages_str += f"\n--- {rel_path} ---\n{f.read()}\n"
 
-        chain = prompt | self.llm | parser
-        result = await chain.ainvoke({"content": content})
+        # LLM call with retry (max 2 retries)
+        result = None
+        last_error = None
+        for attempt in range(3):
+            try:
+                ingest_content = content
+                if attempt > 0 and last_error:
+                    ingest_content = f"{content}\n\n[Previous attempt failed with: {last_error}. Please fix and retry.]"
+                result = await self._run_ingest_llm(file_name, ingest_content, index_content, existing_pages_str)
+                break
+            except Exception as e:
+                last_error = str(e)
+                print(f"WARNING: Ingest attempt {attempt + 1} failed: {e}")
 
-        # Phase 2 — File writes (serialized: one ingestion at a time)
+        if result is None:
+            msg = f"Ingest failed after 3 attempts for {file_name}: {last_error}"
+            print(f"ERROR: {msg}")
+            self._append_to_log("error", msg)
+            self.mark_source_ingested(file_name, False)
+            return
+
+        # Phase 2: Write files (serialized)
         async with self._write_lock:
-            # 1. Write Source Summary Page
-            source_title = f"Summary_{file_name}"
-            source_content = f"# Summary of {file_name}\n\n{result.source_summary}\n\n## Extracted Entities\n"
-            for entity in result.entities:
-                source_content += f"- [[{entity.name}]]\n"
-            self._write_page(source_title, source_content)
+            for page in result.pages:
+                page_full_path = os.path.join(self.wiki_dir, page.path.replace("/", os.sep))
+                os.makedirs(os.path.dirname(page_full_path), exist_ok=True)
+                with open(page_full_path, "w", encoding="utf-8") as f:
+                    f.write(page.content)
 
-            # 2. Update/Create Entity Pages
-            for entity in result.entities:
-                entity_path = self._get_page_path(entity.name)
-                if os.path.exists(entity_path):
-                    with open(entity_path, "a", encoding="utf-8") as f:
-                        f.write(f"\n\n### Updated from {file_name}\n\n{entity.details}\n")
-                else:
-                    self._write_page(entity.name, f"# {entity.name}\n\n{entity.summary}\n\n## Details\n\n{entity.details}\n")
-
-            # 3. Maintain wiki structure
             self.update_index()
             self.mark_source_ingested(file_name, True)
-            self._append_to_log("ingest", f"Processed {file_name}")
+            self._append_to_log("ingest", result.log_entry)
 
         return result
 
