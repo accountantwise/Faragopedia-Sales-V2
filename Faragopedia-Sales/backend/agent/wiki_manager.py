@@ -5,11 +5,10 @@ import re
 import json
 import shutil
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Dict
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import PromptTemplate
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
@@ -57,6 +56,24 @@ Instructions:
 8. Write a 2-3 line log_entry summarising what was ingested.
 
 {format_instructions}"""
+
+RELEVANCE_HUMAN_TEMPLATE = """Given the wiki index below, list the 3-5 most relevant page paths to answer the user query.
+Return ONLY a comma-separated list of relative page paths (e.g. 'clients/louis-vuitton.md, contacts/jane-doe.md').
+If nothing is relevant, return 'None'.
+
+Wiki index:
+{index}
+
+Query: {query}"""
+
+ANSWER_HUMAN_TEMPLATE = """Answer the user query using the provided wiki context.
+Cite sources using [[subdir/page-name]] wikilink syntax.
+If the context doesn't contain the answer, say so.
+
+Context:
+{context}
+
+Query: {query}"""
 
 
 class WikiManager:
@@ -296,8 +313,21 @@ class WikiManager:
 
         return result
 
-    async def query(self, user_query: str):
-        # 1. Read index to find relevant pages (simplified version)
+    async def _run_query_llm(self, user_query: str, index_content: str, context: str) -> str:
+        """Run the answer LLM call. Extracted for testability."""
+        prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template("{system_prompt}"),
+            HumanMessagePromptTemplate.from_template(ANSWER_HUMAN_TEMPLATE),
+        ])
+        chain = prompt | self.llm
+        response = await chain.ainvoke({
+            "system_prompt": self.system_prompt,
+            "context": context,
+            "query": user_query,
+        })
+        return response.content
+
+    async def query(self, user_query: str) -> str:
         index_path = os.path.join(self.wiki_dir, "index.md")
         if not os.path.exists(index_path):
             return "No wiki content available yet. Please ingest some sources first."
@@ -305,45 +335,52 @@ class WikiManager:
         with open(index_path, "r", encoding="utf-8") as f:
             index_content = f.read()
 
-        # 2. Ask LLM which pages are relevant
-        relevance_prompt = PromptTemplate(
-            template="Given the following wiki index and a user query, list the names of the 3 most relevant wiki pages to answer the query. Return ONLY a comma-separated list of page names. If no pages are relevant, return 'None'.\n\nIndex:\n{index}\n\nQuery: {query}\n",
-            input_variables=["index", "query"]
-        )
-        
+        # Step 1: Find relevant pages using the LLM
+        relevance_prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template("{system_prompt}"),
+            HumanMessagePromptTemplate.from_template(RELEVANCE_HUMAN_TEMPLATE),
+        ])
         relevance_chain = relevance_prompt | self.llm
-        relevant_pages_resp = await relevance_chain.ainvoke({"index": index_content, "query": user_query})
-        
-        page_names_str = relevant_pages_resp.content.strip()
-        if page_names_str.lower() == "none":
-            return "I couldn't find any relevant information in the wiki to answer your question."
-            
-        page_names = [p.strip() for p in page_names_str.split(",")]
+        relevance_resp = await relevance_chain.ainvoke({
+            "system_prompt": self.system_prompt,
+            "index": index_content,
+            "query": user_query,
+        })
 
-        # 3. Read relevant pages
+        raw_content = relevance_resp.content
+        page_names_str = raw_content if isinstance(raw_content, str) else ""
+        page_names_str = page_names_str.strip()
+
+        if page_names_str.lower() == "none":
+            return "I couldn't find relevant information in the wiki to answer your question."
+
+        page_paths = [p.strip() for p in page_names_str.split(",") if p.strip()]
+
+        # If LLM returned no usable paths, fall back to all pages listed in the index
+        if not page_paths:
+            wikilink_pattern_idx = re.compile(r"\[\[([^\]]+)\]\]")
+            page_paths = [
+                f"{m}.md" for m in wikilink_pattern_idx.findall(index_content)
+            ]
+
+        # Step 2: Read relevant pages
         context = ""
-        for name in page_names:
-            # Clean up potential markdown links from LLM output
-            clean_name = name.replace("[[", "").replace("]]", "")
-            path = self._get_page_path(clean_name)
-            if os.path.exists(path):
-                with open(path, "r", encoding="utf-8") as f:
-                    context += f"\n--- Page: {clean_name} ---\n{f.read()}\n"
+        for path in page_paths:
+            clean_path = path.replace("[[", "").replace("]]", "").strip()
+            if not clean_path.endswith(".md"):
+                clean_path = f"{clean_path}.md"
+            full_path = os.path.join(self.wiki_dir, clean_path.replace("/", os.sep))
+            if os.path.exists(full_path):
+                with open(full_path, "r", encoding="utf-8") as f:
+                    context += f"\n--- {clean_path} ---\n{f.read()}\n"
 
         if not context:
-            return "I found some relevant page names, but the pages themselves seem to be missing."
+            return "I found relevant page names but the pages appear to be missing."
 
-        # 4. Synthesize answer
-        answer_prompt = PromptTemplate(
-            template="You are a wiki assistant. Answer the user query using the provided context from the wiki. Cite your sources using [[Page Name]] syntax. If the context doesn't contain the answer, say you don't know.\n\nContext:\n{context}\n\nQuery: {query}\n",
-            input_variables=["context", "query"]
-        )
-        
-        answer_chain = answer_prompt | self.llm
-        answer = await answer_chain.ainvoke({"context": context, "query": user_query})
-        
+        # Step 3: Synthesize answer
+        answer = await self._run_query_llm(user_query, index_content, context)
         self._append_to_log("query", f"Answered: {user_query}")
-        return answer.content
+        return answer
 
     async def create_new_page(self) -> str:
         """Create a new 'Untitled.md' page and return its filename.

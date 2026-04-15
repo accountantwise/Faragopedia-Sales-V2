@@ -529,3 +529,48 @@ async def test_ingest_retries_on_llm_failure(tmp_path):
 
     assert call_count[0] == 2
     assert (wiki / "clients" / "test.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_query_uses_system_prompt(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema — you are the Farago wiki agent")
+    (schema_dir / "company_profile.md").write_text("# Farago Projects profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "louis-vuitton.md").write_text(
+        "---\ntype: client\nname: Louis Vuitton\ntier: A\n---\n# Louis Vuitton\n\n## Overview\n\nA luxury fashion house."
+    )
+    (wiki / "index.md").write_text(
+        "# Index\n\n## Clients\n\n- [[clients/louis-vuitton]] | last updated: 2026-04-16\n"
+    )
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+
+    captured_calls = []
+
+    async def mock_run_query(user_query, index_content, context):
+        captured_calls.append({
+            "query": user_query,
+            "index": index_content,
+            "context": context,
+        })
+        return "Louis Vuitton is an A-tier client. [[clients/louis-vuitton]]"
+
+    with patch.object(manager, '_run_query_llm', side_effect=mock_run_query):
+        response = await manager.query("Who are our top clients?")
+
+    assert response == "Louis Vuitton is an A-tier client. [[clients/louis-vuitton]]"
+    assert len(captured_calls) == 1
+    assert "louis-vuitton" in captured_calls[0]["context"].lower()
+
+    log_content = (wiki / "log.md").read_text()
+    assert "query" in log_content
