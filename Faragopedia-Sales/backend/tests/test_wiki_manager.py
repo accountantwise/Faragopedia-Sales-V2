@@ -574,3 +574,67 @@ async def test_query_uses_system_prompt(tmp_path):
 
     log_content = (wiki / "log.md").read_text()
     assert "query" in log_content
+
+
+@pytest.mark.asyncio
+async def test_lint_returns_report(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "louis-vuitton.md").write_text(
+        "---\ntype: client\nname: Louis Vuitton\ntier: A\n---\n# Louis Vuitton\n"
+    )
+    (wiki / "index.md").write_text("# Index\n\n## Clients\n\n- [[clients/louis-vuitton]]\n")
+
+    mock_report = LintReport(
+        findings=[
+            LintFinding(
+                severity="warning",
+                page="clients/louis-vuitton.md",
+                description="Missing 'last_contact' field in frontmatter."
+            )
+        ],
+        summary="1 warning found."
+    )
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+
+    with patch.object(manager, '_run_lint_llm', new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = mock_report
+        report = await manager.lint()
+
+    assert isinstance(report, LintReport)
+    assert len(report.findings) == 1
+    assert report.findings[0].severity == "warning"
+    assert report.summary == "1 warning found."
+
+    # Lint is read-only — no files written except log
+    log_content = (wiki / "log.md").read_text()
+    assert "lint" in log_content
+
+
+def test_health_check_no_longer_exists(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(tmp_path / "wiki"),
+            schema_dir=str(schema_dir)
+        )
+
+    assert not hasattr(manager, 'health_check'), \
+        "health_check() should be removed — use lint() instead"

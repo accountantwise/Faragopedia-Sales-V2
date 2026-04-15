@@ -75,6 +75,22 @@ Context:
 
 Query: {query}"""
 
+LINT_HUMAN_TEMPLATE = """Perform a lint operation on the Farago Projects wiki.
+
+All current wiki pages:
+{wiki_content}
+
+Instructions (per SCHEMA.md lint operation):
+1. Find orphan pages — pages with no inbound wikilinks from other pages.
+2. Flag contradictions between pages (conflicting dates, roles, statuses).
+3. Identify entities mentioned in page text that lack their own page.
+4. Suggest data gaps that could be filled with a new source or web search.
+
+Return findings grouped by severity: 'error' (structural problems), 'warning' (data quality), 'suggestion' (gaps to fill).
+Use page='global' for findings that are not specific to one page.
+
+{format_instructions}"""
+
 
 class WikiManager:
     def __init__(self, sources_dir="sources", wiki_dir="wiki", archive_dir="archive", llm=None, schema_dir=None):
@@ -382,6 +398,37 @@ class WikiManager:
         self._append_to_log("query", f"Answered: {user_query}")
         return answer
 
+    async def _run_lint_llm(self, wiki_content: str) -> LintReport:
+        """Run the LLM lint call. Extracted for testability."""
+        parser = PydanticOutputParser(pydantic_object=LintReport)
+        prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template("{system_prompt}"),
+            HumanMessagePromptTemplate.from_template(LINT_HUMAN_TEMPLATE),
+        ])
+        chain = prompt | self.llm | parser
+        return await chain.ainvoke({
+            "system_prompt": self.system_prompt,
+            "wiki_content": wiki_content,
+            "format_instructions": parser.get_format_instructions(),
+        })
+
+    async def lint(self) -> LintReport:
+        """LLM-powered wiki lint. Read-only — returns a LintReport, writes only to log.md."""
+        # Gather all wiki content
+        wiki_content = ""
+        for rel_path in self.list_pages():
+            full_path = os.path.join(self.wiki_dir, rel_path.replace("/", os.sep))
+            if os.path.exists(full_path):
+                with open(full_path, "r", encoding="utf-8") as f:
+                    wiki_content += f"\n=== {rel_path} ===\n{f.read()}\n"
+
+        if not wiki_content.strip():
+            return LintReport(findings=[], summary="Wiki is empty — nothing to lint.")
+
+        report = await self._run_lint_llm(wiki_content)
+        self._append_to_log("lint", report.summary)
+        return report
+
     async def create_new_page(self) -> str:
         """Create a new 'Untitled.md' page and return its filename.
         Handles duplicates by adding a numeric suffix.
@@ -613,75 +660,3 @@ class WikiManager:
             self.update_index()
             self._append_to_log("edit", f"Updated {filename}")
 
-    def health_check(self) -> Dict:
-        """
-        Scan wiki for orphan pages and missing pages.
-        Returns a summary of issues found.
-        """
-        all_files = [f for f in os.listdir(self.wiki_dir) if f.endswith(".md")]
-        pages_to_check = [f for f in all_files if f not in ["log.md"]]
-        
-        # 1. Find all links in all pages
-        all_links = set()
-        index_links = set()
-        
-        # Pattern for [[Page Name]]
-        wiki_link_pattern = re.compile(r"\[\[(.*?)\]\]")
-        # Pattern for [Link Text](Page_Name.md)
-        md_link_pattern = re.compile(r"\[.*?\]\((.*?)\.md\)")
-        
-        for filename in all_files:
-            content = self.get_page_content(filename)
-            # Find [[...]] links
-            wiki_links = wiki_link_pattern.findall(content)
-            for link in wiki_links:
-                # Sanitize the link to match how files are named
-                safe_link = link.replace("/", "_").replace("\\", "_").replace(" ", "_")
-                all_links.add(safe_link)
-                if filename == "index.md":
-                    index_links.add(safe_link)
-            
-            # Find [...](...) links
-            md_links = md_link_pattern.findall(content)
-            for link in md_links:
-                # md links often already have underscores, but let's be safe
-                safe_link = link.replace("/", "_").replace("\\", "_").replace(" ", "_")
-                all_links.add(safe_link)
-                if filename == "index.md":
-                    index_links.add(safe_link)
-        
-        # 2. Check for missing pages (listed in any page but file doesn't exist)
-        missing_pages = []
-        for link in all_links:
-            page_path = os.path.join(self.wiki_dir, f"{link}.md")
-            if not os.path.exists(page_path):
-                missing_pages.append(link)
-        
-        # 3. Check for orphan pages (file exists but no inbound links from ANY other page)
-        orphan_pages = []
-        for filename in pages_to_check:
-            if filename == "index.md":
-                continue
-            
-            title = filename[:-3] # Remove .md
-            
-            # Check if title is linked from any other file
-            is_linked = False
-            for other_file in all_files:
-                if other_file == filename:
-                    continue
-                other_content = self.get_page_content(other_file)
-                # Check for both formats
-                if f"[[{title}]]" in other_content or f"({title}.md)" in other_content:
-                    is_linked = True
-                    break
-            
-            if not is_linked:
-                orphan_pages.append(filename)
-                
-        return {
-            "total_pages": len(pages_to_check),
-            "orphan_pages": orphan_pages,
-            "missing_pages": sorted(list(set(missing_pages))), # Unique and sorted
-            "status": "healthy" if not orphan_pages and not missing_pages else "issues_found"
-        }
