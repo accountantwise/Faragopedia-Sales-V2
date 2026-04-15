@@ -20,6 +20,8 @@ SOURCES_DIR = os.path.join(BASE_DIR, "sources")
 WIKI_DIR = os.path.join(BASE_DIR, "wiki")
 ARCHIVE_DIR = os.path.join(BASE_DIR, "archive")
 
+VALID_ENTITY_SUBDIRS = {"clients", "prospects", "contacts", "photographers", "productions"}
+
 # Instantiate WikiManager
 wiki_manager = WikiManager(
     sources_dir=SOURCES_DIR,
@@ -36,28 +38,46 @@ def secure_filename(filename: str) -> str:
     filename = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
     return filename
 
-def safe_wiki_filename(filename: str) -> str:
+def safe_wiki_filename(path: str) -> str:
+    """Validate a wiki page path of the form 'subdir/page-name.md'.
+    Accepts exactly one level of subdirectory from VALID_ENTITY_SUBDIRS.
+    Rejects path traversal, unknown subdirectories, and non-.md files.
     """
-    Validate a wiki page filename for safe lookup.
-    Strips directory components and enforces .md extension without
-    mangling the characters that _get_page_path preserves (parentheses, +, etc.).
-    """
-    filename = os.path.basename(filename)
-    if not filename.endswith(".md"):
-        raise ValueError(f"Invalid page filename: {filename!r} — must end with .md")
-    
+    # Normalize separators
+    normalized = path.replace("\\", "/")
+
+    # Must end with .md
+    if not normalized.endswith(".md"):
+        raise ValueError(f"Invalid page path: {path!r} — must end with .md")
+
+    parts = normalized.split("/")
+
+    # Must be exactly subdir/filename.md (2 parts)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid entity subdirectory in path: {path!r}")
+
+    subdir, filename = parts
+
+    # Subdir must be a known entity type
+    if subdir not in VALID_ENTITY_SUBDIRS:
+        raise ValueError(f"Invalid entity subdirectory '{subdir}' in path: {path!r}")
+
+    # No path traversal components
+    if ".." in filename or ".." in subdir:
+        raise ValueError(f"Path traversal detected in: {path!r}")
+
+    # Validate the full resolved path stays within wiki dir
     wiki_real = os.path.realpath(WIKI_DIR)
-    resolved = os.path.realpath(os.path.join(wiki_real, filename))
-    
-    # On Windows, paths are case-insensitive
-    if os.name == 'nt':
-        if not (resolved.lower() == wiki_real.lower() or resolved.lower().startswith(wiki_real.lower() + os.sep)):
-            raise ValueError("Path traversal detected")
+    resolved = os.path.realpath(os.path.join(wiki_real, subdir, filename))
+
+    if os.name == "nt":
+        if not resolved.lower().startswith(wiki_real.lower() + os.sep):
+            raise ValueError(f"Path traversal detected in: {path!r}")
     else:
-        if not (resolved == wiki_real or resolved.startswith(wiki_real + os.sep)):
-            raise ValueError("Path traversal detected")
-            
-    return filename
+        if not resolved.startswith(wiki_real + os.sep):
+            raise ValueError(f"Path traversal detected in: {path!r}")
+
+    return normalized
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...), ingest: bool = Query(True)):

@@ -372,3 +372,37 @@ def test_get_backlinks_across_subdirectories(tmp_path):
     backlinks = manager.get_backlinks("clients/louis-vuitton.md")
     assert "productions/2026-02-lv-editorial.md" in backlinks
     assert "contacts/jane-doe.md" in backlinks
+
+
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+os.environ.setdefault("OPENAI_API_KEY", "test_key_for_import")
+from api.routes import safe_wiki_filename
+
+
+def test_safe_wiki_filename_allows_known_subdirs():
+    for sub in ["clients", "prospects", "contacts", "photographers", "productions"]:
+        result = safe_wiki_filename(f"{sub}/some-page.md")
+        assert result == f"{sub}/some-page.md"
+
+
+def test_safe_wiki_filename_rejects_unknown_subdir():
+    with pytest.raises(ValueError, match="Invalid entity subdirectory"):
+        safe_wiki_filename("evil/foo.md")
+
+
+def test_safe_wiki_filename_rejects_flat_path():
+    with pytest.raises(ValueError, match="Invalid entity subdirectory"):
+        safe_wiki_filename("louis-vuitton.md")
+
+
+def test_safe_wiki_filename_rejects_traversal():
+    with pytest.raises(ValueError):
+        safe_wiki_filename("../etc/passwd.md")
+    with pytest.raises(ValueError):
+        safe_wiki_filename("clients/../secrets.md")
+
+
+def test_safe_wiki_filename_rejects_non_md():
+    with pytest.raises(ValueError, match=".md"):
+        safe_wiki_filename("clients/foo.txt")
