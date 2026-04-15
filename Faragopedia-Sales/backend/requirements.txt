@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+langchain
+langchain-core
+langchain-community
+langchain-openai
+langchain-anthropic
+langchain-google-genai
+python-dotenv
+pytest
+pytest-asyncio
+anyio
+httpx
+pypdf

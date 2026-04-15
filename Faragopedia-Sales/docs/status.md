@@ -1,0 +1,75 @@
+# Project Status
+
+> This is the living status document for Faragopedia-Sales.
+> AI agents should read this at the start of every session and update it at the
+> end of any session where meaningful work was done.
+
+---
+
+## Current Phase: 🟡 MVP Development / Prototype Functional
+
+**Last updated:** 2026-04-15
+
+---
+
+## Recent Activity
+
+| Date       | Agent/Person | Summary                                       |
+| ---------- | ------------ | --------------------------------------------- |
+| 2026-04-15 | Claude | **Wiki-Concept Integration Plan**: Authored design spec (`docs/superpowers/specs/2026-04-15-wiki-integration-design.md`) and full implementation plan (`docs/superpowers/plans/2026-04-15-wiki-integration-claude.md`). Plan covers 12 tasks: schema files, new Pydantic models, recursive traversal, path security, ingest redesign, query update, lint operation, create_new_page, API routes, WikiView tree, LintView/Sidebar/App, and final integration test. **Execution not yet started.** |
+| 2026-04-14 | Gemini | **Documentation Audit**: Synchronized `AGENTS.md`, updated `docs/flaws-and-bugs-report.md` with resolved features, and authored [ADR 0001](decisions/0001-file-management-and-ingestion.md). |
+| 2026-04-14 | Gemini | **Improved Ingestion**: Added manual ingestion control. Users can now upload sources without immediate ingestion, track status via a new metadata system, and trigger ingestion manually from the Sources view. |
+| 2026-04-14 | Gemini | **Sources Navigation**: Implemented back/forward history navigation in the Sources view, mirroring the Wiki view behavior. |
+| 2026-04-14 | Gemini | **File Management**: Added Archive, Restore, Delete (Trash Bin), and Download capabilities for both Wiki pages and Sources. Implemented a new 'Archive' storage location and UI view. Added 'New Page' feature (Untitled.md default). |
+| 2026-04-14 | Gemini | **Sources View**: Added a new view to browse and read raw source files (including PDF text extraction). Implemented backend endpoints `GET /api/sources` and `GET /api/sources/{filename}`. |
+| 2026-04-14 | Gemini | **Deployment Fixes**: Resolved "empty container" issue by removing source code volume mounts in `docker-compose.yml`. Updated `backend/main.py` CORS and frontend `App.tsx`/`WikiView.tsx` to use dynamic backend URLs based on `window.location.hostname`. |
+| 2026-04-14 | Claude       | **Ingestion Race Condition Fix**: Added `asyncio.Lock` to `WikiManager`. `ingest_source` split into two phases — LLM inference runs concurrently, file writes serialized. 33/33 tests passing. Merged to main. |
+| 2026-04-14 | Claude       | **Interactive WikiLinks Fix**: Fixed filename mismatch between `_get_page_path` and `secure_filename`. Added `safe_wiki_filename` to routes for path-traversal-safe page lookups. Fixed `processWikiLinks` in `WikiView.tsx` to mirror backend sanitization rules. 18/18 tests passing. Merged to main. |
+| 2026-04-14 | Gemini       | **Interactive WikiLinks & Port Refactoring**: Changed backend port to 8300 to resolve allocation conflicts. Updated all API calls and documentation. Implemented interactive `[[WikiLinks]]` in the frontend for associative navigation. |
+| 2026-04-14 | Gemini       | **Local Development Workflow**: Verified local execution of FastAPI and Vite without Docker. Successfully tested ingestion and chat with OpenRouter/Claude Sonnet. |
+| 2026-04-13 | Gemini       | **Implemented Multi-Provider LLM Support**: Added dynamic switching between OpenAI, Anthropic, Gemini, and OpenRouter via factory pattern in `WikiManager`. Updated tests and API to handle multiple providers. |
+| 2026-04-13 | Gemini       | **Finalized MVP Features**: Implemented `WikiView`, `Upload`, and `Chat` frontend views with `react-markdown` and `lucide-react`. Added Wiki Health Check logic to `WikiManager`. |
+| 2026-04-13 | Gemini       | **Completed Scaffolding**: Built FastAPI backend with upload/chat routes and React/Vite/Tailwind frontend layout. |
+| 2026-04-13 | Gemini       | **Architectural Design**: Authored design docs and implementation plans for the LLM Wiki webapp. |
+| 2026-04-13 | Claude       | Initialized project scaffold, shared AI context, Docker skeleton. |
+
+---
+
+## What Exists Now
+
+- [x] Project scaffold with shared AI-agent context (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`)
+- [x] Git configuration (`.gitignore`, `.editorconfig`)
+- [x] Docker setup and project structure (`backend/`, `frontend/`, `sources/`, `wiki/`)
+- [x] Dockerfiles and docker-compose.yml with named volumes
+- [x] Initial FastAPI (backend/main.py) and React (frontend/) placeholders
+- [x] Backend routes for upload and chat (with security and Docker fixes)
+- [x] Frontend layout with Sidebar and view switching (React + Tailwind)
+- [x] WikiManager with LangChain ingestion and health check logic
+- [x] Functional Wiki, Upload, Chat, and Health Check UI views
+- [x] Multi-Provider LLM Integration (OpenAI, Anthropic, Gemini, OpenRouter)
+- [x] Documentation structure (`docs/status.md`, `docs/decisions/`)
+- [x] Port conflict resolved (Backend moved to 8300)
+- [x] Local development verification (FastAPI + Vite)
+- [x] Interactive [[WikiLinks]] ✅ Fixed (2026-04-14)
+- [x] Ingestion Race Conditions ✅ Fixed (2026-04-14)
+- [x] Backlinks/Linked Mentions ✅ Fixed (2026-04-14)
+- [x] Navigation History (back/forward) ✅ Fixed (2026-04-14)
+- [x] Edit Page capability ✅ Fixed (2026-04-14)
+- [x] Sources View (Browse/Read raw data) ✅ Fixed (2026-04-14)
+- [x] File Management (New, Archive, Restore, Delete, Download) ✅ (2026-04-14)
+- [x] Improved Source Ingestion (Manual control, Status tracking) ✅ (2026-04-14)
+- [x] Sources Navigation (Back/Forward) ✅ (2026-04-14)
+
+---
+
+## Immediate Next Steps
+
+1. **Execute Wiki-Concept Integration Plan** 👈 — Plan is written and ready. Use `superpowers:subagent-driven-development` or `superpowers:executing-plans`. Plan: `docs/superpowers/plans/2026-04-15-wiki-integration-claude.md`
+2. Add Graph View
+3. Refine AI maintenance logic (post-integration)
+
+---
+
+## Known Issues / Blockers
+
+*   **None**
