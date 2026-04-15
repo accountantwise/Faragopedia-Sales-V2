@@ -41,6 +41,9 @@ class LintReport(BaseModel):
     summary: str = Field(description="One-line summary of findings count by severity")
 
 
+ENTITY_SUBDIRS = ["clients", "prospects", "contacts", "photographers", "productions"]
+
+
 class WikiManager:
     def __init__(self, sources_dir="sources", wiki_dir="wiki", archive_dir="archive", llm=None, schema_dir=None):
         self.sources_dir = sources_dir
@@ -145,20 +148,42 @@ class WikiManager:
             f.write(f"## [{timestamp}] {action} | {details}\n")
 
     def update_index(self):
+        """Regenerate index.md grouped by entity subdirectory."""
         index_path = os.path.join(self.wiki_dir, "index.md")
-        # List all markdown files except index and log
-        files = [f for f in os.listdir(self.wiki_dir) if f.endswith(".md") and f not in ["index.md", "log.md"]]
-        
-        index_content = "# Wiki Index\n\n"
-        index_content += "A content-oriented catalog of all pages in the wiki.\n\n"
-        for f_name in files:
-            title = f_name[:-3]
-            # Simple heuristic: we could read the first few lines for a summary,
-            # but for now, we'll just link it.
-            index_content += f"- [[{title}]]: Wiki page for {title}\n"
-        
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+
+        sections = {}
+        for sub in ENTITY_SUBDIRS:
+            sub_dir = os.path.join(self.wiki_dir, sub)
+            if not os.path.exists(sub_dir):
+                continue
+            files = sorted(f for f in os.listdir(sub_dir) if f.endswith(".md"))
+            if files:
+                sections[sub] = files
+
+        lines = [
+            "# Wiki Index — Farago Projects",
+            "",
+            f"Last updated: {today}",
+            "",
+            "---",
+            "",
+        ]
+
+        for sub in ENTITY_SUBDIRS:
+            heading = sub.capitalize()
+            lines.append(f"## {heading}")
+            lines.append("")
+            if sub in sections:
+                for filename in sections[sub]:
+                    page_ref = f"{sub}/{filename[:-3]}"  # strip .md
+                    lines.append(f"- [[{page_ref}]] | last updated: {today}")
+            else:
+                lines.append(f"*No {sub} pages yet.*")
+            lines.append("")
+
         with open(index_path, "w", encoding="utf-8") as f:
-            f.write(index_content)
+            f.write("\n".join(lines))
 
     async def ingest_source(self, file_name: str):
         # Phase 1 — Read and LLM inference (runs concurrently across uploads)
@@ -413,8 +438,20 @@ class WikiManager:
             self.sources_dir = old_sources_dir
 
     def list_pages(self) -> List[str]:
-        """List all markdown files in the wiki directory, excluding log.md and index.md."""
-        return [f for f in os.listdir(self.wiki_dir) if f.endswith(".md") and f not in ["log.md", "index.md"]]
+        """List all entity pages as relative paths (e.g. 'clients/louis-vuitton.md').
+        Excludes index.md and log.md."""
+        pages = []
+        for root, _dirs, files in os.walk(self.wiki_dir):
+            for filename in sorted(files):
+                if not filename.endswith(".md"):
+                    continue
+                rel_path = os.path.relpath(os.path.join(root, filename), self.wiki_dir)
+                # Normalize to forward slashes
+                rel_path = rel_path.replace(os.sep, "/")
+                if rel_path in ("index.md", "log.md"):
+                    continue
+                pages.append(rel_path)
+        return pages
 
     def list_sources(self) -> List[str]:
         """List all files in the sources directory."""
@@ -454,46 +491,32 @@ class WikiManager:
         except Exception as e:
             return f"Error reading file: {str(e)}"
 
-    def get_backlinks(self, filename: str) -> List[str]:
+    def get_backlinks(self, page_path: str) -> List[str]:
+        """Find all pages that contain a wikilink to page_path.
+        page_path is a relative path like 'clients/louis-vuitton.md'.
+        Searches for [[clients/louis-vuitton]] style links.
         """
-        Find all pages that link to the given filename.
-        """
-        target_title = filename[:-3] if filename.endswith(".md") else filename
-        backlinks = []
-        
-        all_files = [f for f in os.listdir(self.wiki_dir) if f.endswith(".md")]
-        
-        # Patterns for links
+        # Build the link target string (without .md)
+        target_ref = page_path[:-3] if page_path.endswith(".md") else page_path
+
         wiki_link_pattern = re.compile(r"\[\[(.*?)\]\]")
-        md_link_pattern = re.compile(r"\[.*?\]\((.*?)\.md\)")
-        
-        for f in all_files:
-            if f == filename:
-                continue
-                
-            content = self.get_page_content(f)
-            
-            # Check wiki links [[...]]
-            found = False
-            wiki_links = wiki_link_pattern.findall(content)
-            for link in wiki_links:
-                safe_link = link.replace("/", "_").replace("\\", "_").replace(" ", "_")
-                if safe_link == target_title:
-                    backlinks.append(f)
-                    found = True
-                    break
-            
-            if found:
-                continue
-                
-            # Check markdown links [...](...)
-            md_links = md_link_pattern.findall(content)
-            for link in md_links:
-                safe_link = link.replace("/", "_").replace("\\", "_").replace(" ", "_")
-                if safe_link == target_title:
-                    backlinks.append(f)
-                    break
-                    
+        backlinks = []
+
+        for root, _dirs, files in os.walk(self.wiki_dir):
+            for filename in sorted(files):
+                if not filename.endswith(".md"):
+                    continue
+                rel = os.path.relpath(os.path.join(root, filename), self.wiki_dir).replace(os.sep, "/")
+                if rel == page_path or rel in ("index.md", "log.md"):
+                    continue
+                full_path = os.path.join(root, filename)
+                with open(full_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                for link in wiki_link_pattern.findall(content):
+                    if link == target_ref:
+                        backlinks.append(rel)
+                        break
+
         return sorted(backlinks)
 
     async def save_page_content(self, filename: str, content: str):

@@ -279,3 +279,96 @@ def test_system_prompt_raises_if_schema_missing(tmp_path):
                 wiki_dir=str(wiki),
                 schema_dir=str(schema_dir)
             )
+
+
+def test_list_pages_returns_subdirectory_paths(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "photographers").mkdir()
+    (wiki / "clients" / "louis-vuitton.md").write_text("---\ntype: client\n---\n# LV")
+    (wiki / "photographers" / "jamie-hawkesworth.md").write_text("---\ntype: photographer\n---\n# JH")
+    (wiki / "index.md").write_text("# Index")
+    (wiki / "log.md").write_text("# Log")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+
+    pages = manager.list_pages()
+    assert "clients/louis-vuitton.md" in pages
+    assert "photographers/jamie-hawkesworth.md" in pages
+    assert "index.md" not in pages
+    assert "log.md" not in pages
+
+
+def test_update_index_groups_by_subdirectory(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    for sub in ["clients", "prospects", "contacts", "photographers", "productions"]:
+        (wiki / sub).mkdir()
+    (wiki / "clients" / "louis-vuitton.md").write_text("# LV")
+    (wiki / "prospects" / "chanel.md").write_text("# Chanel")
+    (wiki / "photographers" / "jamie-hawkesworth.md").write_text("# JH")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+
+    manager.update_index()
+    index_content = (wiki / "index.md").read_text()
+
+    assert "## Clients" in index_content
+    assert "[[clients/louis-vuitton]]" in index_content
+    assert "## Prospects" in index_content
+    assert "[[prospects/chanel]]" in index_content
+    assert "## Photographers" in index_content
+    assert "[[photographers/jamie-hawkesworth]]" in index_content
+
+
+def test_get_backlinks_across_subdirectories(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "contacts").mkdir()
+    (wiki / "productions").mkdir()
+
+    (wiki / "clients" / "louis-vuitton.md").write_text(
+        "# LV\n\nKey contact: [[contacts/jane-doe]]"
+    )
+    (wiki / "productions" / "2026-02-lv-editorial.md").write_text(
+        "# LV Editorial\n\nClient: [[clients/louis-vuitton]]"
+    )
+    (wiki / "contacts" / "jane-doe.md").write_text("# Jane Doe\n\nWorks at [[clients/louis-vuitton]]")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+
+    backlinks = manager.get_backlinks("clients/louis-vuitton.md")
+    assert "productions/2026-02-lv-editorial.md" in backlinks
+    assert "contacts/jane-doe.md" in backlinks
