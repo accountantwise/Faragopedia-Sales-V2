@@ -10,6 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
 class Entity(BaseModel):
@@ -21,21 +22,57 @@ class IngestionResult(BaseModel):
     source_summary: str = Field(description="A concise summary of the source document")
     entities: List[Entity] = Field(description="Key entities and concepts extracted from the document")
 
+class WikiPage(BaseModel):
+    path: str = Field(description="Relative path for the wiki page, e.g. 'clients/louis-vuitton.md'")
+    content: str = Field(description="Full markdown content including YAML frontmatter and all sections")
+    action: str = Field(description="'create' for new pages, 'update' for existing pages")
+
+class FaragoIngestionResult(BaseModel):
+    pages: List[WikiPage] = Field(description="All wiki pages to create or update")
+    log_entry: str = Field(description="2-3 line summary of what was ingested, for log.md")
+
+class LintFinding(BaseModel):
+    severity: str = Field(description="'error', 'warning', or 'suggestion'")
+    page: str = Field(description="Affected page path (e.g. 'clients/louis-vuitton.md') or 'global'")
+    description: str = Field(description="Description of the issue or suggestion")
+
+class LintReport(BaseModel):
+    findings: List[LintFinding] = Field(description="All findings from the lint operation")
+    summary: str = Field(description="One-line summary of findings count by severity")
+
+
 class WikiManager:
-    def __init__(self, sources_dir="sources", wiki_dir="wiki", archive_dir="archive", llm=None):
+    def __init__(self, sources_dir="sources", wiki_dir="wiki", archive_dir="archive", llm=None, schema_dir=None):
         self.sources_dir = sources_dir
         self.wiki_dir = wiki_dir
         self.archive_dir = archive_dir
         self.archive_wiki_dir = os.path.join(archive_dir, "wiki")
         self.archive_sources_dir = os.path.join(archive_dir, "sources")
         self.metadata_path = os.path.join(sources_dir, ".metadata.json")
+        self.schema_dir = schema_dir or os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "schema"
+        )
+        self.system_prompt = self._load_system_prompt()
         self.llm = llm if llm else self._init_llm()
         self._write_lock = asyncio.Lock()
 
-        # Ensure directories exist
-        for d in [self.sources_dir, self.wiki_dir, self.archive_dir, self.archive_wiki_dir, self.archive_sources_dir]:
+        for d in [self.sources_dir, self.wiki_dir, self.archive_dir,
+                  self.archive_wiki_dir, self.archive_sources_dir]:
             if not os.path.exists(d):
                 os.makedirs(d, exist_ok=True)
+
+    def _load_system_prompt(self) -> str:
+        schema_path = os.path.join(self.schema_dir, "SCHEMA.md")
+        profile_path = os.path.join(self.schema_dir, "company_profile.md")
+        if not os.path.exists(schema_path):
+            raise FileNotFoundError(f"SCHEMA.md not found at {schema_path}")
+        if not os.path.exists(profile_path):
+            raise FileNotFoundError(f"company_profile.md not found at {profile_path}")
+        with open(schema_path, "r", encoding="utf-8") as f:
+            schema = f.read()
+        with open(profile_path, "r", encoding="utf-8") as f:
+            profile = f.read()
+        return f"{schema}\n\n---\n\n{profile}"
 
     def _init_llm(self):
         provider = os.getenv("AI_PROVIDER", "openai").lower()

@@ -1,8 +1,10 @@
 import asyncio
-import pytest
 import os
-from unittest.mock import patch, AsyncMock
-from agent.wiki_manager import WikiManager, IngestionResult, Entity
+import pytest
+from unittest.mock import patch, AsyncMock, MagicMock
+from agent.wiki_manager import (
+    WikiManager, WikiPage, FaragoIngestionResult, LintFinding, LintReport
+)
 
 @pytest.fixture(autouse=True)
 def mock_env():
@@ -329,3 +331,119 @@ async def test_metadata_tracking(temp_dirs):
     manager2 = WikiManager(sources_dir=sources, wiki_dir=wiki)
     meta2 = manager2.get_sources_metadata()
     assert meta2[filename]["ingested"] is True
+
+
+@pytest.fixture
+def schema_dirs(tmp_path):
+    """Create fake schema files for tests."""
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Test Schema\nYou are the Farago wiki agent.")
+    (schema_dir / "company_profile.md").write_text("# Farago Projects\nA creative production house.")
+    return str(schema_dir)
+
+
+@pytest.fixture
+def temp_dirs_with_schema(tmp_path, schema_dirs):
+    sources = tmp_path / "sources"
+    wiki = tmp_path / "wiki"
+    sources.mkdir()
+    wiki.mkdir()
+    return str(sources), str(wiki), schema_dirs
+
+
+def test_wiki_page_model():
+    page = WikiPage(
+        path="clients/louis-vuitton.md",
+        content="---\ntype: client\nname: Louis Vuitton\n---\n# Louis Vuitton\n",
+        action="create"
+    )
+    assert page.path == "clients/louis-vuitton.md"
+    assert page.action == "create"
+    assert "Louis Vuitton" in page.content
+
+
+def test_wiki_page_action_values():
+    create_page = WikiPage(path="clients/foo.md", content="# Foo", action="create")
+    update_page = WikiPage(path="clients/foo.md", content="# Foo updated", action="update")
+    assert create_page.action == "create"
+    assert update_page.action == "update"
+
+
+def test_farago_ingestion_result_model():
+    result = FaragoIngestionResult(
+        pages=[
+            WikiPage(path="clients/louis-vuitton.md", content="# LV", action="create"),
+            WikiPage(path="contacts/jane-doe.md", content="# Jane", action="create"),
+        ],
+        log_entry="Ingested LV press release. Created 2 pages: clients/louis-vuitton, contacts/jane-doe."
+    )
+    assert len(result.pages) == 2
+    assert result.pages[0].path == "clients/louis-vuitton.md"
+    assert "jane-doe" in result.log_entry
+
+
+def test_lint_finding_model():
+    finding = LintFinding(
+        severity="warning",
+        page="clients/louis-vuitton.md",
+        description="Missing 'last_contact' field in frontmatter."
+    )
+    assert finding.severity == "warning"
+    assert finding.page == "clients/louis-vuitton.md"
+
+
+def test_lint_report_model():
+    report = LintReport(
+        findings=[
+            LintFinding(severity="error", page="global", description="Orphan page: photographers/unknown.md"),
+            LintFinding(severity="warning", page="clients/chanel.md", description="tier field is empty"),
+            LintFinding(severity="suggestion", page="global", description="Consider adding Dior as a prospect"),
+        ],
+        summary="1 error, 1 warning, 1 suggestion found."
+    )
+    assert len(report.findings) == 3
+    errors = [f for f in report.findings if f.severity == "error"]
+    assert len(errors) == 1
+
+
+def test_system_prompt_loaded_from_schema_dir(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# SCHEMA CONTENT")
+    (schema_dir / "company_profile.md").write_text("# PROFILE CONTENT")
+
+    sources = tmp_path / "sources"
+    wiki = tmp_path / "wiki"
+    sources.mkdir()
+    wiki.mkdir()
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(sources),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+
+    assert "SCHEMA CONTENT" in manager.system_prompt
+    assert "PROFILE CONTENT" in manager.system_prompt
+
+
+def test_system_prompt_raises_if_schema_missing(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    # Only create SCHEMA.md, not company_profile.md
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+
+    sources = tmp_path / "sources"
+    wiki = tmp_path / "wiki"
+    sources.mkdir()
+    wiki.mkdir()
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        with pytest.raises(FileNotFoundError):
+            WikiManager(
+                sources_dir=str(sources),
+                wiki_dir=str(wiki),
+                schema_dir=str(schema_dir)
+            )
