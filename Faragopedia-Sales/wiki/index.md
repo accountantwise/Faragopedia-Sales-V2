@@ -1,52 +1,35 @@
-# Wiki Index
+# Wiki Index — Farago Projects
 
-A content-oriented catalog of all pages in the wiki.
+Last updated: 2026-04-16
 
-- [[5-Step_Plan_to_Apply_AI_in_Daily_Life]]: Wiki page for 5-Step_Plan_to_Apply_AI_in_Daily_Life
-- [[6-Step_Prompt_Formula]]: Wiki page for 6-Step_Prompt_Formula
-- [[Agent_(Managed_Agents_Concept)]]: Wiki page for Agent_(Managed_Agents_Concept)
-- [[Agent_SDK_+_Trigger.dev]]: Wiki page for Agent_SDK_+_Trigger.dev
-- [[agent_toolset_20260401]]: Wiki page for agent_toolset_20260401
-- [[Agent_Versioning]]: Wiki page for Agent_Versioning
-- [[ant_CLI]]: Wiki page for ant_CLI
-- [[Business_Idea_Generation_Use_Case]]: Wiki page for Business_Idea_Generation_Use_Case
-- [[ChatGPT]]: Wiki page for ChatGPT
-- [[ChatGPT_Advanced_Voice]]: Wiki page for ChatGPT_Advanced_Voice
-- [[ChatGPT_Canvas]]: Wiki page for ChatGPT_Canvas
-- [[ChatGPT_Custom_Instructions]]: Wiki page for ChatGPT_Custom_Instructions
-- [[ChatGPT_Memory_Feature]]: Wiki page for ChatGPT_Memory_Feature
-- [[ChatGPT_Vision]]: Wiki page for ChatGPT_Vision
-- [[Claude_Managed_Agents]]: Wiki page for Claude_Managed_Agents
-- [[Colacho]]: Wiki page for Colacho
-- [[Context_Step]]: Wiki page for Context_Step
-- [[Custom_GPT]]: Wiki page for Custom_GPT
-- [[Custom_Tools]]: Wiki page for Custom_Tools
-- [[Environment_(Managed_Agents_Concept)]]: Wiki page for Environment_(Managed_Agents_Concept)
-- [[Events_(Managed_Agents_Concept)]]: Wiki page for Events_(Managed_Agents_Concept)
-- [[Faragopedia]]: Wiki page for Faragopedia
-- [[FastAPI]]: Wiki page for FastAPI
-- [[Fast_Mode]]: Wiki page for Fast_Mode
-- [[Heartbeat_Feature]]: Wiki page for Heartbeat_Feature
-- [[Job_Search_Optimization_Use_Case]]: Wiki page for Job_Search_Optimization_Use_Case
-- [[Managed_Agents_Pricing]]: Wiki page for Managed_Agents_Pricing
-- [[MCP_Servers]]: Wiki page for MCP_Servers
-- [[Memory_Stores]]: Wiki page for Memory_Stores
-- [[Multi-Agent_Orchestration]]: Wiki page for Multi-Agent_Orchestration
-- [[o1_Model]]: Wiki page for o1_Model
-- [[OpenClaw]]: Wiki page for OpenClaw
-- [[Outcomes]]: Wiki page for Outcomes
-- [[Permission_Policies]]: Wiki page for Permission_Policies
-- [[Persona_Step]]: Wiki page for Persona_Step
-- [[React]]: Wiki page for React
-- [[Rundown_AI]]: Wiki page for Rundown_AI
-- [[Scheduling_Gap]]: Wiki page for Scheduling_Gap
-- [[Session_(Managed_Agents_Concept)]]: Wiki page for Session_(Managed_Agents_Concept)
-- [[Skills]]: Wiki page for Skills
-- [[Standard_Operating_Procedure_(SOP)_Creation_Use_Case]]: Wiki page for Standard_Operating_Procedure_(SOP)_Creation_Use_Case
-- [[Summary_Expert-ChatGPT-Prompt-Guide-by-The-Rundown-University.pdf]]: Wiki page for Summary_Expert-ChatGPT-Prompt-Guide-by-The-Rundown-University.pdf
-- [[Summary_managed-agents-guide.md]]: Wiki page for Summary_managed-agents-guide.md
-- [[Summary_test_upload.txt]]: Wiki page for Summary_test_upload.txt
-- [[Supported_Models]]: Wiki page for Supported_Models
-- [[Task_Step]]: Wiki page for Task_Step
-- [[Vaults]]: Wiki page for Vaults
-- [[WikiManager_Agent]]: Wiki page for WikiManager_Agent
+This is the master catalog of all wiki pages. Updated on every ingest operation.
+
+---
+
+## Clients
+
+*No client pages yet.*
+
+---
+
+## Prospects
+
+*No prospect pages yet.*
+
+---
+
+## Contacts
+
+*No contact pages yet.*
+
+---
+
+## Photographers
+
+*No photographer pages yet.*
+
+---
+
+## Productions
+
+*No production pages yet.*
