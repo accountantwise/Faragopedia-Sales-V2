@@ -638,3 +638,53 @@ def test_health_check_no_longer_exists(tmp_path):
 
     assert not hasattr(manager, 'health_check'), \
         "health_check() should be removed — use lint() instead"
+
+
+@pytest.mark.asyncio
+async def test_create_new_page_in_entity_subdir(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    for sub in ["clients", "prospects", "contacts", "photographers", "productions"]:
+        (wiki / sub).mkdir()
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+
+    filename = await manager.create_new_page(entity_type="clients")
+    assert filename == "clients/Untitled.md"
+    assert (wiki / "clients" / "Untitled.md").exists()
+
+    # Second creation → collision handling
+    filename2 = await manager.create_new_page(entity_type="clients")
+    assert filename2 == "clients/Untitled_1.md"
+
+    # Photographers subdir
+    filename3 = await manager.create_new_page(entity_type="photographers")
+    assert filename3 == "photographers/Untitled.md"
+
+
+@pytest.mark.asyncio
+async def test_create_new_page_rejects_invalid_type(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(tmp_path / "wiki"),
+            schema_dir=str(schema_dir)
+        )
+
+    with pytest.raises(ValueError, match="Invalid entity type"):
+        await manager.create_new_page(entity_type="invoices")

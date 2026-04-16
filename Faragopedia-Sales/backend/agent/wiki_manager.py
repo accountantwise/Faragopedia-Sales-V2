@@ -429,24 +429,33 @@ class WikiManager:
         self._append_to_log("lint", report.summary)
         return report
 
-    async def create_new_page(self) -> str:
-        """Create a new 'Untitled.md' page and return its filename.
-        Handles duplicates by adding a numeric suffix.
+    async def create_new_page(self, entity_type: str = "clients") -> str:
+        """Create a new Untitled page in the given entity subdirectory.
+        Returns the relative path, e.g. 'clients/Untitled.md'.
         """
+        if entity_type not in ENTITY_SUBDIRS:
+            raise ValueError(f"Invalid entity type: {entity_type!r}. Must be one of {ENTITY_SUBDIRS}")
+
         async with self._write_lock:
+            sub_dir = os.path.join(self.wiki_dir, entity_type)
+            os.makedirs(sub_dir, exist_ok=True)
+
             base_name = "Untitled"
-            filename = f"{base_name}.md"
+            rel_path = f"{entity_type}/{base_name}.md"
             count = 1
-            while os.path.exists(os.path.join(self.wiki_dir, filename)):
-                filename = f"{base_name}_{count}.md"
+            while os.path.exists(os.path.join(self.wiki_dir, rel_path.replace("/", os.sep))):
+                rel_path = f"{entity_type}/{base_name}_{count}.md"
                 count += 1
-            
-            with open(os.path.join(self.wiki_dir, filename), "w", encoding="utf-8") as f:
-                f.write(f"# {filename[:-3]}\n\nNew wiki page content here.")
-            
+
+            # Write with minimal frontmatter for the entity type
+            singular = entity_type.rstrip("s")  # "clients" → "client", etc.
+            content = f"---\ntype: {singular}\nname: \n---\n\n# Untitled\n\nNew page content here.\n"
+            with open(os.path.join(self.wiki_dir, rel_path.replace("/", os.sep)), "w", encoding="utf-8") as f:
+                f.write(content)
+
             self.update_index()
-            self._append_to_log("create", f"Created {filename}")
-            return filename
+            self._append_to_log("create", f"Created {rel_path}")
+            return rel_path
 
     async def archive_page(self, filename: str):
         """Move a wiki page to the archive."""
