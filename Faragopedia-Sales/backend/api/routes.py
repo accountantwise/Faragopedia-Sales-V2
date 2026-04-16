@@ -4,6 +4,7 @@ import os
 import shutil
 import re
 import asyncio
+from typing import Dict, List
 from agent.wiki_manager import WikiManager
 
 router = APIRouter()
@@ -131,17 +132,17 @@ async def chat(query: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
 
-@router.get("/health")
-async def health_check():
-    try:
-        return wiki_manager.health_check()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error performing health check: {str(e)}")
-
 @router.get("/pages")
 async def list_pages():
+    """Return wiki pages grouped by entity subdirectory."""
     try:
-        return wiki_manager.list_pages()
+        all_pages = wiki_manager.list_pages()
+        grouped: Dict[str, List[str]] = {sub: [] for sub in VALID_ENTITY_SUBDIRS}
+        for page_path in all_pages:
+            parts = page_path.split("/")
+            if len(parts) == 2 and parts[0] in VALID_ENTITY_SUBDIRS:
+                grouped[parts[0]].append(page_path)
+        return grouped
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing pages: {str(e)}")
 
@@ -175,18 +176,44 @@ async def ingest_source(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error starting ingestion: {str(e)}")
 
-@router.get("/pages/{filename}")
-async def get_page(filename: str):
+@router.get("/pages/{path:path}/backlinks")
+async def get_backlinks(path: str):
     try:
-        safe_name = safe_wiki_filename(filename)
+        safe_path = safe_wiki_filename(path)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     try:
-        return {"content": wiki_manager.get_page_content(safe_name)}
+        return wiki_manager.get_backlinks(safe_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching backlinks: {str(e)}")
+
+
+@router.get("/pages/{path:path}/download")
+async def download_page(path: str):
+    try:
+        safe_path = safe_wiki_filename(path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    full_path = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="Page not found")
+    filename = safe_path.split("/")[-1]
+    return FileResponse(full_path, filename=filename, media_type="text/markdown")
+
+
+@router.get("/pages/{path:path}")
+async def get_page(path: str):
+    try:
+        safe_path = safe_wiki_filename(path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        return {"content": wiki_manager.get_page_content(safe_path)}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Page not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading page: {str(e)}")
+
 
 @router.get("/sources/{filename}")
 async def get_source(filename: str):
@@ -199,39 +226,39 @@ async def get_source(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading source: {str(e)}")
 
-@router.get("/pages/{filename}/backlinks")
-async def get_backlinks(filename: str):
-    try:
-        safe_name = safe_wiki_filename(filename)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    try:
-        return wiki_manager.get_backlinks(safe_name)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching backlinks: {str(e)}")
 
 @router.post("/pages")
-async def create_page():
+async def create_page(entity_type: str = Query("clients")):
+    if entity_type not in VALID_ENTITY_SUBDIRS:
+        raise HTTPException(status_code=400, detail=f"Invalid entity type: {entity_type}")
     try:
-        filename = await wiki_manager.create_new_page()
+        filename = await wiki_manager.create_new_page(entity_type=entity_type)
         return {"filename": filename, "message": "New page created"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating page: {str(e)}")
 
-@router.delete("/pages/{filename}")
-async def delete_page(filename: str):
+
+@router.post("/lint")
+async def run_lint():
     try:
-        safe_name = safe_wiki_filename(filename)
+        report = await wiki_manager.lint()
+        return report.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error running lint: {str(e)}")
+
+
+@router.delete("/pages/{path:path}")
+async def delete_page(path: str):
+    try:
+        safe_path = safe_wiki_filename(path)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     try:
-        await wiki_manager.archive_page(safe_name)
+        await wiki_manager.archive_page(safe_path)
         return {"message": "Page moved to archive"}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Page not found")
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error archiving page: {str(e)}")
 
 @router.delete("/sources/{filename}")
@@ -304,17 +331,6 @@ async def delete_archived_source_permanent(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting source: {str(e)}")
 
-@router.get("/pages/{filename}/download")
-async def download_page(filename: str):
-    try:
-        safe_name = safe_wiki_filename(filename)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    path = os.path.join(WIKI_DIR, safe_name)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Page not found")
-    return FileResponse(path, filename=safe_name, media_type="text/markdown")
-
 @router.get("/sources/{filename}/download")
 async def download_source(filename: str):
     safe_name = os.path.basename(filename)
@@ -323,19 +339,17 @@ async def download_source(filename: str):
         raise HTTPException(status_code=404, detail="Source not found")
     return FileResponse(path, filename=safe_name)
 
-@router.put("/pages/{filename}")
-async def update_page(filename: str, payload: dict):
+@router.put("/pages/{path:path}")
+async def update_page(path: str, payload: dict):
     try:
-        safe_name = safe_wiki_filename(filename)
+        safe_path = safe_wiki_filename(path)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
     content = payload.get("content")
     if content is None:
         raise HTTPException(status_code=422, detail="Content is required")
-        
     try:
-        await wiki_manager.save_page_content(safe_name, content)
+        await wiki_manager.save_page_content(safe_path, content)
         return {"message": "Page updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating page: {str(e)}")

@@ -457,24 +457,21 @@ class WikiManager:
             self._append_to_log("create", f"Created {rel_path}")
             return rel_path
 
-    async def archive_page(self, filename: str):
+    async def archive_page(self, page_path: str):
         """Move a wiki page to the archive."""
-        src = os.path.join(self.wiki_dir, filename)
-        dest = os.path.join(self.archive_wiki_dir, filename)
-        
+        src = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
+        dest = os.path.join(self.archive_wiki_dir, page_path.replace("/", os.sep))
         async with self._write_lock:
             if not os.path.exists(src):
-                raise FileNotFoundError(f"Page not found: {filename}")
-            
-            # Handle collision in archive
+                raise FileNotFoundError(f"Page not found: {page_path}")
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
             if os.path.exists(dest):
-                base, ext = os.path.splitext(filename)
+                base, ext = os.path.splitext(dest)
                 timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-                dest = os.path.join(self.archive_wiki_dir, f"{base}_{timestamp}{ext}")
-                
+                dest = f"{base}_{timestamp}{ext}"
             shutil.move(src, dest)
             self.update_index()
-            self._append_to_log("archive", f"Archived {filename}")
+            self._append_to_log("archive", f"Archived {page_path}")
 
     async def archive_source(self, filename: str):
         """Move a source file to the archive."""
@@ -593,11 +590,11 @@ class WikiManager:
         """List all files in the sources directory."""
         return [f for f in os.listdir(self.sources_dir) if os.path.isfile(os.path.join(self.sources_dir, f)) and f != ".gitkeep"]
 
-    def get_page_content(self, filename: str) -> str:
+    def get_page_content(self, page_path: str) -> str:
         """Read and return the content of a wiki page."""
-        path = os.path.join(self.wiki_dir, filename)
+        path = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
         if not os.path.exists(path):
-            raise FileNotFoundError(f"Page not found: {filename}")
+            raise FileNotFoundError(f"Page not found: {page_path}")
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
 
@@ -655,17 +652,14 @@ class WikiManager:
 
         return sorted(backlinks)
 
-    async def save_page_content(self, filename: str, content: str):
+    async def save_page_content(self, page_path: str, content: str):
         """
         Save content to a wiki page and log the action.
         """
-        path = os.path.join(self.wiki_dir, filename)
-        
+        path = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
         async with self._write_lock:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
-            
-            # Update index just in case this is a new file (though usually it's an edit)
             self.update_index()
-            self._append_to_log("edit", f"Updated {filename}")
+            self._append_to_log("edit", f"Updated {page_path}")
 
