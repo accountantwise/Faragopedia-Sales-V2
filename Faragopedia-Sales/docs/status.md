@@ -8,7 +8,7 @@
 
 ## Current Phase: 🟡 MVP Development / Prototype Functional
 
-**Last updated:** 2026-04-15
+**Last updated:** 2026-04-16
 
 ---
 
@@ -16,7 +16,9 @@
 
 | Date       | Agent/Person | Summary                                       |
 | ---------- | ------------ | --------------------------------------------- |
-| 2026-04-15 | Claude | **Wiki-Concept Integration Plan**: Authored design spec (`docs/superpowers/specs/2026-04-15-wiki-integration-design.md`) and full implementation plan (`docs/superpowers/plans/2026-04-15-wiki-integration-claude.md`). Plan covers 12 tasks: schema files, new Pydantic models, recursive traversal, path security, ingest redesign, query update, lint operation, create_new_page, API routes, WikiView tree, LintView/Sidebar/App, and final integration test. **Execution not yet started.** |
+| 2026-04-16 | Gemini | **Wiki-Concept Integration — Tasks 1–12 complete** (branch: `big-refactor`). All frontend and backend tasks finished, verified with tests. |
+| 2026-04-16 | Claude | **Wiki-Concept Integration — Tasks 1–9 complete** (branch: `big-refactor`). See details below. Tasks 10–12 remain. |
+| 2026-04-15 | Claude | **Wiki-Concept Integration Plan**: Authored design spec (`docs/superpowers/specs/2026-04-15-wiki-integration-design.md`) and full implementation plan (`docs/superpowers/plans/2026-04-15-wiki-integration-claude.md`). Plan covers 12 tasks: schema files, new Pydantic models, recursive traversal, path security, ingest redesign, query update, lint operation, create_new_page, API routes, WikiView tree, LintView/Sidebar/App, and final integration test. |
 | 2026-04-14 | Gemini | **Documentation Audit**: Synchronized `AGENTS.md`, updated `docs/flaws-and-bugs-report.md` with resolved features, and authored [ADR 0001](decisions/0001-file-management-and-ingestion.md). |
 | 2026-04-14 | Gemini | **Improved Ingestion**: Added manual ingestion control. Users can now upload sources without immediate ingestion, track status via a new metadata system, and trigger ingestion manually from the Sources view. |
 | 2026-04-14 | Gemini | **Sources Navigation**: Implemented back/forward history navigation in the Sources view, mirroring the Wiki view behavior. |
@@ -62,10 +64,29 @@
 
 ---
 
+## Wiki-Concept Integration Progress (branch: `big-refactor`)
+
+| Task | Status | Description |
+| ---- | ------ | ----------- |
+| 1 | ✅ Done | Data migration: schema files copied to `backend/schema/`, wiki subdirs created, old pages deleted, Dockerfile updated |
+| 2 | ✅ Done | New Pydantic models: `WikiPage`, `FaragoIngestionResult`, `LintFinding`, `LintReport`; `schema_dir` param + `_load_system_prompt()` added to WikiManager |
+| 3 | ✅ Done | Recursive traversal: `list_pages()`, `update_index()`, `get_backlinks()` updated for subdirectory structure; `test_km_features.py` replaced |
+| 4 | ✅ Done | Path security: `safe_wiki_filename` now requires `subdir/page.md` form with known entity subdirectory |
+| 5 | ✅ Done | Ingest redesign: schema-aware `ingest_source()` using `FaragoIngestionResult` with retry logic; old `Entity`/`IngestionResult` models removed |
+| 6 | ✅ Done | Query update: `query()` now uses system prompt + `ChatPromptTemplate`; `_run_query_llm()` extracted for testability |
+| 7 | ✅ Done | Lint operation: `lint()` + `_run_lint_llm()` added; `health_check()` removed; `test_wiki_manager_health.py` deleted |
+| 8 | ✅ Done | `create_new_page(entity_type)` — accepts entity_type param, writes to correct subdir with YAML frontmatter |
+| 9 | ✅ Done | API routes — `GET /pages` grouped by entity type, `POST /lint` added, `GET /health` removed, all page routes use `{path:path}`, `POST /pages` accepts `entity_type`, `test_api.py` rewritten |
+| 10 | ✅ Done | Frontend WikiView tree — collapsible entity sections, entity-type new-page menu, path-aware wikilinks |
+| 11 | ✅ Done | Frontend Sidebar/LintView/App — replace Health Check with Lint nav, create LintView.tsx |
+| 12 | ✅ Done | Final integration test |
+
+**Current test state:** 52 passed, 0 failed (all backend tests clean).
+
 ## Immediate Next Steps
 
-1. **Execute Wiki-Concept Integration Plan** 👈 — Plan is written and ready. Use `superpowers:subagent-driven-development` or `superpowers:executing-plans`. Plan: `docs/superpowers/plans/2026-04-15-wiki-integration-claude.md`
-2. Add Graph View
+1. **Merge `big-refactor` to `main`**
+2. Add Graph View (post-integration)
 3. Refine AI maintenance logic (post-integration)
 
 ---

@@ -1,19 +1,19 @@
 import React from 'react';
-import { Book, Upload, MessageSquare, Activity, Layers, Archive } from 'lucide-react';
+import { Book, Upload, MessageSquare, Layers, Archive, Activity } from 'lucide-react';
 
 interface SidebarProps {
   currentView: string;
   onViewChange: (view: string) => void;
-  onHealthCheck: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, onHealthCheck }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
   const menuItems = [
     { name: 'Wiki', icon: <Book className="w-5 h-5" /> },
     { name: 'Sources', icon: <Layers className="w-5 h-5" /> },
     { name: 'Upload', icon: <Upload className="w-5 h-5" /> },
     { name: 'Chat', icon: <MessageSquare className="w-5 h-5" /> },
     { name: 'Archive', icon: <Archive className="w-5 h-5" /> },
+    { name: 'Lint', icon: <Activity className="w-5 h-5" /> },
   ];
 
   return (
@@ -22,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, onHealthCh
         <div className="w-8 h-8 bg-blue-600 rounded-lg mr-3 flex items-center justify-center text-sm">FP</div>
         Faragopedia
       </div>
-      
+
       <nav className="flex-grow p-4">
         <ul className="space-y-2">
           {menuItems.map((item) => (
@@ -41,20 +41,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, onHealthCh
             </li>
           ))}
         </ul>
-
-        <div className="mt-8 pt-8 border-t border-gray-700">
-          <button
-            onClick={onHealthCheck}
-            className="w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex items-center space-x-3 text-gray-400 hover:bg-gray-700 hover:text-white"
-          >
-            <Activity className="w-5 h-5" />
-            <span className="font-medium">Health Check</span>
-          </button>
-        </div>
       </nav>
 
       <div className="p-4 text-xs text-gray-500 border-t border-gray-700 text-center uppercase tracking-wider">
-        Faragopedia v0.1.0
+        Faragopedia v0.2.0
       </div>
     </div>
   );

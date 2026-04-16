@@ -4,8 +4,17 @@ import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X,
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8300/api`;
 
+type PageTree = Record<string, string[]>;
+
 const WikiView: React.FC = () => {
-  const [pages, setPages] = useState<string[]>([]);
+  const [pageTree, setPageTree] = useState<PageTree>({});
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    clients: true,
+    prospects: true,
+    contacts: true,
+    photographers: true,
+    productions: true,
+  });
   const [selectedPage, setSelectedPage] = useState<string | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [backlinks, setBacklinks] = useState<string[]>([]);
@@ -18,10 +27,13 @@ const WikiView: React.FC = () => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [showNewPageMenu, setShowNewPageMenu] = useState(false);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [contentLoading, setContentLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  const ENTITY_TYPES = ['clients', 'prospects', 'contacts', 'photographers', 'productions'];
 
   useEffect(() => {
     fetchPages();
@@ -32,14 +44,20 @@ const WikiView: React.FC = () => {
       setLoading(true);
       const response = await fetch(`${API_BASE}/pages`);
       if (!response.ok) throw new Error('Failed to fetch pages');
-      const data = await response.json();
-      setPages(data);
+      const data: PageTree = await response.json();
+      setPageTree(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const totalPageCount = Object.values(pageTree).reduce((acc, pages) => acc + pages.length, 0);
 
   const fetchPageContent = async (filename: string, addToHistory: boolean = true) => {
     try {
@@ -98,10 +116,11 @@ const WikiView: React.FC = () => {
     }
   };
 
-  const handleNewPage = async () => {
+  const handleNewPage = async (entityType: string) => {
     try {
       setIsCreating(true);
-      const response = await fetch(`${API_BASE}/pages`, { method: 'POST' });
+      setShowNewPageMenu(false);
+      const response = await fetch(`${API_BASE}/pages?entity_type=${entityType}`, { method: 'POST' });
       if (!response.ok) throw new Error('Failed to create new page');
       const data = await response.json();
       await fetchPages();
@@ -156,10 +175,27 @@ const WikiView: React.FC = () => {
     fetchPageContent(next, false);
   };
 
-  const processWikiLinks = (text: string) => {
+  const processWikiLinks = (text: string, tree: PageTree) => {
     return text.replace(/\[\[(.*?)\]\]/g, (match, p1) => {
-      const safeTitle = p1.replace(/[ /\\]/g, '_');
-      return `[${p1}](#${safeTitle})`;
+      const trimmed = p1.trim();
+
+      // If it already contains a slash, it's a full path reference
+      if (trimmed.includes('/')) {
+        return `[${trimmed.split('/').pop()?.replace(/-/g, ' ')}](#${trimmed.replace('/', '__')})`;
+      }
+
+      // Otherwise, look up which subdirectory contains this page
+      const slug = trimmed.toLowerCase().replace(/\s+/g, '-');
+      for (const [section, pages] of Object.entries(tree)) {
+        const match = pages.find(p => p.endsWith(`/${slug}.md`));
+        if (match) {
+          const ref = match.replace('/', '__').replace('.md', '');
+          return `[${trimmed}](#${ref})`;
+        }
+      }
+
+      // Fallback: render as plain anchor
+      return `[${trimmed}](#${slug})`;
     });
   };
 
@@ -175,40 +211,75 @@ const WikiView: React.FC = () => {
     <div className="flex h-full">
       {/* Sidebar - Page List */}
       <div className="w-64 border-r bg-white overflow-y-auto p-4 flex flex-col">
+        {/* Header with New Page menu */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Pages</h2>
-          <button 
-            onClick={handleNewPage}
-            disabled={isCreating}
-            className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-            title="New Page"
-          >
-            {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowNewPageMenu(prev => !prev)}
+              disabled={isCreating}
+              className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+              title="New Page"
+            >
+              {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            </button>
+            {showNewPageMenu && (
+              <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-100 z-20 overflow-hidden">
+                {ENTITY_TYPES.map(type => (
+                  <button
+                    key={type}
+                    onClick={() => handleNewPage(type)}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 capitalize transition-colors"
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        {pages.length === 0 ? (
+
+        {/* Collapsible tree */}
+        {totalPageCount === 0 ? (
           <p className="text-gray-500 text-sm">No pages found. Ingest some data first!</p>
         ) : (
-          <ul className="space-y-1">
-            {pages.map((page) => (
-              <li key={page}>
-                <button
-                  onClick={() => fetchPageContent(page)}
-                  className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center justify-between ${
-                    selectedPage === page
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'hover:bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  <span className="truncate flex items-center">
-                    <FileText className="w-4 h-4 mr-2 opacity-70" />
-                    {page.replace('.md', '').replace(/_/g, ' ')}
-                  </span>
-                  {selectedPage === page && <ChevronRight className="w-4 h-4" />}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-1">
+            {ENTITY_TYPES.map(section => {
+              const sectionPages = pageTree[section] || [];
+              return (
+                <div key={section}>
+                  <button
+                    onClick={() => toggleSection(section)}
+                    className="w-full text-left px-2 py-1.5 flex items-center justify-between text-xs font-semibold text-gray-400 uppercase tracking-wider hover:bg-gray-50 rounded-md transition-colors"
+                  >
+                    <span>{section}</span>
+                    <ChevronRight className={`w-3 h-3 transition-transform duration-150 ${expandedSections[section] ? 'rotate-90' : ''}`} />
+                  </button>
+                  {expandedSections[section] && sectionPages.length > 0 && (
+                    <ul className="ml-1 space-y-0.5 mb-1">
+                      {sectionPages.map(pagePath => (
+                        <li key={pagePath}>
+                          <button
+                            onClick={() => fetchPageContent(pagePath)}
+                            className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center ${
+                              selectedPage === pagePath
+                                ? 'bg-blue-50 text-blue-700 font-medium'
+                                : 'hover:bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            <FileText className="w-3.5 h-3.5 mr-2 flex-shrink-0 opacity-50" />
+                            <span className="truncate">
+                              {pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -239,7 +310,7 @@ const WikiView: React.FC = () => {
             </button>
             {selectedPage && (
               <span className="ml-4 text-sm font-medium text-gray-500 truncate max-w-xs">
-                {selectedPage.replace('.md', '').replace(/_/g, ' ')}
+                {selectedPage.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
               </span>
             )}
           </div>
@@ -316,13 +387,14 @@ const WikiView: React.FC = () => {
                   a: ({ node, ...props }) => {
                     const isInternal = props.href?.startsWith('#');
                     if (isInternal) {
-                      const pageName = props.href?.slice(1);
+                      const ref = props.href?.slice(1); // e.g. "clients__louis-vuitton"
+                      const pagePath = ref?.replace('__', '/') + '.md'; // "clients/louis-vuitton.md"
                       return (
                         <a
                           {...props}
                           onClick={(e) => {
                             e.preventDefault();
-                            if (pageName) fetchPageContent(pageName + '.md');
+                            if (pagePath) fetchPageContent(pagePath);
                           }}
                           className="text-blue-600 hover:underline cursor-pointer font-medium"
                         >
@@ -341,7 +413,7 @@ const WikiView: React.FC = () => {
                   }
                 }}
               >
-                {processWikiLinks(content || '')}
+                {processWikiLinks(content || '', pageTree)}
               </ReactMarkdown>
 
               {/* Backlinks Section */}
@@ -359,7 +431,7 @@ const WikiView: React.FC = () => {
                         className="text-left p-4 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group"
                       >
                         <div className="text-sm font-medium text-blue-600 group-hover:text-blue-700 truncate">
-                          {link.replace('.md', '').replace(/_/g, ' ')}
+                          {link.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
                         </div>
                         <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider">
                           Page Reference
