@@ -202,14 +202,16 @@ const App: React.FC = () => {
       {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden block"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
       
       {/* Sidebar container */}
       <div 
-        className={`fixed inset-y-0 left-0 z-50 transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative ${sidebarOpen ? 'md:translate-x-0 md:w-64' : 'md:-translate-x-full md:w-0'} transition-all duration-300 ease-in-out flex-shrink-0 bg-gray-800 h-screen`}
+        className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 h-screen bg-gray-800 overflow-hidden transition-all duration-300 ease-in-out transform ${
+          mobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'
+        } md:relative md:translate-x-0 ${sidebarOpen ? 'md:w-64' : 'md:w-0'}`}
       >
         <div className="w-64 h-full relative">
           <Sidebar currentView={currentView} onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }} />
@@ -228,9 +230,11 @@ const App: React.FC = () => {
         <div className="bg-white border-b px-4 py-3 flex items-center shrink-0 z-30 relative shadow-sm">
           <button 
             onClick={() => {
-              // Always toggle sidebarOpen, let CSS handle responsiveness
-              setSidebarOpen(prev => !prev);
-              setMobileMenuOpen(true); // For mobile
+              if (window.innerWidth < 768) {
+                setMobileMenuOpen(true);
+              } else {
+                setSidebarOpen(prev => !prev);
+              }
             }} 
             className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg flex items-center justify-center transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
             aria-label="Toggle Navigation"
