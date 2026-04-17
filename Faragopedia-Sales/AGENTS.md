@@ -94,6 +94,8 @@ current direction.
 13. ~~Execute Wiki-Concept Integration Plan~~ ✅ — All 12 tasks complete on `big-refactor`; see `docs/superpowers/plans/2026-04-15-wiki-integration-claude.md`
 14. ~~Create GitHub repository and push initial commit~~ ✅
 15. **Merge `big-refactor` to `main`** 👈
+16. ~~Execute Dynamic Folders plan~~ ✅ — all 7 tasks complete on `dynamic-folders` branch; 87 tests passing
+17. **Merge `dynamic-folders` to `main`**
 
 
 ---
