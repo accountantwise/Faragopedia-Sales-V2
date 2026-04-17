@@ -349,7 +349,7 @@ const SourcesView: React.FC = () => {
       {!isDesktop && !showMobileList && (
         <button
           onClick={() => setShowMobileList(true)}
-          className="fixed bottom-6 left-6 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 p-4 bg-gray-900 text-white rounded-full shadow-xl hover:bg-black hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
           title="Back to Sources List"
         >
           <ArrowLeft className="w-6 h-6" />
@@ -396,7 +396,7 @@ const SourcesView: React.FC = () => {
           
           <button
             onClick={() => setShowActionMenu(!showActionMenu)}
-            className={`p-4 rounded-full shadow-lg transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center ${showActionMenu ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 border-2 border-gray-100'}`}
+            className={`p-4 rounded-full shadow-xl transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center bg-gray-900 text-white`}
             title="Page Actions"
           >
             {showActionMenu ? <X className="w-6 h-6" /> : <MoreVertical className="w-6 h-6" />}

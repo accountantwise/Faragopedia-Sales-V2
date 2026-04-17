@@ -575,7 +575,7 @@ const WikiView: React.FC = () => {
         {!showChat && selectedPage && (
           <button
             onClick={() => setShowChat(true)}
-            className={`fixed ${isDesktop ? 'bottom-6 right-6' : 'bottom-24 right-6'} p-4 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform`}
+            className={`fixed ${isDesktop ? 'bottom-6 right-6' : 'bottom-24 right-6'} p-4 bg-gray-900 text-white rounded-full shadow-xl hover:bg-black hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform`}
             title="Open AI Chat"
           >
             <MessageSquare className="w-6 h-6" />
@@ -594,7 +594,7 @@ const WikiView: React.FC = () => {
       {/* Right Sidebar - Chat Panel */}
       {showChat && (
         <div 
-          className={`border-l bg-white flex-col flex-shrink-0 relative ${!isDesktop ? 'fixed inset-0 z-50 flex shadow-2xl animate-in slide-in-from-right duration-300' : 'flex'}`}
+          className={`border-l bg-white flex-col flex-shrink-0 relative ${!isDesktop ? 'fixed inset-0 w-full z-50 flex shadow-2xl animate-in slide-in-from-right duration-300' : 'flex'}`}
           style={isDesktop ? { width: chatWidth } : undefined}
         >
           <ChatPanel onLinkClick={(path) => { setShowChat(false); fetchPageContent(path); }} />
@@ -612,7 +612,7 @@ const WikiView: React.FC = () => {
           {!isDesktop && (
             <button
               onClick={() => setShowChat(false)}
-              className="absolute top-1/2 left-0 -translate-y-1/2 p-3 bg-blue-600 text-white rounded-r-xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all z-50 flex items-center justify-center transform"
+              className="absolute top-1/2 left-0 -translate-y-1/2 p-3 bg-gray-900 border border-l-0 border-gray-700 text-white rounded-r-xl shadow-xl hover:bg-black active:scale-95 transition-all z-50 flex items-center justify-center transform"
               title="Back to Page"
             >
               <FileText className="w-5 h-5" />
@@ -622,10 +622,10 @@ const WikiView: React.FC = () => {
       )}
 
       {/* Floating Mobile Toggle Button */}
-      {!isDesktop && !showMobileList && (
+      {!isDesktop && !showMobileList && !showChat && (
         <button
           onClick={() => setShowMobileList(true)}
-          className="fixed bottom-6 left-6 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 p-4 bg-gray-900 text-white rounded-full shadow-xl hover:bg-black hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
           title="Back to Pages List"
         >
           <ArrowLeft className="w-6 h-6" />
@@ -633,7 +633,7 @@ const WikiView: React.FC = () => {
       )}
 
       {/* Floating Mobile Action Menu */}
-      {!isDesktop && !showMobileList && selectedPage && (
+      {!isDesktop && !showMobileList && !showChat && selectedPage && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
           {showActionMenu && (
             <div className="flex flex-col items-stretch space-y-3 mb-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
@@ -690,7 +690,7 @@ const WikiView: React.FC = () => {
           
           <button
             onClick={() => setShowActionMenu(!showActionMenu)}
-            className={`p-4 rounded-full shadow-lg transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center ${showActionMenu ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 border-2 border-gray-100'}`}
+            className={`p-4 rounded-full shadow-xl transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center bg-gray-900 text-white`}
             title="Page Actions"
           >
             {showActionMenu ? <X className="w-6 h-6" /> : <MoreVertical className="w-6 h-6" />}
