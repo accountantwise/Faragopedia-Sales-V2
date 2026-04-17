@@ -383,17 +383,17 @@ const SourcesView: React.FC = () => {
       {!isDesktop && !showMobileList && selectedSource && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
           {showActionMenu && (
-            <div className="flex flex-col items-end space-y-3 mb-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
+            <div className="flex flex-col items-stretch space-y-3 mb-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
               {!metadata[selectedSource]?.ingested && (
                 <button
                   onClick={() => { handleIngest(); setShowActionMenu(false); }}
                   disabled={!!ingesting}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-full shadow-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400"
+                  className="flex justify-start items-center px-5 py-2 bg-blue-600 text-white rounded-full shadow-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400"
                 >
                   {ingesting === selectedSource ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <Loader2 className="w-4 h-4 animate-spin mr-3" />
                   ) : (
-                    <Database className="w-4 h-4 mr-2" />
+                    <Database className="w-4 h-4 mr-3" />
                   )}
                   {ingesting === selectedSource ? 'Ingesting...' : 'Ingest'}
                 </button>
@@ -401,17 +401,17 @@ const SourcesView: React.FC = () => {
               
               <button
                 onClick={() => { handleDownload(); setShowActionMenu(false); }}
-                className="flex items-center px-4 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
               >
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="w-4 h-4 mr-3" />
                 Download
               </button>
               <button
                 onClick={() => { handleDelete(); setShowActionMenu(false); }}
                 disabled={isDeleting}
-                className="flex items-center px-4 py-2 bg-red-50 text-red-600 rounded-full shadow-md text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+                className="flex justify-start items-center px-5 py-2 bg-red-50 text-red-600 rounded-full shadow-md text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
               >
-                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Trash2 className="w-4 h-4 mr-3" />}
                 Archive
               </button>
             </div>
