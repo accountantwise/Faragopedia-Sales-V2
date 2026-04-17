@@ -24,6 +24,10 @@ const SourcesView: React.FC = () => {
   const [sidebarWidth, setSidebarWidth] = useState<number>(256);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
+  // Mobile/Tablet responsive states
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+  const [showMobileList, setShowMobileList] = useState(true);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = { startX: e.clientX, startWidth: sidebarWidth };
     document.body.style.cursor = 'col-resize';
@@ -48,9 +52,15 @@ const SourcesView: React.FC = () => {
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    
+    // Track window resizes for responsive layout
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('resize', handleResize);
     };
   }, [handleMouseMove, handleMouseUp]);
 
@@ -105,6 +115,9 @@ const SourcesView: React.FC = () => {
       
       const data = await response.json();
       setContent(data.content);
+      
+      // Auto-switch away from list view on small screens
+      setShowMobileList(false);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -206,11 +219,11 @@ const SourcesView: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full relative">
       {/* Sidebar - Source List */}
       <div 
-        className="border-r bg-white overflow-y-auto p-4 flex flex-col flex-shrink-0"
-        style={{ width: sidebarWidth }}
+        className={`border-r bg-white overflow-y-auto p-4 flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
+        style={isDesktop ? { width: sidebarWidth } : undefined}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Sources</h2>
@@ -246,13 +259,15 @@ const SourcesView: React.FC = () => {
       </div>
 
       {/* Drag Handle Gutter */}
-      <div
-        onMouseDown={handleMouseDown}
-        className="w-1 bg-transparent hover:bg-blue-400 cursor-col-resize transition-colors z-20 flex-shrink-0"
-      />
+      {isDesktop && (
+        <div
+          onMouseDown={handleMouseDown}
+          className="w-1 bg-transparent hover:bg-blue-400 cursor-col-resize transition-colors z-20 flex-shrink-0"
+        />
+      )}
 
       {/* Main Content - Source View */}
-      <div className="flex-grow overflow-y-auto bg-white flex flex-col">
+      <div className={`flex-grow overflow-y-auto bg-white flex-col ${!isDesktop && showMobileList ? 'hidden' : 'flex'}`}>
         {/* Navigation Header */}
         <div className="border-b px-8 py-3 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-2">
@@ -351,6 +366,17 @@ const SourcesView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Floating Mobile Toggle Button */}
+      {!isDesktop && !showMobileList && (
+        <button
+          onClick={() => setShowMobileList(true)}
+          className="fixed bottom-6 left-6 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-50 flex items-center justify-center transform"
+          title="Back to Sources List"
+        >
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+      )}
 
       {error && (
         <ErrorToast message={error} onDismiss={() => setError(null)} />

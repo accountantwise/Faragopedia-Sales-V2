@@ -36,6 +36,10 @@ const WikiView: React.FC = () => {
   const [sidebarWidth, setSidebarWidth] = useState<number>(256);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
+  // Mobile/Tablet responsive states
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+  const [showMobileList, setShowMobileList] = useState(true);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [contentLoading, setContentLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +48,11 @@ const WikiView: React.FC = () => {
 
   useEffect(() => {
     fetchPages();
+    
+    // Track window resizes for responsive layout
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -127,6 +136,9 @@ const WikiView: React.FC = () => {
       setContent(contentData.content);
       setEditedContent(contentData.content);
       setBacklinks(backlinksData);
+      
+      // Auto-switch away from list view on small screens
+      setShowMobileList(false);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -167,6 +179,7 @@ const WikiView: React.FC = () => {
       await fetchPages();
       await fetchPageContent(data.filename);
       setIsEditing(true); // Open in edit mode immediately
+      setShowMobileList(false); // Move focus to content view on mobile
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -268,11 +281,11 @@ const WikiView: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full relative">
       {/* Sidebar - Page List */}
       <div 
-        className="border-r bg-white overflow-y-auto p-4 flex flex-col flex-shrink-0"
-        style={{ width: sidebarWidth }}
+        className={`border-r bg-white overflow-y-auto p-4 flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
+        style={isDesktop ? { width: sidebarWidth } : undefined}
       >
         {/* Header with New Page menu */}
         <div className="flex items-center justify-between mb-4">
@@ -347,13 +360,15 @@ const WikiView: React.FC = () => {
       </div>
 
       {/* Drag Handle Gutter */}
-      <div
-        onMouseDown={handleMouseDown}
-        className="w-1 bg-transparent hover:bg-blue-400 cursor-col-resize transition-colors z-20 flex-shrink-0"
-      />
+      {isDesktop && (
+        <div
+          onMouseDown={handleMouseDown}
+          className="w-1 bg-transparent hover:bg-blue-400 cursor-col-resize transition-colors z-20 flex-shrink-0"
+        />
+      )}
 
       {/* Main Content - Markdown View */}
-      <div className="flex-grow overflow-y-auto bg-white flex flex-col">
+      <div className={`flex-grow overflow-y-auto bg-white flex-col ${!isDesktop && showMobileList ? 'hidden' : 'flex'}`}>
         {/* Navigation Header */}
         <div className="border-b px-8 py-3 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-2">
@@ -539,6 +554,17 @@ const WikiView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Floating Mobile Toggle Button */}
+      {!isDesktop && !showMobileList && (
+        <button
+          onClick={() => setShowMobileList(true)}
+          className="fixed bottom-6 left-6 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-50 flex items-center justify-center transform"
+          title="Back to Pages List"
+        >
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+      )}
 
       {error && (
         <ErrorToast message={error} onDismiss={() => setError(null)} />
