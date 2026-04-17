@@ -1,0 +1,28 @@
+name: Productions
+description: Individual shoot, project, or event pages
+singular: production
+fields:
+  - name: entity_type
+    type: string
+    default: production
+  - name: date
+    type: date
+  - name: client
+    type: string
+  - name: publication
+    type: string
+  - name: photographer
+    type: string
+  - name: location
+    type: string
+  - name: work_type
+    type: enum
+    values: [editorial, advertising, lookbook, show, event]
+  - name: status
+    type: enum
+    values: [complete, in-progress, pitched]
+sections:
+  - Brief
+  - Team
+  - Outcome & Notes
+  - Sources

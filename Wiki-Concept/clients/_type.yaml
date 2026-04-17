@@ -1,0 +1,34 @@
+name: Clients
+description: Active client brands and fashion houses
+singular: client
+fields:
+  - name: type
+    type: string
+    default: client
+  - name: name
+    type: string
+    required: true
+  - name: industry
+    type: string
+  - name: tier
+    type: enum
+    values: [A, B, C]
+    description: "A = active/high value, B = occasional, C = cold"
+  - name: status
+    type: enum
+    values: [active, inactive]
+  - name: hq
+    type: string
+  - name: relationship_since
+    type: string
+  - name: last_contact
+    type: date
+  - name: source_count
+    type: integer
+sections:
+  - Overview
+  - Key Contacts
+  - Production History
+  - Relationship Notes
+  - Open Opportunities
+  - Sources
