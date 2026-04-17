@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database, MoreVertical, X } from 'lucide-react';
 
 import { API_BASE } from '../config';
 import ErrorToast from './ErrorToast';
@@ -27,6 +27,7 @@ const SourcesView: React.FC = () => {
   // Mobile/Tablet responsive states
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [showMobileList, setShowMobileList] = useState(true);
+  const [showActionMenu, setShowActionMenu] = useState(false);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = { startX: e.clientX, startWidth: sidebarWidth };
@@ -269,7 +270,7 @@ const SourcesView: React.FC = () => {
       {/* Main Content - Source View */}
       <div className={`flex-grow overflow-y-auto bg-white flex-col ${!isDesktop && showMobileList ? 'hidden' : 'flex'}`}>
         {/* Navigation Header */}
-        <div className="border-b px-8 py-3 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
+        <div className="hidden lg:flex border-b px-8 py-3 items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-2">
             <button
               onClick={handleBack}
@@ -371,11 +372,59 @@ const SourcesView: React.FC = () => {
       {!isDesktop && !showMobileList && (
         <button
           onClick={() => setShowMobileList(true)}
-          className="fixed bottom-6 left-6 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-50 flex items-center justify-center transform"
+          className="fixed bottom-6 left-6 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
           title="Back to Sources List"
         >
           <ArrowLeft className="w-6 h-6" />
         </button>
+      )}
+
+      {/* Floating Mobile Action Menu */}
+      {!isDesktop && !showMobileList && selectedSource && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+          {showActionMenu && (
+            <div className="flex flex-col items-end space-y-3 mb-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
+              {!metadata[selectedSource]?.ingested && (
+                <button
+                  onClick={() => { handleIngest(); setShowActionMenu(false); }}
+                  disabled={!!ingesting}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-full shadow-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400"
+                >
+                  {ingesting === selectedSource ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Database className="w-4 h-4 mr-2" />
+                  )}
+                  {ingesting === selectedSource ? 'Ingesting...' : 'Ingest'}
+                </button>
+              )}
+              
+              <button
+                onClick={() => { handleDownload(); setShowActionMenu(false); }}
+                className="flex items-center px-4 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </button>
+              <button
+                onClick={() => { handleDelete(); setShowActionMenu(false); }}
+                disabled={isDeleting}
+                className="flex items-center px-4 py-2 bg-red-50 text-red-600 rounded-full shadow-md text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+              >
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                Archive
+              </button>
+            </div>
+          )}
+          
+          <button
+            onClick={() => setShowActionMenu(!showActionMenu)}
+            className={`p-4 rounded-full shadow-lg transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center ${showActionMenu ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 border-2 border-gray-100'}`}
+            title="Page Actions"
+          >
+            {showActionMenu ? <X className="w-6 h-6" /> : <MoreVertical className="w-6 h-6" />}
+          </button>
+        </div>
       )}
 
       {error && (
