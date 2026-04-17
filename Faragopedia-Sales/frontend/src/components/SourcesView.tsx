@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database, MoreVertical, X } from 'lucide-react';
 
 import { API_BASE } from '../config';
@@ -74,6 +75,25 @@ const SourcesView: React.FC = () => {
     const interval = setInterval(fetchMetadata, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const parseFrontmatter = (text: string) => {
+    const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    if (match) {
+      const frontmatterText = match[1];
+      const restContent = match[2];
+      const tags: {key: string, value: string}[] = [];
+      frontmatterText.split('\n').forEach(line => {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx > -1) {
+          const key = line.substring(0, colonIdx).trim();
+          const val = line.substring(colonIdx + 1).trim();
+          if (key && val) tags.push({ key, value: val });
+        }
+      });
+      return { tags, content: restContent };
+    }
+    return { tags: [], content: text };
+  };
 
   const fetchMetadata = async () => {
     try {
@@ -330,11 +350,47 @@ const SourcesView: React.FC = () => {
               <Loader2 className="animate-spin mr-2" /> Loading source content...
             </div>
           ) : content ? (
-            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-              <pre className="whitespace-pre-wrap font-mono text-sm text-gray-800 leading-relaxed">
-                {content}
-              </pre>
-            </div>
+            selectedSource?.endsWith('.md') ? (
+              <div className="prose prose-slate max-w-none">
+                {(() => {
+                   const { tags, content: cleanContent } = parseFrontmatter(content);
+                   return (
+                     <>
+                       {tags.length > 0 && (
+                         <div className="flex flex-wrap gap-2 mb-8 p-4 bg-gray-50/80 rounded-xl border border-gray-100 shadow-sm backdrop-blur-sm">
+                           {tags.map((t, idx) => (
+                             <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-sm uppercase tracking-wider">
+                               <span className="text-gray-400 mr-2 text-[10px]">{t.key}:</span>
+                               <span className="text-blue-600 font-bold">{t.value}</span>
+                             </span>
+                           ))}
+                         </div>
+                       )}
+                       <ReactMarkdown
+                         components={{
+                           a: ({ node, ...props }) => (
+                             <a 
+                               {...props} 
+                               className="text-blue-600 hover:underline" 
+                               target="_blank" 
+                               rel="noopener noreferrer" 
+                             />
+                           )
+                         }}
+                       >
+                         {cleanContent}
+                       </ReactMarkdown>
+                     </>
+                   );
+                })()}
+              </div>
+            ) : (
+              <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <pre className="whitespace-pre-wrap font-mono text-sm text-gray-800 leading-relaxed">
+                  {content}
+                </pre>
+              </div>
+            )
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <FileCheck className="w-16 h-16 mb-4 opacity-20" />
