@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
-import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare } from 'lucide-react';
+
+import ChatPanel from './ChatPanel';
 
 import { API_BASE } from '../config';
 import { formatPageName } from '../utils/formatPageName';
@@ -40,6 +42,9 @@ const WikiView: React.FC = () => {
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [showMobileList, setShowMobileList] = useState(true);
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showChat, setShowChat] = useState<boolean>(false);
+  const [chatWidth, setChatWidth] = useState<number>(350);
+  const dragChatRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [contentLoading, setContentLoading] = useState<boolean>(false);
@@ -62,19 +67,30 @@ const WikiView: React.FC = () => {
     document.body.style.userSelect = 'none';
   };
 
+  const handleChatMouseDown = (e: React.MouseEvent) => {
+    dragChatRef.current = { startX: e.clientX, startWidth: chatWidth };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragRef.current) return;
-    const { startX, startWidth } = dragRef.current;
-    const newWidth = Math.min(Math.max(200, startWidth + (e.clientX - startX)), 800);
-    setSidebarWidth(newWidth);
+    if (dragRef.current) {
+      const { startX, startWidth } = dragRef.current;
+      const newWidth = Math.min(Math.max(200, startWidth + (e.clientX - startX)), 800);
+      setSidebarWidth(newWidth);
+    }
+    if (dragChatRef.current) {
+      const { startX, startWidth } = dragChatRef.current;
+      const newWidth = Math.min(Math.max(250, startWidth - (e.clientX - startX)), 800);
+      setChatWidth(newWidth);
+    }
   }, []);
 
   const handleMouseUp = useCallback(() => {
-    if (dragRef.current) {
-      dragRef.current = null;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
+    if (dragRef.current) dragRef.current = null;
+    if (dragChatRef.current) dragChatRef.current = null;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
   }, []);
 
   useEffect(() => {
@@ -369,7 +385,7 @@ const WikiView: React.FC = () => {
       )}
 
       {/* Main Content - Markdown View */}
-      <div className={`flex-grow overflow-y-auto bg-white flex-col ${!isDesktop && showMobileList ? 'hidden' : 'flex'}`}>
+      <div className={`flex-grow overflow-y-auto bg-white flex-col relative ${!isDesktop && (showMobileList || showChat) ? 'hidden' : 'flex'}`}>
         {/* Navigation Header */}
         <div className="hidden lg:flex border-b px-8 py-3 items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-2">
@@ -554,7 +570,56 @@ const WikiView: React.FC = () => {
             </div>
           )}
         </div>
+        
+        {/* Floating Chat Button for Main Content */}
+        {!showChat && selectedPage && (
+          <button
+            onClick={() => setShowChat(true)}
+            className={`fixed ${isDesktop ? 'bottom-6 right-6' : 'bottom-24 right-6'} p-4 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform`}
+            title="Open AI Chat"
+          >
+            <MessageSquare className="w-6 h-6" />
+          </button>
+        )}
       </div>
+
+      {/* Chat Drag Handle Gutter */}
+      {isDesktop && showChat && (
+        <div
+          onMouseDown={handleChatMouseDown}
+          className="w-1 bg-transparent hover:bg-purple-400 cursor-col-resize transition-colors z-20 flex-shrink-0"
+        />
+      )}
+
+      {/* Right Sidebar - Chat Panel */}
+      {showChat && (
+        <div 
+          className={`border-l bg-white flex-col flex-shrink-0 relative ${!isDesktop ? 'fixed inset-0 z-50 flex shadow-2xl animate-in slide-in-from-right duration-300' : 'flex'}`}
+          style={isDesktop ? { width: chatWidth } : undefined}
+        >
+          <ChatPanel onLinkClick={(path) => { setShowChat(false); fetchPageContent(path); }} />
+          
+          {/* Close checkmark for chat */}
+          <button 
+            className="absolute top-3 right-4 text-gray-500 hover:bg-gray-100 rounded-full p-1.5 transition-colors z-50"
+            onClick={() => setShowChat(false)}
+            title="Close Chat"
+          >
+            <X className="w-5 h-5"/>
+          </button>
+          
+          {/* Floating Mobile Toggle Button for Chat -> Page */}
+          {!isDesktop && (
+            <button
+              onClick={() => setShowChat(false)}
+              className="absolute top-1/2 left-0 -translate-y-1/2 p-3 bg-blue-600 text-white rounded-r-xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all z-50 flex items-center justify-center transform"
+              title="Back to Page"
+            >
+              <FileText className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Floating Mobile Toggle Button */}
       {!isDesktop && !showMobileList && (
