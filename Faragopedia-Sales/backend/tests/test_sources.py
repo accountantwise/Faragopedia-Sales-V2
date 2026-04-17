@@ -64,3 +64,29 @@ def test_paste_source_with_custom_name(tmp_path):
 def test_paste_source_empty_content():
     response = client.post("/api/paste", json={"content": "   "})
     assert response.status_code == 422
+
+
+# ── Scrape URLs endpoint ──────────────────────────────────────────────────────
+
+def test_scrape_urls_starts_background_jobs():
+    with patch.dict(os.environ, {"WISECRAWLER_BASE_URL": "http://test-wc"}):
+        with patch("api.routes._crawl_and_save", new_callable=AsyncMock):
+            response = client.post(
+                "/api/scrape-urls",
+                json={"urls": ["https://example.com", "https://other.com"]},
+            )
+    assert response.status_code == 202
+    assert response.json()["message"] == "Started 2 crawl job(s)"
+
+
+def test_scrape_urls_empty_list():
+    with patch.dict(os.environ, {"WISECRAWLER_BASE_URL": "http://test-wc"}):
+        response = client.post("/api/scrape-urls", json={"urls": []})
+    assert response.status_code == 422
+
+
+def test_scrape_urls_no_wisecrawler_url():
+    env = {k: v for k, v in os.environ.items() if k != "WISECRAWLER_BASE_URL"}
+    with patch.dict(os.environ, env, clear=True):
+        response = client.post("/api/scrape-urls", json={"urls": ["https://example.com"]})
+    assert response.status_code == 503

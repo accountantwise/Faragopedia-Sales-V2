@@ -334,6 +334,51 @@ async def delete_archived_page_permanent(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting page: {str(e)}")
 
+# ── URL scraping via WiseCrawler ──────────────────────────────────────────────
+
+async def _crawl_and_save(url: str) -> None:
+    """Background task: crawl a URL with WiseCrawler, analyze, save to sources/."""
+    import logging
+    from urllib.parse import urlparse
+    from agent.wisecrawler import start_crawl, poll_until_done, analyze_crawl, DEFAULT_ANALYZE_PROMPT
+
+    logger = logging.getLogger(__name__)
+    try:
+        job_id = await start_crawl(url)
+        await poll_until_done(job_id)
+        analysis = await analyze_crawl(job_id, DEFAULT_ANALYZE_PROMPT)
+
+        parsed = urlparse(url)
+        domain = parsed.netloc.replace(".", "-").replace(":", "-")
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filename = f"{domain}-{timestamp}.md"
+
+        os.makedirs(SOURCES_DIR, exist_ok=True)
+        file_path = os.path.join(SOURCES_DIR, filename)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"# Source: {url}\n\n{analysis}")
+
+        logger.info(f"Saved crawl result for {url} → {filename}")
+    except Exception as exc:
+        logger.error(f"Failed to crawl {url}: {exc}")
+
+
+@router.post("/scrape-urls", status_code=202)
+async def scrape_urls(payload: dict, background_tasks: BackgroundTasks):
+    base_url = os.getenv("WISECRAWLER_BASE_URL", "")
+    if not base_url:
+        raise HTTPException(status_code=503, detail="WISECRAWLER_BASE_URL is not configured")
+
+    urls = payload.get("urls", [])
+    if not urls:
+        raise HTTPException(status_code=422, detail="urls list is required and cannot be empty")
+
+    for url in urls:
+        background_tasks.add_task(_crawl_and_save, url)
+
+    return {"message": f"Started {len(urls)} crawl job(s)"}
+
+
 @router.delete("/archive/sources/{filename}/permanent")
 async def delete_archived_source_permanent(filename: str):
     try:
