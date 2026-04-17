@@ -3,6 +3,7 @@ import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft
 
 import { API_BASE } from '../config';
 import ErrorToast from './ErrorToast';
+import AddSourcesModal from './AddSourcesModal';
 
 const SourcesView: React.FC = () => {
   const [sources, setSources] = useState<string[]>([]);
@@ -11,8 +12,8 @@ const SourcesView: React.FC = () => {
   const [historyStack, setHistoryStack] = useState<string[]>([]);
   const [forwardStack, setForwardStack] = useState<string[]>([]);
   const [metadata, setMetadata] = useState<Record<string, { ingested: boolean, ingested_at: string | null }>>({});
-  const [uploading, setUploading] = useState<boolean>(false);
   const [ingesting, setIngesting] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState<boolean>(false);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [contentLoading, setContentLoading] = useState<boolean>(false);
@@ -158,33 +159,6 @@ const SourcesView: React.FC = () => {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    setUploading(true);
-    try {
-      // Ingest=false because user wants to sanitize/preview first
-      const response = await fetch(`${API_BASE}/upload?ingest=false`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (!response.ok) throw new Error('Upload failed');
-      const data = await response.json();
-      await fetchSources();
-      await fetchMetadata();
-      await fetchSourceContent(data.filename);
-    } catch (err) {
-      alert('Error uploading file');
-    } finally {
-      setUploading(false);
-      if (event.target) event.target.value = '';
-    }
-  };
-
   const handleDelete = async () => {
     if (!selectedSource) return;
     if (!window.confirm(`Move source '${selectedSource}' to archive?`)) return;
@@ -228,10 +202,13 @@ const SourcesView: React.FC = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Sources</h2>
-          <label className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer disabled:opacity-50" title="Add Source">
-            <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          </label>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+            title="Add Source"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
         {sources.length === 0 ? (
           <p className="text-gray-500 text-sm">No source files found. Upload some data!</p>
@@ -426,6 +403,12 @@ const SourcesView: React.FC = () => {
           </button>
         </div>
       )}
+
+      <AddSourcesModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSourceAdded={() => { fetchSources(); fetchMetadata(); }}
+      />
 
       {error && (
         <ErrorToast message={error} onDismiss={() => setError(null)} />
