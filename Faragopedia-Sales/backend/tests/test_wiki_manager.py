@@ -388,9 +388,13 @@ from api.routes import safe_wiki_filename
 
 
 def test_safe_wiki_filename_allows_known_subdirs():
-    for sub in ["clients", "prospects", "contacts", "photographers", "productions"]:
-        result = safe_wiki_filename(f"{sub}/some-page.md")
-        assert result == f"{sub}/some-page.md"
+    known = {"clients", "prospects", "contacts", "photographers", "productions"}
+    entity_types = {sub: {"name": sub.capitalize()} for sub in known}
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.get_entity_types.return_value = entity_types
+        for sub in known:
+            result = safe_wiki_filename(f"{sub}/some-page.md")
+            assert result == f"{sub}/some-page.md"
 
 
 def test_safe_wiki_filename_rejects_unknown_subdir():

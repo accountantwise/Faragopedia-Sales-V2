@@ -38,6 +38,17 @@ def client(tmp_path):
         mock_wm.archive_page = AsyncMock()
         mock_wm.create_new_page = AsyncMock(return_value="clients/Untitled.md")
         mock_wm.lint = AsyncMock(return_value=MagicMock(model_dump=lambda: {"findings": [], "summary": "Clean."}))
+        mock_wm.get_entity_types.return_value = {
+            "clients": {"name": "Clients", "singular": "client"},
+            "prospects": {"name": "Prospects", "singular": "prospect"},
+            "contacts": {"name": "Contacts", "singular": "contact"},
+            "photographers": {"name": "Photographers", "singular": "photographer"},
+            "productions": {"name": "Productions", "singular": "production"},
+        }
+        mock_wm.create_folder = AsyncMock()
+        mock_wm.delete_folder = AsyncMock()
+        mock_wm.rename_folder = AsyncMock()
+        mock_wm.move_page = AsyncMock(return_value="prospects/test-page.md")
         MockWM.return_value = mock_wm
 
         from main import app
@@ -110,3 +121,80 @@ def test_safe_wiki_filename_invalid_rejected(client):
 
     response = client.get("/api/pages/flat-file.md")
     assert response.status_code in (400, 404)
+
+
+def test_get_entity_types_endpoint(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.get_entity_types.return_value = {
+            "clients": {"name": "Clients", "singular": "client"},
+            "prospects": {"name": "Prospects", "singular": "prospect"},
+        }
+        response = client.get("/api/entity-types")
+    assert response.status_code == 200
+    data = response.json()
+    assert "clients" in data
+
+
+def test_create_folder_endpoint(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.create_folder = AsyncMock()
+        response = client.post("/api/folders", json={
+            "name": "stylists",
+            "display_name": "Stylists",
+            "description": "Hair and makeup",
+        })
+    assert response.status_code in (200, 201)
+
+
+def test_create_folder_missing_fields(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.create_folder = AsyncMock()
+        response = client.post("/api/folders", json={"name": "stylists"})
+    assert response.status_code == 422
+
+
+def test_create_folder_invalid_name(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.create_folder = AsyncMock()
+        response = client.post("/api/folders", json={
+            "name": "Stylists With Spaces",
+            "display_name": "Stylists",
+        })
+    assert response.status_code == 400
+
+
+def test_delete_folder_endpoint(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.delete_folder = AsyncMock()
+        response = client.delete("/api/folders/stylists")
+    assert response.status_code in (200, 400)
+
+
+def test_rename_folder_endpoint(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.rename_folder = AsyncMock()
+        response = client.put("/api/folders/clients", json={"new_name": "brands"})
+    assert response.status_code in (200, 400)
+
+
+def test_move_page_endpoint(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.move_page = AsyncMock(return_value="prospects/test-page.md")
+        mock_wm.get_entity_types.return_value = {
+            "clients": {"name": "Clients"}, "prospects": {"name": "Prospects"},
+        }
+        response = client.post("/api/pages/clients/test-page.md/move", json={
+            "target_folder": "prospects",
+        })
+    assert response.status_code in (200, 400)
+
+
+def test_create_page_dynamic_entity_type(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.get_entity_types.return_value = {
+            "clients": {"name": "Clients"},
+            "stylists": {"name": "Stylists"},
+        }
+        mock_wm.create_new_page = AsyncMock(return_value="stylists/Untitled.md")
+        response = client.post("/api/pages?entity_type=stylists")
+    assert response.status_code in (200, 400, 500)

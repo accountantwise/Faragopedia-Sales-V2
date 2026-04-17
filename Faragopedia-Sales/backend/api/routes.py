@@ -22,14 +22,16 @@ SOURCES_DIR = os.path.join(BASE_DIR, "sources")
 WIKI_DIR = os.path.join(BASE_DIR, "wiki")
 ARCHIVE_DIR = os.path.join(BASE_DIR, "archive")
 
-VALID_ENTITY_SUBDIRS = {"clients", "prospects", "contacts", "photographers", "productions"}
-
 # Instantiate WikiManager
 wiki_manager = WikiManager(
     sources_dir=SOURCES_DIR,
     wiki_dir=WIKI_DIR,
     archive_dir=ARCHIVE_DIR
 )
+
+def get_valid_entity_subdirs() -> set:
+    """Get valid entity subdirectories dynamically from wiki_manager."""
+    return set(wiki_manager.get_entity_types().keys())
 
 def secure_filename(filename: str) -> str:
     """
@@ -61,7 +63,7 @@ def safe_wiki_filename(path: str) -> str:
     subdir, filename = parts
 
     # Subdir must be a known entity type
-    if subdir not in VALID_ENTITY_SUBDIRS:
+    if subdir not in get_valid_entity_subdirs():
         raise ValueError(f"Invalid entity subdirectory '{subdir}' in path: {path!r}")
 
     # No path traversal components
@@ -148,10 +150,11 @@ async def list_pages():
     """Return wiki pages grouped by entity subdirectory."""
     try:
         all_pages = wiki_manager.list_pages()
-        grouped: Dict[str, List[str]] = {sub: [] for sub in VALID_ENTITY_SUBDIRS}
+        valid_subdirs = get_valid_entity_subdirs()
+        grouped: Dict[str, List[str]] = {sub: [] for sub in valid_subdirs}
         for page_path in all_pages:
             parts = page_path.split("/")
-            if len(parts) == 2 and parts[0] in VALID_ENTITY_SUBDIRS:
+            if len(parts) == 2 and parts[0] in valid_subdirs:
                 grouped[parts[0]].append(page_path)
         return grouped
     except Exception as e:
@@ -240,13 +243,86 @@ async def get_source(filename: str):
 
 @router.post("/pages")
 async def create_page(entity_type: str = Query("clients")):
-    if entity_type not in VALID_ENTITY_SUBDIRS:
+    if entity_type not in get_valid_entity_subdirs():
         raise HTTPException(status_code=400, detail=f"Invalid entity type: {entity_type}")
     try:
         filename = await wiki_manager.create_new_page(entity_type=entity_type)
         return {"filename": filename, "message": "New page created"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating page: {str(e)}")
+
+
+@router.get("/entity-types")
+async def get_entity_types():
+    try:
+        return wiki_manager.get_entity_types()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing entity types: {str(e)}")
+
+
+@router.post("/folders")
+async def create_folder(payload: dict):
+    name = payload.get("name", "").strip()
+    display_name = payload.get("display_name", "").strip()
+    description = payload.get("description", "").strip()
+    if not name or not display_name:
+        raise HTTPException(status_code=422, detail="name and display_name are required")
+    if not re.match(r"^[a-z][a-z0-9-]*$", name):
+        raise HTTPException(status_code=400, detail="Folder name must be lowercase alphanumeric with hyphens")
+    try:
+        await wiki_manager.create_folder(name, display_name, description)
+        return {"message": f"Folder '{name}' created", "folder": name}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating folder: {str(e)}")
+
+
+@router.delete("/folders/{folder_name}")
+async def delete_folder(folder_name: str):
+    try:
+        await wiki_manager.delete_folder(folder_name)
+        return {"message": f"Folder '{folder_name}' deleted"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting folder: {str(e)}")
+
+
+@router.put("/folders/{folder_name}")
+async def rename_folder(folder_name: str, payload: dict):
+    new_name = payload.get("new_name", "").strip()
+    if not new_name:
+        raise HTTPException(status_code=422, detail="new_name is required")
+    if not re.match(r"^[a-z][a-z0-9-]*$", new_name):
+        raise HTTPException(status_code=400, detail="Folder name must be lowercase alphanumeric with hyphens")
+    try:
+        await wiki_manager.rename_folder(folder_name, new_name)
+        return {"message": f"Folder renamed: {folder_name} → {new_name}"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error renaming folder: {str(e)}")
+
+
+@router.post("/pages/{path:path}/move")
+async def move_page(path: str, payload: dict):
+    try:
+        safe_path = safe_wiki_filename(path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    target_folder = payload.get("target_folder", "").strip()
+    if not target_folder:
+        raise HTTPException(status_code=422, detail="target_folder is required")
+    try:
+        new_path = await wiki_manager.move_page(safe_path, target_folder)
+        return {"message": f"Page moved to {new_path}", "new_path": new_path}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Page not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error moving page: {str(e)}")
 
 
 @router.post("/lint")
