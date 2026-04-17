@@ -1,4 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks
+from datetime import datetime
 from fastapi.responses import FileResponse
 import os
 import shutil
@@ -107,6 +108,29 @@ async def upload_file(file: UploadFile = File(...), ingest: bool = Query(True)):
         message = "File uploaded successfully (ingestion skipped)"
 
     return {"filename": safe_filename, "message": message}
+
+@router.post("/paste")
+async def paste_source(payload: dict):
+    content = payload.get("content", "")
+    if not content or not content.strip():
+        raise HTTPException(status_code=422, detail="Content is required")
+
+    name = (payload.get("name") or "").strip()
+    if name:
+        filename = secure_filename(name)
+        if not filename.endswith(".txt"):
+            filename += ".txt"
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filename = f"paste-{timestamp}.txt"
+
+    os.makedirs(SOURCES_DIR, exist_ok=True)
+    file_path = os.path.join(SOURCES_DIR, filename)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    return {"filename": filename, "message": "Text saved as source"}
+
 
 @router.post("/chat")
 async def chat(query: str):

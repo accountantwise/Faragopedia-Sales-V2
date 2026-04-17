@@ -37,3 +37,30 @@ def test_get_source_not_found(mock_get):
     mock_get.side_effect = FileNotFoundError()
     response = client.get("/api/sources/nonexistent.txt")
     assert response.status_code == 404
+
+
+# ── Paste endpoint ────────────────────────────────────────────────────────────
+
+def test_paste_source_happy_path(tmp_path):
+    with patch("api.routes.SOURCES_DIR", str(tmp_path)):
+        response = client.post("/api/paste", json={"content": "Hello world"})
+    assert response.status_code == 200
+    data = response.json()
+    assert "filename" in data
+    assert data["filename"].startswith("paste-")
+    assert data["filename"].endswith(".txt")
+    assert (tmp_path / data["filename"]).read_text(encoding="utf-8") == "Hello world"
+
+
+def test_paste_source_with_custom_name(tmp_path):
+    with patch("api.routes.SOURCES_DIR", str(tmp_path)):
+        response = client.post("/api/paste", json={"content": "Notes", "name": "my notes"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["filename"] == "my_notes.txt"
+    assert (tmp_path / "my_notes.txt").read_text(encoding="utf-8") == "Notes"
+
+
+def test_paste_source_empty_content():
+    response = client.post("/api/paste", json={"content": "   "})
+    assert response.status_code == 422
