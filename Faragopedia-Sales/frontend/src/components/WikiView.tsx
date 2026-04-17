@@ -452,7 +452,7 @@ const WikiView: React.FC = () => {
           )}
         </div>
 
-        <div className="p-8 flex-grow">
+        <div className="p-8 flex-grow pb-28 lg:pb-8">
           {contentLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="animate-spin mr-2" /> Loading content...
