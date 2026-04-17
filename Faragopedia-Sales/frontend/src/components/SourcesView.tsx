@@ -349,7 +349,7 @@ const SourcesView: React.FC = () => {
       {!isDesktop && !showMobileList && (
         <button
           onClick={() => setShowMobileList(true)}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 p-4 bg-gray-900 text-white rounded-full shadow-xl hover:bg-black hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
+          className="fixed bottom-6 left-6 p-4 bg-gray-900 text-white rounded-full shadow-xl hover:bg-black hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
           title="Back to Sources List"
         >
           <ArrowLeft className="w-6 h-6" />
@@ -358,7 +358,7 @@ const SourcesView: React.FC = () => {
 
       {/* Floating Mobile Action Menu */}
       {!isDesktop && !showMobileList && selectedSource && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center">
           {showActionMenu && (
             <div className="flex flex-col items-stretch space-y-3 mb-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
               {!metadata[selectedSource]?.ingested && (
