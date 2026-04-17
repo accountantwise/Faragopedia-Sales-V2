@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
-import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare, FolderPlus, Pencil } from 'lucide-react';
 
 import ChatPanel from './ChatPanel';
 
@@ -13,13 +13,8 @@ type PageTree = Record<string, string[]>;
 
 const WikiView: React.FC = () => {
   const [pageTree, setPageTree] = useState<PageTree>({});
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    clients: true,
-    prospects: true,
-    contacts: true,
-    photographers: true,
-    productions: true,
-  });
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [entityTypes, setEntityTypes] = useState<Record<string, { name: string; description?: string; singular?: string }>>({});
   const [selectedPage, setSelectedPage] = useState<string | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [backlinks, setBacklinks] = useState<string[]>([]);
@@ -50,11 +45,37 @@ const WikiView: React.FC = () => {
   const [contentLoading, setContentLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ENTITY_TYPES = ['clients', 'prospects', 'contacts', 'photographers', 'productions'];
+  // Folder management state
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderDisplayName, setNewFolderDisplayName] = useState('');
+  const [newFolderDescription, setNewFolderDescription] = useState('');
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [renameFolderValue, setRenameFolderValue] = useState('');
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+
+  const fetchEntityTypes = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/entity-types`);
+      if (!response.ok) throw new Error('Failed to fetch entity types');
+      const data = await response.json();
+      setEntityTypes(data);
+      setExpandedSections(prev => {
+        const next = { ...prev };
+        for (const key of Object.keys(data)) {
+          if (!(key in next)) next[key] = true;
+        }
+        return next;
+      });
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
 
   useEffect(() => {
+    fetchEntityTypes();
     fetchPages();
-    
+
     // Track window resizes for responsive layout
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
     window.addEventListener('resize', handleResize);
@@ -119,8 +140,6 @@ const WikiView: React.FC = () => {
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
-
-  const totalPageCount = Object.values(pageTree).reduce((acc, pages) => acc + pages.length, 0);
 
   const fetchPageContent = async (filename: string, addToHistory: boolean = true) => {
     if (isEditing && editedContent !== content) {
@@ -230,6 +249,95 @@ const WikiView: React.FC = () => {
     window.open(`${API_BASE}/pages/${encodeURIComponent(selectedPage)}/download`);
   };
 
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim() || !newFolderDisplayName.trim()) return;
+    try {
+      const response = await fetch(`${API_BASE}/folders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newFolderName.trim().toLowerCase().replace(/\s+/g, '-'),
+          display_name: newFolderDisplayName.trim(),
+          description: newFolderDescription.trim(),
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to create folder');
+      }
+      setShowNewFolderDialog(false);
+      setNewFolderName('');
+      setNewFolderDisplayName('');
+      setNewFolderDescription('');
+      await fetchEntityTypes();
+      await fetchPages();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteFolder = async (folderName: string) => {
+    if (!window.confirm(`Delete the "${folderName}" folder? It must be empty.`)) return;
+    try {
+      const response = await fetch(`${API_BASE}/folders/${folderName}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to delete folder');
+      }
+      await fetchEntityTypes();
+      await fetchPages();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleRenameFolder = async (oldName: string) => {
+    if (!renameFolderValue.trim()) return;
+    const newName = renameFolderValue.trim().toLowerCase().replace(/\s+/g, '-');
+    try {
+      const response = await fetch(`${API_BASE}/folders/${oldName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_name: newName }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to rename folder');
+      }
+      setRenamingFolder(null);
+      setRenameFolderValue('');
+      // Update selectedPage path if it was in the renamed folder
+      if (selectedPage?.startsWith(oldName + '/')) {
+        setSelectedPage(selectedPage.replace(oldName + '/', newName + '/'));
+      }
+      await fetchEntityTypes();
+      await fetchPages();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleMovePage = async (targetFolder: string) => {
+    if (!selectedPage) return;
+    try {
+      const response = await fetch(`${API_BASE}/pages/${encodeURIComponent(selectedPage)}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_folder: targetFolder }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to move page');
+      }
+      const data = await response.json();
+      setSelectedPage(data.new_path);
+      setShowMoveDialog(false);
+      await fetchPages();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const handleBack = () => {
     if (historyStack.length === 0) return;
     const previous = historyStack[historyStack.length - 1];
@@ -247,7 +355,7 @@ const WikiView: React.FC = () => {
   };
 
   const processWikiLinks = (text: string, tree: PageTree) => {
-    return text.replace(/\[\[(.*?)\]\]/g, (match, p1) => {
+    return text.replace(/\[\[(.*?)\]\]/g, (_match, p1) => {
       const trimmed = p1.trim();
 
       // If it already contains a slash, it's a full path reference
@@ -257,10 +365,10 @@ const WikiView: React.FC = () => {
 
       // Otherwise, look up which subdirectory contains this page
       const slug = trimmed.toLowerCase().replace(/\s+/g, '-');
-      for (const [section, pages] of Object.entries(tree)) {
-        const match = pages.find(p => p.endsWith(`/${slug}.md`));
-        if (match) {
-          const ref = match.replace('/', '__').replace('.md', '');
+      for (const [_section, pages] of Object.entries(tree)) {
+        const found = pages.find(p => p.endsWith(`/${slug}.md`));
+        if (found) {
+          const ref = found.replace('/', '__').replace('.md', '');
           return `[${trimmed}](#${ref})`;
         }
       }
@@ -304,50 +412,96 @@ const WikiView: React.FC = () => {
         className={`border-r bg-white overflow-y-auto p-4 flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
         style={isDesktop ? { width: sidebarWidth } : undefined}
       >
-        {/* Header with New Page menu */}
+        {/* Header with New Folder + New Page buttons */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Pages</h2>
-          <div className="relative">
+          <div className="flex items-center space-x-1">
             <button
-              onClick={() => setShowNewPageMenu(prev => !prev)}
-              disabled={isCreating}
-              className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-              title="New Page"
+              onClick={() => setShowNewFolderDialog(true)}
+              className="p-1.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+              title="New Folder"
             >
-              {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              <FolderPlus className="w-4 h-4" />
             </button>
-            {showNewPageMenu && (
-              <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-100 z-20 overflow-hidden">
-                {ENTITY_TYPES.map(type => (
-                  <button
-                    key={type}
-                    onClick={() => handleNewPage(type)}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 capitalize transition-colors"
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="relative">
+              <button
+                onClick={() => setShowNewPageMenu(prev => !prev)}
+                disabled={isCreating}
+                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                title="New Page"
+              >
+                {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              </button>
+              {showNewPageMenu && (
+                <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-100 z-20 overflow-hidden">
+                  {Object.entries(entityTypes).map(([type, data]) => (
+                    <button
+                      key={type}
+                      onClick={() => handleNewPage(type)}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                    >
+                      {data.name || type}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Collapsible tree */}
-        {totalPageCount === 0 ? (
+        {Object.keys(entityTypes).length === 0 ? (
           <p className="text-gray-500 text-sm">No pages found. Ingest some data first!</p>
         ) : (
           <div className="space-y-1">
-            {ENTITY_TYPES.map(section => {
+            {Object.entries(entityTypes).map(([section, typeData]) => {
               const sectionPages = pageTree[section] || [];
               return (
                 <div key={section}>
-                  <button
-                    onClick={() => toggleSection(section)}
-                    className="w-full text-left px-2 py-1.5 flex items-center justify-between text-xs font-semibold text-gray-400 uppercase tracking-wider hover:bg-gray-50 rounded-md transition-colors"
-                  >
-                    <span>{section}</span>
-                    <ChevronRight className={`w-3 h-3 transition-transform duration-150 ${expandedSections[section] ? 'rotate-90' : ''}`} />
-                  </button>
+                  <div className="flex items-center group">
+                    <button
+                      onClick={() => toggleSection(section)}
+                      className="flex-1 text-left px-2 py-1.5 flex items-center justify-between text-xs font-semibold text-gray-400 uppercase tracking-wider hover:bg-gray-50 rounded-md transition-colors"
+                    >
+                      <span>{typeData.name || section}</span>
+                      <ChevronRight className={`w-3 h-3 transition-transform duration-150 ${expandedSections[section] ? 'rotate-90' : ''}`} />
+                    </button>
+                    <div className="hidden group-hover:flex items-center space-x-0.5 mr-1">
+                      <button
+                        onClick={() => { setRenamingFolder(section); setRenameFolderValue(section); }}
+                        className="p-0.5 text-gray-300 hover:text-gray-500 rounded"
+                        title="Rename folder"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteFolder(section)}
+                        className="p-0.5 text-gray-300 hover:text-red-500 rounded"
+                        title="Delete folder"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Inline rename input */}
+                  {renamingFolder === section && (
+                    <div className="flex items-center px-2 py-1 space-x-1">
+                      <input
+                        autoFocus
+                        value={renameFolderValue}
+                        onChange={e => setRenameFolderValue(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleRenameFolder(section);
+                          if (e.key === 'Escape') setRenamingFolder(null);
+                        }}
+                        className="flex-1 text-xs border rounded px-2 py-1"
+                      />
+                      <button onClick={() => handleRenameFolder(section)} className="text-xs text-blue-600">Save</button>
+                      <button onClick={() => setRenamingFolder(null)} className="text-xs text-gray-400">Cancel</button>
+                    </div>
+                  )}
+
                   {expandedSections[section] && sectionPages.length > 0 && (
                     <ul className="ml-1 space-y-0.5 mb-1">
                       {sectionPages.map(pagePath => (
@@ -456,6 +610,13 @@ const WikiView: React.FC = () => {
                 title="Download Page"
               >
                 <Download className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setShowMoveDialog(true)}
+                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                title="Move to folder..."
+              >
+                <ArrowRight className="w-5 h-5" />
               </button>
               <button
                 onClick={handleDelete}
@@ -695,6 +856,80 @@ const WikiView: React.FC = () => {
           >
             {showActionMenu ? <X className="w-6 h-6" /> : <MoreVertical className="w-6 h-6" />}
           </button>
+        </div>
+      )}
+
+      {/* New Folder Dialog */}
+      {showNewFolderDialog && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowNewFolderDialog(false)}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">New Folder</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+              <input
+                autoFocus
+                value={newFolderDisplayName}
+                onChange={e => {
+                  setNewFolderDisplayName(e.target.value);
+                  setNewFolderName(e.target.value.toLowerCase().replace(/\s+/g, '-'));
+                }}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+                placeholder="e.g. Stylists"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Folder ID</label>
+              <input
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm text-gray-500"
+                placeholder="e.g. stylists"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description (for AI context)</label>
+              <input
+                value={newFolderDescription}
+                onChange={e => setNewFolderDescription(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+                placeholder="e.g. Hair and makeup stylists we work with"
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <button onClick={() => setShowNewFolderDialog(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim() || !newFolderDisplayName.trim()}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move Page Dialog */}
+      {showMoveDialog && selectedPage && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowMoveDialog(false)}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-xs space-y-3" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">Move to...</h3>
+            <p className="text-sm text-gray-500">Move "{selectedPage.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}" to:</p>
+            <div className="space-y-1">
+              {Object.entries(entityTypes)
+                .filter(([key]) => key !== selectedPage.split('/')[0])
+                .map(([key, data]) => (
+                  <button
+                    key={key}
+                    onClick={() => handleMovePage(key)}
+                    className="w-full text-left px-4 py-2 text-sm rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                  >
+                    {data.name || key}
+                  </button>
+                ))}
+            </div>
+            <button onClick={() => setShowMoveDialog(false)} className="w-full text-center text-sm text-gray-400 hover:text-gray-600 mt-2">Cancel</button>
+          </div>
         </div>
       )}
 
