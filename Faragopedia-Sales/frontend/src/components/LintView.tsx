@@ -77,9 +77,16 @@ const LintView: React.FC = () => {
       </button>
 
       {loading && (
-        <div className="flex items-center space-x-3 text-gray-500">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Analysing wiki — this may take a moment...</span>
+        <div className="space-y-4 max-w-xl animate-pulse mt-8">
+          <div className="flex items-center space-x-3 mb-6">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+            <span className="text-blue-500 font-medium tracking-wide">Deep AI Analysis in Progress...</span>
+          </div>
+          <div className="h-4 bg-gray-200 rounded-full w-3/4"></div>
+          <div className="h-4 bg-gray-200 rounded-full w-full"></div>
+          <div className="h-4 bg-gray-200 rounded-full w-5/6"></div>
+          <div className="h-4 bg-gray-200 rounded-full w-2/3 mt-6"></div>
+          <div className="h-4 bg-gray-200 rounded-full w-4/5"></div>
         </div>
       )}
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import MDEditor from '@uiw/react-md-editor';
 import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus } from 'lucide-react';
 
 import { API_BASE } from '../config';
@@ -205,6 +206,25 @@ const WikiView: React.FC = () => {
     });
   };
 
+  const parseFrontmatter = (text: string) => {
+    const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    if (match) {
+      const frontmatterText = match[1];
+      const restContent = match[2];
+      const tags: {key: string, value: string}[] = [];
+      frontmatterText.split('\n').forEach(line => {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx > -1) {
+          const key = line.substring(0, colonIdx).trim();
+          const val = line.substring(colonIdx + 1).trim();
+          if (key && val) tags.push({ key, value: val });
+        }
+      });
+      return { tags, content: restContent };
+    }
+    return { tags: [], content: text };
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -380,47 +400,67 @@ const WikiView: React.FC = () => {
               <Loader2 className="animate-spin mr-2" /> Loading content...
             </div>
           ) : isEditing ? (
-            <textarea
-              value={editedContent}
-              onChange={(e) => setEditedContent(e.target.value)}
-              className="w-full h-full min-h-[500px] p-6 text-slate-800 font-mono text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
-              placeholder="Write your markdown here..."
-            />
+            <div data-color-mode="light" className="w-full h-full min-h-[500px]">
+              <MDEditor
+                value={editedContent}
+                onChange={(val) => setEditedContent(val || '')}
+                height="100%"
+                preview="edit"
+                className="w-full h-full"
+              />
+            </div>
           ) : content ? (
             <div className="prose prose-slate max-w-none">
-              <ReactMarkdown
-                components={{
-                  a: ({ node, ...props }) => {
-                    const isInternal = props.href?.startsWith('#');
-                    if (isInternal) {
-                      const ref = props.href?.slice(1); // e.g. "clients__louis-vuitton"
-                      const pagePath = ref?.replace('__', '/') + '.md'; // "clients/louis-vuitton.md"
-                      return (
-                        <a
-                          {...props}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (pagePath) fetchPageContent(pagePath);
-                          }}
-                          className="text-blue-600 hover:underline cursor-pointer font-medium"
-                        >
-                          {props.children}
-                        </a>
-                      );
-                    }
-                    return (
-                      <a 
-                        {...props} 
-                        className="text-blue-600 hover:underline" 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                      />
-                    );
-                  }
-                }}
-              >
-                {processWikiLinks(content || '', pageTree)}
-              </ReactMarkdown>
+              {(() => {
+                 const { tags, content: cleanContent } = parseFrontmatter(content);
+                 return (
+                   <>
+                     {tags.length > 0 && (
+                       <div className="flex flex-wrap gap-2 mb-8 p-4 bg-gray-50/80 rounded-xl border border-gray-100 shadow-sm backdrop-blur-sm">
+                         {tags.map((t, idx) => (
+                           <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-sm uppercase tracking-wider">
+                             <span className="text-gray-400 mr-2 text-[10px]">{t.key}:</span>
+                             <span className="text-blue-600 font-bold">{t.value}</span>
+                           </span>
+                         ))}
+                       </div>
+                     )}
+                     <ReactMarkdown
+                       components={{
+                         a: ({ node, ...props }) => {
+                           const isInternal = props.href?.startsWith('#');
+                           if (isInternal) {
+                             const ref = props.href?.slice(1); // e.g. "clients__louis-vuitton"
+                             const pagePath = ref?.replace('__', '/') + '.md'; // "clients/louis-vuitton.md"
+                             return (
+                               <a
+                                 {...props}
+                                 onClick={(e) => {
+                                   e.preventDefault();
+                                   if (pagePath) fetchPageContent(pagePath);
+                                 }}
+                                 className="text-blue-600 hover:underline cursor-pointer font-medium"
+                               >
+                                 {props.children}
+                               </a>
+                             );
+                           }
+                           return (
+                             <a 
+                               {...props} 
+                               className="text-blue-600 hover:underline" 
+                               target="_blank" 
+                               rel="noopener noreferrer" 
+                             />
+                           );
+                         }
+                       }}
+                     >
+                       {processWikiLinks(cleanContent, pageTree)}
+                     </ReactMarkdown>
+                   </>
+                 );
+              })()}
 
               {/* Backlinks Section */}
               {backlinks.length > 0 && (
