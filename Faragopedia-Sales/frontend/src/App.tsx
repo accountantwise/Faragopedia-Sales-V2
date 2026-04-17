@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [chatHistory, setChatHistory] = useState<{ id: number, role: 'user' | 'assistant', content: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -201,23 +202,45 @@ const App: React.FC = () => {
       {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden block"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
       
       {/* Sidebar container */}
-      <div className={`fixed inset-y-0 left-0 z-50 transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out`}>
-        <Sidebar currentView={currentView} onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }} />
+      <div 
+        className={`fixed inset-y-0 left-0 z-50 transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative ${sidebarOpen ? 'md:translate-x-0 md:w-64' : 'md:-translate-x-full md:w-0'} transition-all duration-300 ease-in-out flex-shrink-0 bg-gray-800 h-screen`}
+      >
+        <div className="w-64 h-full relative">
+          <Sidebar currentView={currentView} onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }} />
+          {/* Mobile close button */}
+          <button 
+            className="md:hidden absolute top-4 right-4 text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/80"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       <main className="flex-grow flex flex-col overflow-hidden relative w-full">
-        {/* Mobile header area */}
-        <div className="md:hidden bg-white border-b px-4 py-3 flex items-center shrink-0">
-          <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+        {/* Universal header area with hamburger toggle */}
+        <div className="bg-white border-b px-4 py-3 flex items-center shrink-0 z-30 relative shadow-sm">
+          <button 
+            onClick={() => {
+              // Always toggle sidebarOpen, let CSS handle responsiveness
+              setSidebarOpen(prev => !prev);
+              setMobileMenuOpen(true); // For mobile
+            }} 
+            className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg flex items-center justify-center transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
+            aria-label="Toggle Navigation"
+          >
             <Menu className="w-6 h-6" />
           </button>
-          <span className="ml-4 font-bold text-gray-800">Faragopedia</span>
+          {!sidebarOpen && (
+             <span className="hidden md:ml-4 font-bold text-gray-800 md:inline-block">Faragopedia</span>
+          )}
+          <span className="ml-4 font-bold text-gray-800 md:hidden">Faragopedia</span>
         </div>
         <div className="flex-grow overflow-hidden relative h-full">
           {renderContent()}
