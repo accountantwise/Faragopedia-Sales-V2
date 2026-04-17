@@ -1,6 +1,6 @@
 # Add Sources Modal Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the single-file `+` upload button in SourcesView with an "Add Sources" modal supporting multi-file upload, URL crawl via WiseCrawler, and paste text.
 
@@ -30,7 +30,7 @@
 - Create: `Faragopedia-Sales/backend/agent/wisecrawler.py`
 - Create: `Faragopedia-Sales/backend/tests/test_wisecrawler.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `Faragopedia-Sales/backend/tests/test_wisecrawler.py`:
 
@@ -133,7 +133,7 @@ async def test_analyze_crawl_returns_analysis():
     assert call_kwargs[1]["json"]["prompt"] == "Summarize this."
 ```
 
-- [ ] **Step 2: Run to confirm tests fail**
+- [x] **Step 2: Run to confirm tests fail**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -142,7 +142,7 @@ python -m pytest tests/test_wisecrawler.py -v
 
 Expected: `ModuleNotFoundError: No module named 'agent.wisecrawler'`
 
-- [ ] **Step 3: Implement `agent/wisecrawler.py`**
+- [x] **Step 3: Implement `agent/wisecrawler.py`**
 
 Create `Faragopedia-Sales/backend/agent/wisecrawler.py`:
 
@@ -216,7 +216,7 @@ async def analyze_crawl(job_id: str, prompt: str = DEFAULT_ANALYZE_PROMPT) -> st
         return response.json()["analysis"]
 ```
 
-- [ ] **Step 4: Run tests — expect pass**
+- [x] **Step 4: Run tests — expect pass**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -225,7 +225,7 @@ python -m pytest tests/test_wisecrawler.py -v
 
 Expected: 4 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Faragopedia-Sales/backend/agent/wisecrawler.py Faragopedia-Sales/backend/tests/test_wisecrawler.py
@@ -240,7 +240,7 @@ git commit -m "feat: add WiseCrawler async client with tests"
 - Modify: `Faragopedia-Sales/backend/api/routes.py`
 - Modify: `Faragopedia-Sales/backend/tests/test_sources.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `Faragopedia-Sales/backend/tests/test_sources.py`:
 
@@ -272,7 +272,7 @@ def test_paste_source_empty_content():
     assert response.status_code == 422
 ```
 
-- [ ] **Step 2: Run to confirm tests fail**
+- [x] **Step 2: Run to confirm tests fail**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -281,7 +281,7 @@ python -m pytest tests/test_sources.py::test_paste_source_happy_path tests/test_
 
 Expected: FAIL — `404 Not Found` (route doesn't exist yet)
 
-- [ ] **Step 3: Add the endpoint to `routes.py`**
+- [x] **Step 3: Add the endpoint to `routes.py`**
 
 Add these imports at the top of `Faragopedia-Sales/backend/api/routes.py` (after existing imports):
 
@@ -316,7 +316,7 @@ async def paste_source(payload: dict):
     return {"filename": filename, "message": "Text saved as source"}
 ```
 
-- [ ] **Step 4: Run tests — expect pass**
+- [x] **Step 4: Run tests — expect pass**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -325,7 +325,7 @@ python -m pytest tests/test_sources.py::test_paste_source_happy_path tests/test_
 
 Expected: 3 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Faragopedia-Sales/backend/api/routes.py Faragopedia-Sales/backend/tests/test_sources.py
@@ -340,7 +340,7 @@ git commit -m "feat: add POST /paste endpoint for text sources"
 - Modify: `Faragopedia-Sales/backend/api/routes.py`
 - Modify: `Faragopedia-Sales/backend/tests/test_sources.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `Faragopedia-Sales/backend/tests/test_sources.py`:
 
@@ -375,7 +375,7 @@ def test_scrape_urls_no_wisecrawler_url():
 
 Also add `import os` to the top of `test_sources.py` if not already present.
 
-- [ ] **Step 2: Run to confirm tests fail**
+- [x] **Step 2: Run to confirm tests fail**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -384,7 +384,7 @@ python -m pytest tests/test_sources.py::test_scrape_urls_starts_background_jobs 
 
 Expected: FAIL — `404 Not Found`
 
-- [ ] **Step 3: Add endpoint and background task helper to `routes.py`**
+- [x] **Step 3: Add endpoint and background task helper to `routes.py`**
 
 Append to `Faragopedia-Sales/backend/api/routes.py`:
 
@@ -434,7 +434,7 @@ async def scrape_urls(payload: dict, background_tasks: BackgroundTasks):
     return {"message": f"Started {len(urls)} crawl job(s)"}
 ```
 
-- [ ] **Step 4: Run tests — expect pass**
+- [x] **Step 4: Run tests — expect pass**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -443,7 +443,7 @@ python -m pytest tests/test_sources.py -v
 
 Expected: all source tests pass (3 existing + 3 paste + 3 scrape-urls = 9 passed)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Faragopedia-Sales/backend/api/routes.py Faragopedia-Sales/backend/tests/test_sources.py
@@ -459,7 +459,7 @@ git commit -m "feat: add POST /scrape-urls endpoint with WiseCrawler background 
 
 No automated frontend tests exist in this project. Verify manually after Task 5.
 
-- [ ] **Step 1: Create `AddSourcesModal.tsx`**
+- [x] **Step 1: Create `AddSourcesModal.tsx`**
 
 Create `Faragopedia-Sales/frontend/src/components/AddSourcesModal.tsx`:
 
@@ -732,7 +732,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
 export default AddSourcesModal;
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add Faragopedia-Sales/frontend/src/components/AddSourcesModal.tsx
@@ -747,7 +747,7 @@ git commit -m "feat: add AddSourcesModal component with Files, URL, and Paste ta
 - Modify: `Faragopedia-Sales/frontend/src/components/SourcesView.tsx`
 - Modify: `Faragopedia-Sales/.env` (or `.env.local`)
 
-- [ ] **Step 1: Add env vars to `.env`**
+- [x] **Step 1: Add env vars to `.env`**
 
 Open `Faragopedia-Sales/.env` and add:
 
@@ -758,7 +758,7 @@ WISECRAWLER_API_KEY=your_api_key_here
 
 Replace `your_api_key_here` with the actual value of `API_KEY` from WiseCrawler's `.env`.
 
-- [ ] **Step 2: Update `SourcesView.tsx`**
+- [x] **Step 2: Update `SourcesView.tsx`**
 
 In `Faragopedia-Sales/frontend/src/components/SourcesView.tsx`:
 
@@ -807,7 +807,7 @@ Replace it with:
 
 **e) Remove the now-unused `handleFileUpload` function and `uploading` state** (lines 160–185 and line 14). They are fully replaced by the modal's Files tab.
 
-- [ ] **Step 3: Verify the app compiles**
+- [x] **Step 3: Verify the app compiles**
 
 ```bash
 cd Faragopedia-Sales/frontend
@@ -816,7 +816,7 @@ npm run build
 
 Expected: Build succeeds with no TypeScript errors.
 
-- [ ] **Step 4: Manual smoke test**
+- [x] **Step 4: Manual smoke test**
 
 Start the dev server:
 
@@ -834,7 +834,7 @@ Open the app and navigate to Sources. Verify:
 5. **Error state:** submit the URL tab with an invalid URL — an error toast or inline error appears.
 6. **ESC / close button** dismisses the modal without submitting.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Faragopedia-Sales/frontend/src/components/SourcesView.tsx Faragopedia-Sales/.env
@@ -853,3 +853,7 @@ git commit -m "feat: wire AddSourcesModal into SourcesView, replace single uploa
 - [x] **Environment config** — Task 5 covers adding `WISECRAWLER_BASE_URL` and `WISECRAWLER_API_KEY`
 - [x] **Type consistency** — `onSourceAdded` callback, `Tab` type, and function names are consistent across Tasks 4–5
 - [x] **No placeholders** — all steps contain actual code
+
+## Task 6: Aesthetic formatting of .md Sources
+
+- [x] **Step 1:** Updated `SourcesView.tsx` to implement `ReactMarkdown` and frontmatter parsing for aesthetic formatting of `.md` files to match the main Wiki view content.
