@@ -4,8 +4,10 @@ import datetime
 import re
 import json
 import shutil
+import yaml
 from pydantic import BaseModel, Field
 from typing import List, Dict
+from agent.schema_builder import discover_entity_types, build_schema_md
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -30,8 +32,6 @@ class LintReport(BaseModel):
     findings: List[LintFinding] = Field(description="All findings from the lint operation")
     summary: str = Field(description="One-line summary of findings count by severity")
 
-
-ENTITY_SUBDIRS = ["clients", "prospects", "contacts", "photographers", "productions"]
 
 INGEST_HUMAN_TEMPLATE = """You are ingesting a new source document into the Farago Projects wiki.
 
@@ -195,17 +195,25 @@ class WikiManager:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"## [{timestamp}] {action} | {details}\n")
 
+    def get_entity_types(self) -> Dict[str, Dict]:
+        """Discover entity types dynamically from _type.yaml files."""
+        return discover_entity_types(self.wiki_dir)
+
     def update_index(self):
-        """Regenerate index.md grouped by entity subdirectory."""
+        """Regenerate index.md grouped by entity subdirectory (dynamic)."""
         index_path = os.path.join(self.wiki_dir, "index.md")
         today = datetime.datetime.now().strftime("%Y-%m-%d")
 
+        entity_types = self.get_entity_types()
         sections = {}
-        for sub in ENTITY_SUBDIRS:
+        for sub in entity_types:
             sub_dir = os.path.join(self.wiki_dir, sub)
             if not os.path.exists(sub_dir):
                 continue
-            files = sorted(f for f in os.listdir(sub_dir) if f.endswith(".md"))
+            files = sorted(
+                f for f in os.listdir(sub_dir)
+                if f.endswith(".md") and not f.startswith("_")
+            )
             if files:
                 sections[sub] = files
 
@@ -218,8 +226,8 @@ class WikiManager:
             "",
         ]
 
-        for sub in ENTITY_SUBDIRS:
-            heading = sub.capitalize()
+        for sub, type_data in entity_types.items():
+            heading = type_data.get("name", sub.capitalize())
             lines.append(f"## {heading}")
             lines.append("")
             if sub in sections:
@@ -433,8 +441,9 @@ class WikiManager:
         """Create a new Untitled page in the given entity subdirectory.
         Returns the relative path, e.g. 'clients/Untitled.md'.
         """
-        if entity_type not in ENTITY_SUBDIRS:
-            raise ValueError(f"Invalid entity type: {entity_type!r}. Must be one of {ENTITY_SUBDIRS}")
+        entity_types = self.get_entity_types()
+        if entity_type not in entity_types:
+            raise ValueError(f"Invalid entity type: {entity_type!r}. Must be one of {list(entity_types.keys())}")
 
         async with self._write_lock:
             sub_dir = os.path.join(self.wiki_dir, entity_type)
@@ -447,8 +456,7 @@ class WikiManager:
                 rel_path = f"{entity_type}/{base_name}_{count}.md"
                 count += 1
 
-            # Write with minimal frontmatter for the entity type
-            singular = entity_type.rstrip("s")  # "clients" → "client", etc.
+            singular = entity_types[entity_type].get("singular", entity_type.rstrip("s"))
             content = f"---\ntype: {singular}\nname: \n---\n\n# Untitled\n\nNew page content here.\n"
             with open(os.path.join(self.wiki_dir, rel_path.replace("/", os.sep)), "w", encoding="utf-8") as f:
                 f.write(content)
@@ -456,6 +464,133 @@ class WikiManager:
             self.update_index()
             self._append_to_log("create", f"Created {rel_path}")
             return rel_path
+
+    def rebuild_schema(self):
+        """Regenerate SCHEMA.md from SCHEMA_TEMPLATE.md and _type.yaml files."""
+        template_path = os.path.join(self.schema_dir, "SCHEMA_TEMPLATE.md")
+        if not os.path.exists(template_path):
+            return  # No template yet, skip
+        schema_content = build_schema_md(self.wiki_dir, template_path)
+        schema_path = os.path.join(self.schema_dir, "SCHEMA.md")
+        with open(schema_path, "w", encoding="utf-8") as f:
+            f.write(schema_content)
+        # Reload system prompt so next LLM call sees updated schema
+        self.system_prompt = self._load_system_prompt()
+
+    def _rewrite_wikilinks(self, old_folder: str, new_folder: str):
+        """Rewrite all [[old_folder/...]] wikilinks to [[new_folder/...]] across all pages."""
+        pattern = re.compile(r"\[\[" + re.escape(old_folder) + r"/([^\]]+)\]\]")
+        replacement = f"[[{new_folder}/\\1]]"
+        for root, _dirs, files in os.walk(self.wiki_dir):
+            for fname in files:
+                if not fname.endswith(".md"):
+                    continue
+                fpath = os.path.join(root, fname)
+                with open(fpath, "r", encoding="utf-8") as f:
+                    content = f.read()
+                new_content = pattern.sub(replacement, content)
+                if new_content != content:
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+
+    def _rewrite_wikilinks_specific(self, old_ref: str, new_ref: str):
+        """Rewrite a specific [[old_ref]] wikilink to [[new_ref]] across all pages."""
+        for root, _dirs, files in os.walk(self.wiki_dir):
+            for fname in files:
+                if not fname.endswith(".md"):
+                    continue
+                fpath = os.path.join(root, fname)
+                with open(fpath, "r", encoding="utf-8") as f:
+                    content = f.read()
+                new_content = content.replace(f"[[{old_ref}]]", f"[[{new_ref}]]")
+                if new_content != content:
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+
+    async def create_folder(self, folder_name: str, display_name: str, description: str = ""):
+        """Create a new entity folder with a _type.yaml file."""
+        folder_path = os.path.join(self.wiki_dir, folder_name)
+        if os.path.exists(folder_path):
+            raise ValueError(f"Folder '{folder_name}' already exists")
+
+        async with self._write_lock:
+            os.makedirs(folder_path)
+            type_data = {
+                "name": display_name,
+                "description": description,
+                "singular": folder_name.rstrip("s"),
+                "fields": [
+                    {"name": "type", "type": "string", "default": folder_name.rstrip("s")},
+                    {"name": "name", "type": "string", "required": True},
+                ],
+                "sections": ["Overview", "Notes"],
+            }
+            with open(os.path.join(folder_path, "_type.yaml"), "w", encoding="utf-8") as f:
+                yaml.dump(type_data, f, default_flow_style=False, sort_keys=False)
+
+            self.rebuild_schema()
+            self.update_index()
+            self._append_to_log("create_folder", f"Created folder '{folder_name}' ({display_name})")
+
+    async def delete_folder(self, folder_name: str):
+        """Delete an empty entity folder."""
+        folder_path = os.path.join(self.wiki_dir, folder_name)
+        if not os.path.exists(folder_path):
+            raise ValueError(f"Folder '{folder_name}' does not exist")
+
+        # Check for pages (anything except _type.yaml and .gitkeep)
+        contents = [f for f in os.listdir(folder_path) if f not in ("_type.yaml", ".gitkeep")]
+        if contents:
+            raise ValueError(f"Folder '{folder_name}' is not empty — archive or move pages first")
+
+        async with self._write_lock:
+            shutil.rmtree(folder_path)
+            self.rebuild_schema()
+            self.update_index()
+            self._append_to_log("delete_folder", f"Deleted folder '{folder_name}'")
+
+    async def rename_folder(self, old_name: str, new_name: str):
+        """Rename an entity folder and update all wikilinks across the wiki."""
+        old_path = os.path.join(self.wiki_dir, old_name)
+        new_path = os.path.join(self.wiki_dir, new_name)
+        if not os.path.exists(old_path):
+            raise ValueError(f"Folder '{old_name}' does not exist")
+        if os.path.exists(new_path):
+            raise ValueError(f"Folder '{new_name}' already exists")
+
+        async with self._write_lock:
+            os.rename(old_path, new_path)
+            self._rewrite_wikilinks(old_name, new_name)
+            self.rebuild_schema()
+            self.update_index()
+            self._append_to_log("rename_folder", f"Renamed '{old_name}' → '{new_name}'")
+
+    async def move_page(self, page_path: str, target_folder: str) -> str:
+        """Move a wiki page to a different entity folder. Updates wikilinks.
+        Returns the new page path.
+        """
+        target_dir = os.path.join(self.wiki_dir, target_folder)
+        if not os.path.exists(target_dir) or not os.path.exists(os.path.join(target_dir, "_type.yaml")):
+            raise ValueError(f"Target folder '{target_folder}' does not exist or has no _type.yaml")
+
+        src = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
+        if not os.path.exists(src):
+            raise FileNotFoundError(f"Page not found: {page_path}")
+
+        filename = os.path.basename(page_path)
+        new_rel_path = f"{target_folder}/{filename}"
+        dest = os.path.join(self.wiki_dir, new_rel_path.replace("/", os.sep))
+
+        old_ref = page_path[:-3] if page_path.endswith(".md") else page_path
+        new_ref = new_rel_path[:-3] if new_rel_path.endswith(".md") else new_rel_path
+
+        async with self._write_lock:
+            shutil.move(src, dest)
+            self._rewrite_wikilinks_specific(old_ref, new_ref)
+            self.update_index()
+            self._append_to_log("move", f"Moved {page_path} → {new_rel_path}")
+
+        return new_rel_path
 
     async def archive_page(self, page_path: str):
         """Move a wiki page to the archive."""

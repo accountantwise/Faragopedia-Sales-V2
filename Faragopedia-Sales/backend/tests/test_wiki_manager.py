@@ -318,8 +318,15 @@ def test_update_index_groups_by_subdirectory(tmp_path):
 
     wiki = tmp_path / "wiki"
     wiki.mkdir()
-    for sub in ["clients", "prospects", "contacts", "photographers", "productions"]:
+    entity_meta = {
+        "clients": "Clients", "prospects": "Prospects", "contacts": "Contacts",
+        "photographers": "Photographers", "productions": "Productions",
+    }
+    for sub, name in entity_meta.items():
         (wiki / sub).mkdir()
+        (wiki / sub / "_type.yaml").write_text(
+            f"name: {name}\nsingular: {sub.rstrip('s')}\nfields: []\nsections: []\n"
+        )
     (wiki / "clients" / "louis-vuitton.md").write_text("# LV")
     (wiki / "prospects" / "chanel.md").write_text("# Chanel")
     (wiki / "photographers" / "jamie-hawkesworth.md").write_text("# JH")
@@ -419,8 +426,15 @@ async def test_ingest_writes_pages_to_correct_subdirectory(tmp_path):
     wiki = tmp_path / "wiki"
     sources.mkdir()
     wiki.mkdir()
-    for sub in ["clients", "contacts", "prospects", "photographers", "productions"]:
+    entity_meta = {
+        "clients": "Clients", "contacts": "Contacts", "prospects": "Prospects",
+        "photographers": "Photographers", "productions": "Productions",
+    }
+    for sub, name in entity_meta.items():
         (wiki / sub).mkdir()
+        (wiki / sub / "_type.yaml").write_text(
+            f"name: {name}\nsingular: {sub.rstrip('s')}\nfields: []\nsections: []\n"
+        )
     (wiki / "index.md").write_text("# Index\n\n## Clients\n\n*No clients yet.*\n")
 
     source_file = sources / "lv-brief.txt"
@@ -649,8 +663,15 @@ async def test_create_new_page_in_entity_subdir(tmp_path):
 
     wiki = tmp_path / "wiki"
     wiki.mkdir()
-    for sub in ["clients", "prospects", "contacts", "photographers", "productions"]:
+    entity_meta = {
+        "clients": "Clients", "prospects": "Prospects", "contacts": "Contacts",
+        "photographers": "Photographers", "productions": "Productions",
+    }
+    for sub, name in entity_meta.items():
         (wiki / sub).mkdir()
+        (wiki / sub / "_type.yaml").write_text(
+            f"name: {name}\nsingular: {sub.rstrip('s')}\nfields: []\nsections: []\n"
+        )
 
     with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
         manager = WikiManager(
