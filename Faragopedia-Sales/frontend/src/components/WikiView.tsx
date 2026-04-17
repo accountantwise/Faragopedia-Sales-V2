@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
 import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus } from 'lucide-react';
@@ -32,6 +32,10 @@ const WikiView: React.FC = () => {
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [showNewPageMenu, setShowNewPageMenu] = useState(false);
 
+  // Resizable sidebar state
+  const [sidebarWidth, setSidebarWidth] = useState<number>(256);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [contentLoading, setContentLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +45,36 @@ const WikiView: React.FC = () => {
   useEffect(() => {
     fetchPages();
   }, []);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    dragRef.current = { startX: e.clientX, startWidth: sidebarWidth };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragRef.current) return;
+    const { startX, startWidth } = dragRef.current;
+    const newWidth = Math.min(Math.max(200, startWidth + (e.clientX - startX)), 800);
+    setSidebarWidth(newWidth);
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    if (dragRef.current) {
+      dragRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   const fetchPages = async () => {
     try {
@@ -236,7 +270,10 @@ const WikiView: React.FC = () => {
   return (
     <div className="flex h-full">
       {/* Sidebar - Page List */}
-      <div className="w-64 border-r bg-white overflow-y-auto p-4 flex flex-col">
+      <div 
+        className="border-r bg-white overflow-y-auto p-4 flex flex-col flex-shrink-0"
+        style={{ width: sidebarWidth }}
+      >
         {/* Header with New Page menu */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Pages</h2>
@@ -308,6 +345,12 @@ const WikiView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Drag Handle Gutter */}
+      <div
+        onMouseDown={handleMouseDown}
+        className="w-1 bg-transparent hover:bg-blue-400 cursor-col-resize transition-colors z-20 flex-shrink-0"
+      />
 
       {/* Main Content - Markdown View */}
       <div className="flex-grow overflow-y-auto bg-white flex flex-col">

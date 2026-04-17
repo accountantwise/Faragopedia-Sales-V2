@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database } from 'lucide-react';
 
 import { API_BASE } from '../config';
@@ -19,6 +19,40 @@ const SourcesView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // Resizable sidebar state
+  const [sidebarWidth, setSidebarWidth] = useState<number>(256);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    dragRef.current = { startX: e.clientX, startWidth: sidebarWidth };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragRef.current) return;
+    const { startX, startWidth } = dragRef.current;
+    const newWidth = Math.min(Math.max(200, startWidth + (e.clientX - startX)), 800);
+    setSidebarWidth(newWidth);
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    if (dragRef.current) {
+      dragRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
     fetchSources();
@@ -174,7 +208,10 @@ const SourcesView: React.FC = () => {
   return (
     <div className="flex h-full">
       {/* Sidebar - Source List */}
-      <div className="w-64 border-r bg-white overflow-y-auto p-4 flex flex-col">
+      <div 
+        className="border-r bg-white overflow-y-auto p-4 flex flex-col flex-shrink-0"
+        style={{ width: sidebarWidth }}
+      >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Sources</h2>
           <label className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer disabled:opacity-50" title="Add Source">
@@ -207,6 +244,12 @@ const SourcesView: React.FC = () => {
           </ul>
         )}
       </div>
+
+      {/* Drag Handle Gutter */}
+      <div
+        onMouseDown={handleMouseDown}
+        className="w-1 bg-transparent hover:bg-blue-400 cursor-col-resize transition-colors z-20 flex-shrink-0"
+      />
 
       {/* Main Content - Source View */}
       <div className="flex-grow overflow-y-auto bg-white flex flex-col">
