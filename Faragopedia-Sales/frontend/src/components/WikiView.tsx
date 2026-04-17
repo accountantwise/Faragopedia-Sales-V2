@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8300/api`;
+import { API_BASE } from '../config';
+import { formatPageName } from '../utils/formatPageName';
+import ErrorToast from './ErrorToast';
 
 type PageTree = Record<string, string[]>;
 
@@ -60,10 +62,14 @@ const WikiView: React.FC = () => {
   const totalPageCount = Object.values(pageTree).reduce((acc, pages) => acc + pages.length, 0);
 
   const fetchPageContent = async (filename: string, addToHistory: boolean = true) => {
+    if (isEditing && editedContent !== content) {
+      if (!window.confirm('You have unsaved changes. Discard them and navigate away?')) return;
+    }
+
     try {
       setContentLoading(true);
-      setIsEditing(false); // Cancel editing when switching pages
-      
+      setIsEditing(false);
+
       // History management
       if (addToHistory && selectedPage && selectedPage !== filename) {
         setHistoryStack(prev => [...prev, selectedPage]);
@@ -135,7 +141,7 @@ const WikiView: React.FC = () => {
 
   const handleDelete = async () => {
     if (!selectedPage) return;
-    if (!window.confirm(`Move '${selectedPage.replace('.md', '').replace(/_/g, ' ')}' to archive?`)) return;
+    if (!window.confirm(`Move '${formatPageName(selectedPage)}' to archive?`)) return;
 
     try {
       setIsDeleting(true);
@@ -452,10 +458,7 @@ const WikiView: React.FC = () => {
       </div>
 
       {error && (
-        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-          <button onClick={() => setError(null)} className="ml-4 font-bold">&times;</button>
-        </div>
+        <ErrorToast message={error} onDismiss={() => setError(null)} />
       )}
     </div>
   );

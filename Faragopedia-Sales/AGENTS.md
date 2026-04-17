@@ -91,8 +91,9 @@ current direction.
 10. ~~Implement File Management (Archive, Restore, Delete, Download)~~ ✅
 11. ~~Improve Source Ingestion (Manual control, Status tracking)~~ ✅
 12. ~~Refine AI maintenance logic (semantic linting)~~ → Superseded by Wiki-Concept Integration
-13. **Execute Wiki-Concept Integration Plan** 👈 — Plan ready at `docs/superpowers/plans/2026-04-15-wiki-integration-claude.md`
-13. ~~Create GitHub repository and push initial commit~~ ✅
+13. ~~Execute Wiki-Concept Integration Plan~~ ✅ — All 12 tasks complete on `big-refactor`; see `docs/superpowers/plans/2026-04-15-wiki-integration-claude.md`
+14. ~~Create GitHub repository and push initial commit~~ ✅
+15. **Merge `big-refactor` to `main`** 👈
 
 
 ---
@@ -137,8 +138,5 @@ AGENTS.md          ← You are here. The single source of truth.
    was done.
 5. **Do not duplicate context** — agent-specific files (`CLAUDE.md`, `GEMINI.md`)
    should only contain agent-specific configuration, not project context.
-6. **Prefer this file** over agent-specific memory systems for anything another
-   agent would need to know.
-text.
 6. **Prefer this file** over agent-specific memory systems for anything another
    agent would need to know.

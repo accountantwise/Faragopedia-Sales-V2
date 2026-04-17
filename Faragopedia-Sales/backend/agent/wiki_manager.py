@@ -545,8 +545,14 @@ class WikiManager:
         self._append_to_log("delete_permanent", f"Permanently deleted archived source {filename}")
 
     def list_archived_pages(self) -> List[str]:
-        """List all markdown files in the archive wiki directory."""
-        return [f for f in os.listdir(self.archive_wiki_dir) if f.endswith(".md")]
+        """List all markdown files in the archive wiki directory (recursive)."""
+        pages = []
+        for root, _dirs, files in os.walk(self.archive_wiki_dir):
+            for f in files:
+                if f.endswith(".md"):
+                    rel = os.path.relpath(os.path.join(root, f), self.archive_wiki_dir)
+                    pages.append(rel.replace(os.sep, "/"))
+        return pages
 
     def list_archived_sources(self) -> List[str]:
         """List all files in the archive sources directory."""

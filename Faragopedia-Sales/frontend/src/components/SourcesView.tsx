@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8300/api`;
+import { API_BASE } from '../config';
+import ErrorToast from './ErrorToast';
 
 const SourcesView: React.FC = () => {
   const [sources, setSources] = useState<string[]>([]);
@@ -309,10 +310,7 @@ const SourcesView: React.FC = () => {
       </div>
 
       {error && (
-        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-          <button onClick={() => setError(null)} className="ml-4 font-bold">&times;</button>
-        </div>
+        <ErrorToast message={error} onDismiss={() => setError(null)} />
       )}
     </div>
   );

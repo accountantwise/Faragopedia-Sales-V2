@@ -1,19 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import WikiView from './components/WikiView';
 import SourcesView from './components/SourcesView';
 import ArchiveView from './components/ArchiveView';
 import LintView from './components/LintView';
-import { Loader2, Upload, MessageSquare, Activity } from 'lucide-react';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8300/api`;
+import { Loader2, Upload, MessageSquare, Send } from 'lucide-react';
+import { API_BASE } from './config';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState('Wiki');
   const [uploading, setUploading] = useState(false);
   const [chatQuery, setChatQuery] = useState('');
-  const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
+  const [chatHistory, setChatHistory] = useState<{ id: number, role: 'user' | 'assistant', content: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory, chatLoading]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -22,7 +26,7 @@ const App: React.FC = () => {
     formData.append('file', file);
     setUploading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/upload`, { method: 'POST', body: formData });
+      const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
       if (!response.ok) throw new Error('Upload failed');
       const data = await response.json();
       alert(`Success: ${data.message}`);
@@ -38,15 +42,15 @@ const App: React.FC = () => {
     if (!chatQuery.trim()) return;
     const userMessage = chatQuery;
     setChatQuery('');
-    setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
+    setChatHistory(prev => [...prev, { id: Date.now(), role: 'user', content: userMessage }]);
     setChatLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/chat?query=${encodeURIComponent(userMessage)}`, { method: 'POST' });
+      const response = await fetch(`${API_BASE}/chat?query=${encodeURIComponent(userMessage)}`, { method: 'POST' });
       if (!response.ok) throw new Error('Chat failed');
       const data = await response.json();
-      setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
+      setChatHistory(prev => [...prev, { id: Date.now(), role: 'assistant', content: data.response }]);
     } catch (err) {
-      setChatHistory(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error.' }]);
+      setChatHistory(prev => [...prev, { id: Date.now(), role: 'assistant', content: 'Sorry, I encountered an error.' }]);
     } finally {
       setChatLoading(false);
     }
@@ -92,8 +96,8 @@ const App: React.FC = () => {
                     <p>Start a conversation with your Wiki</p>
                   </div>
                 ) : (
-                  chatHistory.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  chatHistory.map((msg) => (
+                    <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${
                         msg.role === 'user'
                           ? 'bg-blue-600 text-white rounded-tr-none'
@@ -112,6 +116,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 )}
+                <div ref={chatBottomRef} />
               </div>
               <div className="p-4 bg-gray-50 border-t">
                 <div className="relative">
@@ -129,7 +134,7 @@ const App: React.FC = () => {
                     disabled={chatLoading || !chatQuery.trim()}
                     className="absolute right-3 top-3 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    <Activity className="w-5 h-5 transform rotate-90" />
+                    <Send className="w-5 h-5" />
                   </button>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Activity, Loader2, AlertCircle, AlertTriangle, Lightbulb } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8300/api`;
+import { API_BASE } from '../config';
 
 interface LintFinding {
   severity: 'error' | 'warning' | 'suggestion';

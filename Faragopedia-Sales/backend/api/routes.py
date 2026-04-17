@@ -82,48 +82,35 @@ def safe_wiki_filename(path: str) -> str:
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...), ingest: bool = Query(True)):
-    print(f"DEBUG: Starting upload for file: {file.filename}, ingest: {ingest}")
-    # Robust directory checking
     if not os.path.exists(SOURCES_DIR):
         try:
-            print(f"DEBUG: Creating SOURCES_DIR: {SOURCES_DIR}")
             os.makedirs(SOURCES_DIR, exist_ok=True)
         except Exception as e:
-            print(f"DEBUG: Error creating sources directory: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Could not create sources directory: {str(e)}")
-    
-    # Check if directory is writeable
+
     if not os.access(SOURCES_DIR, os.W_OK):
-        print(f"DEBUG: Sources directory not writeable: {SOURCES_DIR}")
         raise HTTPException(status_code=500, detail="Sources directory is not writeable")
 
-    # Sanitize filename
     safe_filename = secure_filename(file.filename)
     file_path = os.path.join(SOURCES_DIR, safe_filename)
-    print(f"DEBUG: Saving file to: {file_path}")
-    
+
     try:
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        print(f"DEBUG: File saved successfully: {file_path}")
     except Exception as e:
-        print(f"DEBUG: Error saving file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Could not save file: {str(e)}")
-    
-    # Trigger ingestion in the background if requested
+
     if ingest:
-        print(f"DEBUG: Triggering ingestion for: {safe_filename}")
         asyncio.create_task(wiki_manager.ingest_source(safe_filename))
         message = "File uploaded and ingestion started"
     else:
-        print(f"DEBUG: Skipping immediate ingestion for: {safe_filename}")
         message = "File uploaded successfully (ingestion skipped)"
-    
+
     return {"filename": safe_filename, "message": message}
 
 @router.post("/chat")
 async def chat(query: str):
-    if not query:
+    if not query or not query.strip():
         raise HTTPException(status_code=422, detail="Query parameter is required")
     
     try:
@@ -286,13 +273,14 @@ async def list_archived_sources():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing archived sources: {str(e)}")
 
-@router.post("/archive/pages/{filename}/restore")
+@router.post("/archive/pages/{filename:path}/restore")
 async def restore_page(filename: str):
     try:
-        # Basic basename check for archive files
-        safe_name = os.path.basename(filename)
+        safe_name = safe_wiki_filename(filename)
         await wiki_manager.restore_page(safe_name)
         return {"message": "Page restored from archive"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Archived page not found")
     except Exception as e:
@@ -309,12 +297,14 @@ async def restore_source(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error restoring source: {str(e)}")
 
-@router.delete("/archive/pages/{filename}/permanent")
+@router.delete("/archive/pages/{filename:path}/permanent")
 async def delete_archived_page_permanent(filename: str):
     try:
-        safe_name = os.path.basename(filename)
+        safe_name = safe_wiki_filename(filename)
         await wiki_manager.delete_archived_page(safe_name)
         return {"message": "Page permanently deleted from archive"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Archived page not found")
     except Exception as e:

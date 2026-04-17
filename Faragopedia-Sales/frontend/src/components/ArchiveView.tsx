@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, FileCheck, RotateCcw, Trash2, Loader2, Archive } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8300/api`;
+import { API_BASE } from '../config';
+import { formatPageName } from '../utils/formatPageName';
+import ErrorToast from './ErrorToast';
 
 const ArchiveView: React.FC = () => {
   const [archivedPages, setArchivedPages] = useState<string[]>([]);
@@ -39,7 +41,8 @@ const ArchiveView: React.FC = () => {
   const handleRestore = async (filename: string, type: 'page' | 'source') => {
     setActionLoading(`${type}-restore-${filename}`);
     try {
-      const endpoint = type === 'page' ? `/archive/pages/${encodeURIComponent(filename)}/restore` : `/archive/sources/${encodeURIComponent(filename)}/restore`;
+      // Pages use a path param (subdir/file.md) so no encoding; sources are flat filenames
+      const endpoint = type === 'page' ? `/archive/pages/${filename}/restore` : `/archive/sources/${encodeURIComponent(filename)}/restore`;
       const response = await fetch(`${API_BASE}${endpoint}`, { method: 'POST' });
       if (!response.ok) throw new Error(`Failed to restore ${type}`);
       await fetchArchivedItems();
@@ -55,7 +58,7 @@ const ArchiveView: React.FC = () => {
     
     setActionLoading(`${type}-delete-${filename}`);
     try {
-      const endpoint = type === 'page' ? `/archive/pages/${encodeURIComponent(filename)}/permanent` : `/archive/sources/${encodeURIComponent(filename)}/permanent`;
+      const endpoint = type === 'page' ? `/archive/pages/${filename}/permanent` : `/archive/sources/${encodeURIComponent(filename)}/permanent`;
       const response = await fetch(`${API_BASE}${endpoint}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(`Failed to delete ${type}`);
       await fetchArchivedItems();
@@ -104,21 +107,23 @@ const ArchiveView: React.FC = () => {
                   <div className="flex items-center space-x-3 overflow-hidden">
                     <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
                     <span className="text-sm font-medium text-gray-700 truncate">
-                      {page.replace('.md', '').replace(/_/g, ' ')}
+                      {formatPageName(page)}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => handleRestore(page, 'page')}
                       disabled={!!actionLoading}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors title='Restore'"
+                      title="Restore"
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       {actionLoading === `page-restore-${page}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                     </button>
                     <button
                       onClick={() => handleDeletePermanent(page, 'page')}
                       disabled={!!actionLoading}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors title='Delete Permanently'"
+                      title="Delete Permanently"
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     >
                       {actionLoading === `page-delete-${page}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                     </button>
@@ -151,14 +156,16 @@ const ArchiveView: React.FC = () => {
                     <button
                       onClick={() => handleRestore(source, 'source')}
                       disabled={!!actionLoading}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors title='Restore'"
+                      title="Restore"
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       {actionLoading === `source-restore-${source}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                     </button>
                     <button
                       onClick={() => handleDeletePermanent(source, 'source')}
                       disabled={!!actionLoading}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors title='Delete Permanently'"
+                      title="Delete Permanently"
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     >
                       {actionLoading === `source-delete-${source}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                     </button>
@@ -171,10 +178,7 @@ const ArchiveView: React.FC = () => {
       </div>
 
       {error && (
-        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-          <button onClick={() => setError(null)} className="ml-4 font-bold">&times;</button>
-        </div>
+        <ErrorToast message={error} onDismiss={() => setError(null)} />
       )}
     </div>
   );
