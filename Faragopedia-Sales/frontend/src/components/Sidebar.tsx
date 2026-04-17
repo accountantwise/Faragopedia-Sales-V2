@@ -1,5 +1,5 @@
 import React from 'react';
-import { Book, Upload, MessageSquare, Layers, Archive, Activity } from 'lucide-react';
+import { Book, MessageSquare, Layers, Archive, Activity } from 'lucide-react';
 
 interface SidebarProps {
   currentView: string;
@@ -10,7 +10,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
   const menuItems = [
     { name: 'Wiki', icon: <Book className="w-5 h-5" /> },
     { name: 'Sources', icon: <Layers className="w-5 h-5" /> },
-    { name: 'Upload', icon: <Upload className="w-5 h-5" /> },
     { name: 'Chat', icon: <MessageSquare className="w-5 h-5" /> },
     { name: 'Archive', icon: <Archive className="w-5 h-5" /> },
     { name: 'Lint', icon: <Activity className="w-5 h-5" /> },

@@ -4,13 +4,12 @@ import WikiView from './components/WikiView';
 import SourcesView from './components/SourcesView';
 import ArchiveView from './components/ArchiveView';
 import LintView from './components/LintView';
-import { Loader2, Upload, MessageSquare, Send, Menu, X } from 'lucide-react';
+import { Loader2, MessageSquare, Send, Menu, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { API_BASE } from './config';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState('Wiki');
-  const [uploading, setUploading] = useState(false);
   const [chatQuery, setChatQuery] = useState('');
   const [chatHistory, setChatHistory] = useState<{ id: number, role: 'user' | 'assistant', content: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
@@ -21,25 +20,6 @@ const App: React.FC = () => {
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, chatLoading]);
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    setUploading(true);
-    try {
-      const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Upload failed');
-      const data = await response.json();
-      alert(`Success: ${data.message}`);
-    } catch (err) {
-      alert('Error uploading file');
-    } finally {
-      setUploading(false);
-      if (event.target) event.target.value = '';
-    }
-  };
 
   const handleChat = async () => {
     if (!chatQuery.trim()) return;
@@ -65,27 +45,6 @@ const App: React.FC = () => {
         return <WikiView />;
       case 'Sources':
         return <SourcesView />;
-      case 'Upload':
-        return (
-          <div className="h-full w-full overflow-y-auto">
-            <div className="p-8 md:p-12 max-w-4xl mx-auto pb-24">
-              <h1 className="text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">Upload Sources</h1>
-              <p className="text-xl text-gray-500 mb-8 leading-relaxed">
-                Add documents, PDFs, or text files. The AI will ingest and create Farago schema pages automatically.
-              </p>
-              <label className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 flex flex-col items-center border-dashed border-2 hover:border-blue-400 transition-colors cursor-pointer group relative">
-                <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-6 group-hover:bg-blue-100 transition-colors">
-                  {uploading ? <Loader2 className="w-8 h-8 text-blue-600 animate-spin" /> : <Upload className="w-8 h-8 text-blue-600" />}
-                </div>
-                <p className="text-lg font-medium text-gray-700">
-                  {uploading ? 'Uploading and ingesting...' : 'Click to select a file to upload'}
-                </p>
-                <p className="text-sm text-gray-400 mt-2">PDF, TXT, and Markdown supported</p>
-              </label>
-            </div>
-          </div>
-        );
       case 'Chat':
         return (
           <div className="p-12 max-w-4xl mx-auto h-full flex flex-col">
