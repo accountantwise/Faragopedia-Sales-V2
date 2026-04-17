@@ -67,21 +67,23 @@ const App: React.FC = () => {
         return <SourcesView />;
       case 'Upload':
         return (
-          <div className="p-12 max-w-4xl mx-auto">
-            <h1 className="text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">Upload Sources</h1>
-            <p className="text-xl text-gray-500 mb-8 leading-relaxed">
-              Add documents, PDFs, or text files. The AI will ingest and create Farago schema pages automatically.
-            </p>
-            <label className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 flex flex-col items-center border-dashed border-2 hover:border-blue-400 transition-colors cursor-pointer group relative">
-              <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-6 group-hover:bg-blue-100 transition-colors">
-                {uploading ? <Loader2 className="w-8 h-8 text-blue-600 animate-spin" /> : <Upload className="w-8 h-8 text-blue-600" />}
-              </div>
-              <p className="text-lg font-medium text-gray-700">
-                {uploading ? 'Uploading and ingesting...' : 'Click to select a file to upload'}
+          <div className="h-full w-full overflow-y-auto">
+            <div className="p-8 md:p-12 max-w-4xl mx-auto pb-24">
+              <h1 className="text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">Upload Sources</h1>
+              <p className="text-xl text-gray-500 mb-8 leading-relaxed">
+                Add documents, PDFs, or text files. The AI will ingest and create Farago schema pages automatically.
               </p>
-              <p className="text-sm text-gray-400 mt-2">PDF, TXT, and Markdown supported</p>
-            </label>
+              <label className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 flex flex-col items-center border-dashed border-2 hover:border-blue-400 transition-colors cursor-pointer group relative">
+                <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-6 group-hover:bg-blue-100 transition-colors">
+                  {uploading ? <Loader2 className="w-8 h-8 text-blue-600 animate-spin" /> : <Upload className="w-8 h-8 text-blue-600" />}
+                </div>
+                <p className="text-lg font-medium text-gray-700">
+                  {uploading ? 'Uploading and ingesting...' : 'Click to select a file to upload'}
+                </p>
+                <p className="text-sm text-gray-400 mt-2">PDF, TXT, and Markdown supported</p>
+              </label>
+            </div>
           </div>
         );
       case 'Chat':

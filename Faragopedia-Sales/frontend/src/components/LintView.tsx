@@ -57,11 +57,12 @@ const LintView: React.FC = () => {
   };
 
   return (
-    <div className="p-12 max-w-4xl mx-auto">
-      <h1 className="text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">Wiki Lint</h1>
-      <p className="text-xl text-gray-500 mb-8 leading-relaxed">
-        Deep AI analysis — orphan pages, contradictions, missing entities, and data gaps.
-      </p>
+    <div className="h-full w-full overflow-y-auto">
+      <div className="p-8 md:p-12 max-w-4xl mx-auto pb-24">
+        <h1 className="text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">Wiki Lint</h1>
+        <p className="text-xl text-gray-500 mb-8 leading-relaxed">
+          Deep AI analysis — orphan pages, contradictions, missing entities, and data gaps.
+        </p>
 
       <button
         onClick={runLint}
@@ -121,6 +122,7 @@ const LintView: React.FC = () => {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 };
