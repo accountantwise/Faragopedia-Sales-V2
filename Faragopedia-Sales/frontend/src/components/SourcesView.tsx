@@ -196,9 +196,9 @@ const SourcesView: React.FC = () => {
                       : 'hover:bg-gray-100 text-gray-700'
                   }`}
                 >
-                  <span className="truncate flex items-center">
-                    <FileCheck className={`w-4 h-4 mr-2 ${metadata[source]?.ingested ? 'text-green-500' : 'text-gray-400 opacity-50'}`} />
-                    {source}
+                  <span className="flex items-start text-left max-w-[85%]">
+                    <FileCheck className={`w-4 h-4 mr-2 mt-0.5 shrink-0 ${metadata[source]?.ingested ? 'text-green-500' : 'text-gray-400 opacity-50'}`} />
+                    <span className="break-words line-clamp-2">{source}</span>
                   </span>
                   {selectedSource === source && <ChevronRight className="w-4 h-4" />}
                 </button>

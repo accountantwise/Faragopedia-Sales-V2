@@ -4,7 +4,8 @@ import WikiView from './components/WikiView';
 import SourcesView from './components/SourcesView';
 import ArchiveView from './components/ArchiveView';
 import LintView from './components/LintView';
-import { Loader2, Upload, MessageSquare, Send } from 'lucide-react';
+import { Loader2, Upload, MessageSquare, Send, Menu, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { API_BASE } from './config';
 
 const App: React.FC = () => {
@@ -13,6 +14,7 @@ const App: React.FC = () => {
   const [chatQuery, setChatQuery] = useState('');
   const [chatHistory, setChatHistory] = useState<{ id: number, role: 'user' | 'assistant', content: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -96,17 +98,61 @@ const App: React.FC = () => {
                     <p>Start a conversation with your Wiki</p>
                   </div>
                 ) : (
-                  chatHistory.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${
-                        msg.role === 'user'
-                          ? 'bg-blue-600 text-white rounded-tr-none'
-                          : 'bg-gray-100 text-gray-800 rounded-tl-none'
-                      }`}>
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                  chatHistory.map((msg) => {
+                    const processChatLinks = (text: string) => {
+                      return text.replace(/\[\[(.*?)\]\]/g, (match, p1) => {
+                        const trimmed = p1.trim();
+                        const slug = trimmed.toLowerCase().replace(/\s+/g, '-');
+                        if (trimmed.includes('/')) {
+                          return `[${trimmed.split('/').pop()?.replace(/-/g, ' ')}](#${trimmed.replace('/', '__')})`;
+                        }
+                        return `[${trimmed}](#${slug})`;
+                      });
+                    };
+
+                    return (
+                      <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${
+                          msg.role === 'user'
+                            ? 'bg-blue-600 text-white rounded-tr-none'
+                            : 'bg-gray-100 text-gray-800 rounded-tl-none prose prose-sm prose-slate max-w-none'
+                        }`}>
+                          {msg.role === 'user' ? (
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                          ) : (
+                            <ReactMarkdown
+                              className="text-sm leading-relaxed whitespace-pre-wrap"
+                              components={{
+                                a: ({ node, ...props }) => {
+                                  const isInternal = props.href?.startsWith('#');
+                                  if (isInternal) {
+                                    return (
+                                      <a
+                                        {...props}
+                                        className="text-blue-600 hover:underline font-medium"
+                                      >
+                                        {props.children}
+                                      </a>
+                                    );
+                                  }
+                                  return (
+                                    <a 
+                                      {...props} 
+                                      className="text-blue-600 hover:underline" 
+                                      target="_blank" 
+                                      rel="noopener noreferrer" 
+                                    />
+                                  );
+                                }
+                              }}
+                            >
+                              {processChatLinks(msg.content)}
+                            </ReactMarkdown>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
                 {chatLoading && (
                   <div className="flex justify-start">
@@ -151,10 +197,31 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans antialiased text-gray-900">
-      <Sidebar currentView={currentView} onViewChange={setCurrentView} />
-      <main className="flex-grow overflow-hidden relative">
-        {renderContent()}
+    <div className="flex h-screen bg-gray-50 font-sans antialiased text-gray-900 overflow-hidden">
+      {/* Mobile overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar container */}
+      <div className={`fixed inset-y-0 left-0 z-50 transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out`}>
+        <Sidebar currentView={currentView} onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }} />
+      </div>
+
+      <main className="flex-grow flex flex-col overflow-hidden relative w-full">
+        {/* Mobile header area */}
+        <div className="md:hidden bg-white border-b px-4 py-3 flex items-center shrink-0">
+          <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+            <Menu className="w-6 h-6" />
+          </button>
+          <span className="ml-4 font-bold text-gray-800">Faragopedia</span>
+        </div>
+        <div className="flex-grow overflow-hidden relative h-full">
+          {renderContent()}
+        </div>
       </main>
     </div>
   );

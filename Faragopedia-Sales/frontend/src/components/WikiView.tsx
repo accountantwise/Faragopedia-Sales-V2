@@ -274,7 +274,7 @@ const WikiView: React.FC = () => {
                             }`}
                           >
                             <FileText className="w-3.5 h-3.5 mr-2 flex-shrink-0 opacity-50" />
-                            <span className="truncate">
+                            <span className="break-words line-clamp-2">
                               {pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
                             </span>
                           </button>

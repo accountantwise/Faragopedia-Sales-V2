@@ -556,7 +556,7 @@ class WikiManager:
 
     def list_archived_sources(self) -> List[str]:
         """List all files in the archive sources directory."""
-        return [f for f in os.listdir(self.archive_sources_dir) if os.path.isfile(os.path.join(self.archive_sources_dir, f))]
+        return [f for f in os.listdir(self.archive_sources_dir) if os.path.isfile(os.path.join(self.archive_sources_dir, f)) and not f.startswith(".")]
 
     def get_archived_page_content(self, filename: str) -> str:
         """Read and return the content of an archived wiki page."""
@@ -594,7 +594,7 @@ class WikiManager:
 
     def list_sources(self) -> List[str]:
         """List all files in the sources directory."""
-        return [f for f in os.listdir(self.sources_dir) if os.path.isfile(os.path.join(self.sources_dir, f)) and f != ".gitkeep"]
+        return [f for f in os.listdir(self.sources_dir) if os.path.isfile(os.path.join(self.sources_dir, f)) and f != ".gitkeep" and not f.startswith(".")]
 
     def get_page_content(self, page_path: str) -> str:
         """Read and return the content of a wiki page."""
