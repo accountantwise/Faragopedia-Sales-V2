@@ -8,7 +8,7 @@
 
 ## Current Phase: 🟡 MVP Development / Prototype Functional
 
-**Last updated:** 2026-04-16
+**Last updated:** 2026-04-18
 
 ---
 
@@ -63,6 +63,23 @@
 - [x] File Management (New, Archive, Restore, Delete, Download) ✅ (2026-04-14)
 - [x] Improved Source Ingestion (Manual control, Status tracking) ✅ (2026-04-14)
 - [x] Sources Navigation (Back/Forward) ✅ (2026-04-14)
+- [x] Dynamic Folders (user-managed wiki folders, page move, wikilink rewriting, auto-generated SCHEMA.md) ✅ (2026-04-18) — branch: `dynamic-folders`
+
+---
+
+## Dynamic Folders Progress (branch: `dynamic-folders`)
+
+| Task | Status | Description |
+| ---- | ------ | ----------- |
+| 1 | ✅ Done | Seed `_type.yaml` metadata files for 5 entity folders |
+| 2 | ✅ Done | `schema_builder.py` — type discovery + SCHEMA.md assembly (TDD, 6 tests) |
+| 3 | ✅ Done | `WikiManager` folder CRUD + page move + wikilink rewriting (TDD, 10 tests) |
+| 4 | ✅ Done | 5 new API endpoints: entity-types, folder create/rename/delete, page move (TDD, 17 tests) |
+| 5 | ✅ Done | `WikiView.tsx` — dynamic sidebar, New Folder dialog, Move Page dialog |
+| 6 | ✅ Done | Regenerate `SCHEMA.md` from template + `_type.yaml` seed files |
+| 7 | ✅ Done | End-to-end integration test |
+
+**Current test state:** 87 passed, 0 failed.
 
 ---
 
@@ -88,7 +105,7 @@
 ## Immediate Next Steps
 
 1. **Merge `big-refactor` to `main`**
-2. **Merge `dynamic-folders` to `main`** (or to `big-refactor` first, then to `main`)
+2. **Merge `dynamic-folders` to `main`** (branch pushed to GitHub 2026-04-18)
 3. Add Graph View (post-integration)
 4. Refine AI maintenance logic (post-integration)
 
