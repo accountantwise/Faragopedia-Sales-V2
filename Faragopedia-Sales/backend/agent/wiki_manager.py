@@ -114,6 +114,11 @@ class WikiManager:
 
         bootstrap_type_yamls(self.wiki_dir)
 
+        # Build search index on startup if missing
+        index_path = os.path.join(self.wiki_dir, "search-index.json")
+        if not os.path.exists(index_path):
+            self._rebuild_search_index()
+
     def _load_system_prompt(self) -> str:
         schema_path = os.path.join(self.schema_dir, "SCHEMA.md")
         profile_path = os.path.join(self.schema_dir, "company_profile.md")
@@ -145,6 +150,78 @@ class WikiManager:
             )
         else:
             raise ValueError(f"Unsupported AI provider: {provider}")
+
+    def _parse_frontmatter(self, content: str) -> tuple[dict, str]:
+        match = re.match(r'^---\n(.*?)\n---\n?(.*)', content, re.DOTALL)
+        if match:
+            try:
+                fm = yaml.safe_load(match.group(1)) or {}
+            except yaml.YAMLError:
+                fm = {}
+            return fm, match.group(2)
+        return {}, content
+
+    def _render_frontmatter(self, frontmatter: dict, body: str) -> str:
+        fm_str = yaml.dump(frontmatter, default_flow_style=False,
+                           allow_unicode=True, sort_keys=False).rstrip()
+        return f"---\n{fm_str}\n---\n{body}"
+
+    def _strip_markdown(self, text: str) -> str:
+        text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
+        text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+        text = re.sub(r'[*_`~]', '', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
+
+    def _rebuild_search_index(self) -> None:
+        pages = []
+        for rel_path in self.list_pages():
+            try:
+                content = self.get_page_content(rel_path)
+                fm, body = self._parse_frontmatter(content)
+                entity_type = rel_path.split("/")[0]
+                title = fm.get("name") or fm.get("title") or \
+                    rel_path.split("/")[-1].replace("-", " ").replace("_", " ").title()
+                tags = fm.get("tags", [])
+                if not isinstance(tags, list):
+                    tags = []
+                pages.append({
+                    "path": rel_path,
+                    "title": str(title),
+                    "entity_type": entity_type,
+                    "tags": [str(t) for t in tags],
+                    "frontmatter": {k: v for k, v in fm.items() if k != "tags"},
+                    "content_preview": self._strip_markdown(body)[:500],
+                })
+            except Exception:
+                continue
+
+        raw_meta = self._load_metadata()
+        sources = []
+        for filename in self.list_sources():
+            m = raw_meta.get(filename, {})
+            tags = m.get("tags", [])
+            if not isinstance(tags, list):
+                tags = []
+            sources.append({
+                "filename": filename,
+                "display_name": filename,
+                "tags": [str(t) for t in tags],
+                "metadata": {
+                    "ingested": m.get("ingested", False),
+                    "upload_date": m.get("ingested_at"),
+                },
+            })
+
+        index = {
+            "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "pages": pages,
+            "sources": sources,
+        }
+        index_path = os.path.join(self.wiki_dir, "search-index.json")
+        with open(index_path, "w", encoding="utf-8") as f:
+            json.dump(index, f, indent=2, ensure_ascii=False)
 
     def _load_metadata(self) -> Dict:
         if not os.path.exists(self.metadata_path):
