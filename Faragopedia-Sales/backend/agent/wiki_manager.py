@@ -7,7 +7,7 @@ import shutil
 import yaml
 from pydantic import BaseModel, Field
 from typing import List, Dict
-from agent.schema_builder import discover_entity_types, build_schema_md
+from agent.schema_builder import discover_entity_types, build_schema_md, bootstrap_type_yamls
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -111,6 +111,8 @@ class WikiManager:
                   self.archive_wiki_dir, self.archive_sources_dir]:
             if not os.path.exists(d):
                 os.makedirs(d, exist_ok=True)
+
+        bootstrap_type_yamls(self.wiki_dir)
 
     def _load_system_prompt(self) -> str:
         schema_path = os.path.join(self.schema_dir, "SCHEMA.md")
