@@ -16,6 +16,7 @@
 
 | Date       | Agent/Person | Summary                                       |
 | ---------- | ------------ | --------------------------------------------- |
+| 2026-04-18 | Claude | **Search & Tags — designed and planned** (branch: `search-and-tags`, off `dynamic-folders`). Per-view keyword search (client-side JSON index), shared free-form tag system (pages + sources), AI tag suggestion. Design spec saved to `docs/superpowers/specs/2026-04-18-search-and-tags-design.md`. Full 8-task TDD implementation plan saved to `docs/superpowers/plans/2026-04-18-search-and-tags.md`. No code changes yet. |
 | 2026-04-18 | Claude | **Dynamic Folders — all 7 tasks complete** (branch: `dynamic-folders`). Seeded `_type.yaml` for 5 entity folders; built `schema_builder.py` (TDD, 6 tests); added folder CRUD + page move + wikilink rewriting to `WikiManager` (TDD, 10 tests); added 5 new API endpoints (TDD, 17 API tests); updated `WikiView.tsx` with dynamic sidebar, New Folder dialog, Move Page dialog; regenerated `SCHEMA.md`; e2e integration test. 87 tests passing. |
 | 2026-04-17 | Claude | **Dynamic Folders feature designed and planned** (branch: `dynamic-folders`, off `big-refactor`). Designed collaborative wiki architecture: `_type.yaml` per folder, `SCHEMA_TEMPLATE.md` + auto-generated `SCHEMA.md`, folder CRUD, page move, wikilink rewriting. Full 7-task implementation plan saved to `docs/superpowers/plans/2026-04-17-dynamic-folders.md`. No code changes yet — plan only. |
 | 2026-04-16 | Gemini | **Wiki-Concept Integration — Tasks 1–12 complete** (branch: `big-refactor`). All frontend and backend tasks finished, verified with tests. |
@@ -64,6 +65,22 @@
 - [x] Improved Source Ingestion (Manual control, Status tracking) ✅ (2026-04-14)
 - [x] Sources Navigation (Back/Forward) ✅ (2026-04-14)
 - [x] Dynamic Folders (user-managed wiki folders, page move, wikilink rewriting, auto-generated SCHEMA.md) ✅ (2026-04-18) — branch: `dynamic-folders`
+- [ ] Search & Tags (per-view keyword search, shared tag vocabulary, AI tag suggestion) 🔲 planned — branch: `search-and-tags`
+
+---
+
+## Search & Tags Progress (branch: `search-and-tags`)
+
+| Task | Status | Description |
+| ---- | ------ | ----------- |
+| 1 | 🔲 | WikiManager parsing helpers + `_rebuild_search_index` + startup init |
+| 2 | 🔲 | Hook `_rebuild_search_index` into all write operations |
+| 3 | 🔲 | WikiManager tag management (`update_page_tags`, `update_source_tags`) |
+| 4 | 🔲 | `_suggest_tags` + hook into `save_page_content` and `ingest_source` |
+| 5 | 🔲 | API endpoints (`/search/index`, `/tags`, PATCH tags, `/search/rebuild`) |
+| 6 | 🔲 | Frontend WikiView — search bar + results panel |
+| 7 | 🔲 | Frontend WikiView — tag chips, add/remove, filter row, AI suggestion UI |
+| 8 | 🔲 | Frontend SourcesView — search bar + tag chips |
 
 ---
 
@@ -106,8 +123,9 @@
 
 1. **Merge `big-refactor` to `main`**
 2. **Merge `dynamic-folders` to `main`** (branch pushed to GitHub 2026-04-18)
-3. Add Graph View (post-integration)
-4. Refine AI maintenance logic (post-integration)
+3. **Execute Search & Tags plan** (branch: `search-and-tags`) — 8 tasks, TDD
+4. Add Graph View (post-integration)
+5. Refine AI maintenance logic (post-integration)
 
 ---
 

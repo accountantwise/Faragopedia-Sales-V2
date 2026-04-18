@@ -96,6 +96,7 @@ current direction.
 15. **Merge `big-refactor` to `main`** 👈
 16. ~~Execute Dynamic Folders plan~~ ✅ — all 7 tasks complete on `dynamic-folders` branch; 87 tests passing
 17. **Merge `dynamic-folders` to `main`**
+18. **Execute Search & Tags plan** — branch `search-and-tags`; spec + 8-task plan written; ready to implement
 
 
 ---
