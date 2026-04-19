@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import WikiView from './components/WikiView';
 import SourcesView from './components/SourcesView';
@@ -15,11 +15,47 @@ const App: React.FC = () => {
   const [chatLoading, setChatLoading] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sourcesMetadata, setSourcesMetadata] = useState<Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }>>({});
+  const prevMetadataRef = useRef<Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }>>({});
+  const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, chatLoading]);
+
+  const addToast = useCallback((message: string) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  }, []);
+
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/sources/metadata`);
+        if (!res.ok) return;
+        const data: Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }> = await res.json();
+        
+        // Fire toast for any source that just became ingested
+        const prev = prevMetadataRef.current;
+        Object.entries(data).forEach(([filename, meta]) => {
+          if (meta.ingested && prev[filename] && !prev[filename].ingested) {
+            addToast(`"${filename}" ingested successfully.`);
+          }
+        });
+        
+        prevMetadataRef.current = data;
+        setSourcesMetadata(data);
+      } catch (err) {
+        console.error('Failed to fetch metadata', err);
+      }
+    };
+
+    fetchMetadata();
+    const interval = setInterval(fetchMetadata, 5000);
+    return () => clearInterval(interval);
+  }, [addToast]);
 
   const handleChat = async () => {
     if (!chatQuery.trim()) return;
@@ -44,7 +80,7 @@ const App: React.FC = () => {
       case 'Wiki':
         return <WikiView />;
       case 'Sources':
-        return <SourcesView />;
+        return <SourcesView sourcesMetadata={sourcesMetadata} />;
       case 'Chat':
         return (
           <div className="p-12 max-w-4xl mx-auto h-full flex flex-col">
@@ -210,9 +246,25 @@ const App: React.FC = () => {
         <div className="flex-grow overflow-hidden relative h-full">
           {renderContent()}
         </div>
+        <ToastContainer toasts={toasts} />
       </main>
     </div>
   );
 };
+
+{/* Global ingestion toasts component styled for premium feel */}
+const ToastContainer: React.FC<{ toasts: { id: number; message: string }[] }> = ({ toasts }) => (
+  <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+    {toasts.map(t => (
+      <div 
+        key={t.id} 
+        className="bg-gray-900/95 backdrop-blur text-white text-sm px-5 py-4 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 animate-in slide-in-from-right-full fade-in duration-300"
+      >
+        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.5)]" />
+        {t.message}
+      </div>
+    ))}
+  </div>
+);
 
 export default App;

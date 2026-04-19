@@ -8,6 +8,7 @@ import ChatPanel from './ChatPanel';
 import { API_BASE } from '../config';
 import { formatPageName } from '../utils/formatPageName';
 import ErrorToast from './ErrorToast';
+import ConfirmDialog from './ConfirmDialog';
 
 type PageTree = Record<string, string[]>;
 
@@ -84,6 +85,9 @@ const WikiView: React.FC = () => {
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
   const [renameFolderValue, setRenameFolderValue] = useState('');
   const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set());
+  const [hoveredPage, setHoveredPage] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const fetchSearchIndex = async () => {
     try {
@@ -133,6 +137,34 @@ const WikiView: React.FC = () => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const togglePageSelection = (path: string) => {
+    setSelectedPages(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      return next;
+    });
+  };
+
+  const selectAllPages = () => {
+    // Select based on current search results if searching, otherwise all pages
+    if (searchResults) {
+      setSelectedPages(new Set(searchResults.map(r => r.path)));
+    } else {
+      const allPaths: string[] = Object.values(pageTree).flat();
+      setSelectedPages(new Set(allPaths));
+    }
+  };
+
+  const clearPageSelection = () => setSelectedPages(new Set());
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') clearPageSelection();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -354,6 +386,30 @@ const WikiView: React.FC = () => {
       setError(err.message);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleBulkArchivePages = async () => {
+    setShowConfirm(false);
+    try {
+      const res = await fetch(`${API_BASE}/pages/bulk`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: Array.from(selectedPages) }),
+      });
+      const data = await res.json();
+      if (data.errors?.length) {
+        setError(`Failed to archive: ${data.errors.join(', ')}`);
+      }
+      // If currently selected page was archived, clear it
+      if (selectedPage && selectedPages.has(selectedPage)) {
+        setSelectedPage(null);
+        setContent(null);
+      }
+      clearPageSelection();
+      fetchPages();
+    } catch {
+      setError('Failed to archive selected pages');
     }
   };
 
@@ -652,30 +708,47 @@ const WikiView: React.FC = () => {
                 <p className="text-sm text-gray-500 p-4">No pages match.</p>
               ) : (
                 searchResults.map(entry => (
-                  <button
+                  <div 
                     key={entry.path}
-                    onClick={() => { fetchPageContent(entry.path); setSearchQuery(''); setTagFilter([]); }}
-                    className="w-full text-left px-3 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                    className="relative group flex items-center"
+                    onMouseEnter={() => setHoveredPage(entry.path)}
+                    onMouseLeave={() => setHoveredPage(null)}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-gray-900">
-                        {highlightMatch(entry.title, searchQuery)}
-                      </span>
-                      <span className="text-xs text-gray-500 ml-2 shrink-0">{entry.entity_type}</span>
-                    </div>
-                    {entry.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {entry.tags.map(t => (
-                          <span key={t} className="text-xs px-1.5 py-0.5 rounded-full bg-blue-900/40 text-blue-300">
-                            {t}
-                          </span>
-                        ))}
-                      </div>
+                    {(hoveredPage === entry.path || selectedPages.size > 0) && (
+                      <input
+                        type="checkbox"
+                        checked={selectedPages.has(entry.path)}
+                        onChange={() => togglePageSelection(entry.path)}
+                        onClick={e => e.stopPropagation()}
+                        className="absolute left-3 z-10 w-4 h-4 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
+                      />
                     )}
-                    <p className="text-xs text-gray-400 line-clamp-2">
-                      {highlightMatch(entry.content_preview, searchQuery)}
-                    </p>
-                  </button>
+                    <button
+                      onClick={() => { fetchPageContent(entry.path); setSearchQuery(''); setTagFilter([]); }}
+                      className={`w-full text-left py-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
+                        (hoveredPage === entry.path || selectedPages.size > 0) ? 'pl-9 pr-3' : 'px-3'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-bold text-gray-900 leading-tight">
+                          {highlightMatch(entry.title, searchQuery)}
+                        </span>
+                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ml-2 shrink-0">{entry.entity_type}</span>
+                      </div>
+                      {entry.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {entry.tags.map(t => (
+                            <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 font-medium">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
+                        {highlightMatch(entry.content_preview, searchQuery)}
+                      </p>
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -738,17 +811,33 @@ const WikiView: React.FC = () => {
                   {expandedSections[section] && sectionPages.length > 0 && (
                     <ul className="ml-1 space-y-0.5 mb-1">
                       {sectionPages.map(pagePath => (
-                        <li key={pagePath}>
+                        <li 
+                          key={pagePath}
+                          className="relative group flex items-center"
+                          onMouseEnter={() => setHoveredPage(pagePath)}
+                          onMouseLeave={() => setHoveredPage(null)}
+                        >
+                          {(hoveredPage === pagePath || selectedPages.size > 0) && (
+                            <input
+                              type="checkbox"
+                              checked={selectedPages.has(pagePath)}
+                              onChange={() => togglePageSelection(pagePath)}
+                              onClick={e => e.stopPropagation()}
+                              className="absolute left-3 z-10 w-3.5 h-3.5 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
+                            />
+                          )}
                           <button
                             onClick={() => fetchPageContent(pagePath)}
-                            className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center ${
+                            className={`w-full text-left py-1.5 rounded-lg text-sm transition-all flex items-center ${
+                              (hoveredPage === pagePath || selectedPages.size > 0) ? 'pl-8 pr-2' : 'px-2'
+                            } ${
                               selectedPage === pagePath
-                                ? 'bg-blue-50 text-blue-700 font-medium'
-                                : 'hover:bg-gray-100 text-gray-700'
+                                ? 'bg-blue-50 text-blue-700 font-bold'
+                                : 'hover:bg-gray-50 text-gray-700'
                             }`}
                           >
-                            <FileText className="w-3.5 h-3.5 mr-2 flex-shrink-0 opacity-50" />
-                            <span className="break-all line-clamp-2">
+                            <FileText className="w-4 h-4 mr-2 flex-shrink-0 opacity-40" />
+                            <span className="break-all line-clamp-2 leading-tight">
                               {pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
                             </span>
                           </button>
@@ -762,6 +851,37 @@ const WikiView: React.FC = () => {
           </div>
         )}
           </>
+        )}
+        
+        {/* Bulk Action Toolbar */}
+        {selectedPages.size > 0 && (
+          <div className="mt-auto border-t border-gray-100 bg-gray-50/50 pt-3 pb-1 -mx-4 px-4 backdrop-blur-sm animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedPages.size} Selected</span>
+              <button 
+                onClick={clearPageSelection} 
+                className="text-gray-400 hover:text-gray-900 transition-colors p-1 hover:bg-gray-200 rounded-full"
+                title="Clear selection"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2 pb-2">
+              <button
+                onClick={selectAllPages}
+                className="text-xs py-2 border border-gray-200 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition-all font-medium"
+              >
+                Select {searchResults ? 'matching' : 'all'}
+              </button>
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="flex items-center justify-center gap-2 text-xs py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-sm hover:shadow-md transition-all font-bold"
+              >
+                <Trash2 className="w-4 h-4" />
+                Archive Selection
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -1220,6 +1340,15 @@ const WikiView: React.FC = () => {
 
       {error && (
         <ErrorToast message={error} onDismiss={() => setError(null)} />
+      )}
+
+      {showConfirm && (
+        <ConfirmDialog
+          message={`Archive ${selectedPages.size} page${selectedPages.size === 1 ? '' : 's'}? This can be undone from the Archive view.`}
+          confirmLabel="Archive"
+          onConfirm={handleBulkArchivePages}
+          onCancel={() => setShowConfirm(false)}
+        />
       )}
       </div>
     </div>
