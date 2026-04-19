@@ -70,6 +70,12 @@ const WikiView: React.FC = () => {
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
 
+  // Tag management state
+  const [pageTags, setPageTags] = useState<string[]>([]);
+  const [tagVocabulary, setTagVocabulary] = useState<string[]>([]);
+  const [addingTag, setAddingTag] = useState(false);
+  const [newTagInput, setNewTagInput] = useState('');
+
   // Folder management state
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -88,6 +94,15 @@ const WikiView: React.FC = () => {
     } catch {
       // search unavailable — silently degrade
     }
+  };
+
+  const fetchTagVocabulary = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tags`);
+      if (!res.ok) return;
+      const data: Record<string, number> = await res.json();
+      setTagVocabulary(Object.keys(data).sort());
+    } catch {}
   };
 
   const fetchEntityTypes = async () => {
@@ -112,6 +127,7 @@ const WikiView: React.FC = () => {
     fetchEntityTypes();
     fetchPages();
     fetchSearchIndex();
+    fetchTagVocabulary();
 
     // Track window resizes for responsive layout
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
@@ -209,6 +225,24 @@ const WikiView: React.FC = () => {
       setContent(contentData.content);
       setEditedContent(contentData.content);
       setBacklinks(backlinksData);
+
+      // Parse tags from frontmatter
+      const tagsMatch = contentData.content.match(/^tags:\s*\n((?:\s+-\s+\S+\n?)*)/m);
+      if (tagsMatch) {
+        const tags = tagsMatch[1]
+          .split('\n')
+          .map((l: string) => l.replace(/^\s+-\s+/, '').trim())
+          .filter(Boolean);
+        setPageTags(tags);
+      } else {
+        const inlineMatch = contentData.content.match(/^tags:\s*\[([^\]]*)\]/m);
+        if (inlineMatch) {
+          setPageTags(inlineMatch[1].split(',').map((t: string) => t.trim().replace(/['"]/g, '')).filter(Boolean));
+        } else {
+          setPageTags([]);
+        }
+      }
+      setSuggestedTags([]);
       
       // Auto-switch away from list view on small screens
       setShowMobileList(false);
@@ -230,7 +264,12 @@ const WikiView: React.FC = () => {
       });
 
       if (!response.ok) throw new Error('Failed to save page');
-      
+
+      const saveData = await response.json();
+      if (saveData.suggested_tags && saveData.suggested_tags.length > 0) {
+        setSuggestedTags(saveData.suggested_tags);
+      }
+
       setContent(editedContent);
       setIsEditing(false);
       // Refresh list in case title changed (though current implementation doesn't change filename on save)
@@ -258,6 +297,43 @@ const WikiView: React.FC = () => {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleAddTag = async (tag: string) => {
+    const trimmed = tag.toLowerCase().trim();
+    if (!trimmed || pageTags.includes(trimmed) || !selectedPage) return;
+    const newTags = [...pageTags, trimmed];
+    setPageTags(newTags);
+    setAddingTag(false);
+    setNewTagInput('');
+    try {
+      await fetch(`${API_BASE}/pages/${selectedPage}/tags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      });
+      fetchSearchIndex();
+      fetchTagVocabulary();
+    } catch { setPageTags(pageTags); }
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    if (!selectedPage) return;
+    const newTags = pageTags.filter(t => t !== tag);
+    setPageTags(newTags);
+    try {
+      await fetch(`${API_BASE}/pages/${selectedPage}/tags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      });
+      fetchSearchIndex();
+    } catch { setPageTags(pageTags); }
+  };
+
+  const handleAcceptSuggestedTag = async (tag: string) => {
+    setSuggestedTags(prev => prev.filter(t => t !== tag));
+    await handleAddTag(tag);
   };
 
   const handleDelete = async () => {
@@ -805,6 +881,55 @@ const WikiView: React.FC = () => {
               />
             </div>
           ) : content ? (
+            <>
+            {selectedPage && !isEditing && (
+              <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-800 -mx-8 mb-4">
+                {pageTags.map(tag => (
+                  <span key={tag}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800">
+                    {tag}
+                    <button onClick={() => handleRemoveTag(tag)}
+                            className="text-blue-400 hover:text-blue-200 leading-none">×</button>
+                  </span>
+                ))}
+                {addingTag ? (
+                  <div className="relative">
+                    <input
+                      autoFocus
+                      value={newTagInput}
+                      onChange={e => setNewTagInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleAddTag(newTagInput);
+                        if (e.key === 'Escape') { setAddingTag(false); setNewTagInput(''); }
+                      }}
+                      placeholder="tag name"
+                      className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-gray-200 outline-none w-28"
+                      list="tag-vocab"
+                    />
+                    <datalist id="tag-vocab">
+                      {tagVocabulary
+                        .filter(t => !pageTags.includes(t))
+                        .map(t => <option key={t} value={t} />)}
+                    </datalist>
+                  </div>
+                ) : (
+                  <button onClick={() => setAddingTag(true)}
+                          className="text-xs text-gray-500 hover:text-gray-300 px-1">
+                    + tag
+                  </button>
+                )}
+                {/* AI suggestion chips */}
+                {suggestedTags.map(tag => (
+                  <span key={tag} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-900/30 text-green-400 border border-green-800">
+                    ✦ {tag}
+                    <button onClick={() => handleAcceptSuggestedTag(tag)}
+                            className="text-green-400 hover:text-green-200 font-medium">Accept</button>
+                    <button onClick={() => setSuggestedTags(prev => prev.filter(t => t !== tag))}
+                            className="text-green-500 hover:text-green-300">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="prose prose-slate max-w-none">
               {(() => {
                  const { tags, content: cleanContent } = parseFrontmatter(content);
@@ -883,6 +1008,7 @@ const WikiView: React.FC = () => {
                 </div>
               )}
             </div>
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <FileText className="w-16 h-16 mb-4 opacity-20" />
