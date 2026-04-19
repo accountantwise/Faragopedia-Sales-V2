@@ -637,45 +637,79 @@ const WikiView: React.FC = () => {
       <div className="flex flex-1 min-h-0 relative">
       {/* Sidebar - Page List */}
       <div 
-        className={`border-r bg-white overflow-y-auto p-4 flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
+        className={`border-r bg-white flex flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
         style={isDesktop ? { width: sidebarWidth } : undefined}
       >
-        {/* Header with New Folder + New Page buttons */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Pages</h2>
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={() => setShowNewFolderDialog(true)}
-              className="p-1.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-              title="New Folder"
-            >
-              <FolderPlus className="w-4 h-4" />
-            </button>
-            <div className="relative">
+        <div className="p-4 border-b border-gray-50 flex-shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Pages</h2>
+            <div className="flex items-center space-x-1">
               <button
-                onClick={() => setShowNewPageMenu(prev => !prev)}
-                disabled={isCreating}
-                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-                title="New Page"
+                onClick={() => setShowNewFolderDialog(true)}
+                className="p-1.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                title="New Folder"
               >
-                {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                <FolderPlus className="w-4 h-4" />
               </button>
-              {showNewPageMenu && (
-                <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-100 z-20 overflow-hidden">
-                  {Object.entries(entityTypes).map(([type, data]) => (
-                    <button
-                      key={type}
-                      onClick={() => handleNewPage(type)}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                    >
-                      {data.name || type}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="relative">
+                <button
+                  onClick={() => setShowNewPageMenu(prev => !prev)}
+                  disabled={isCreating}
+                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  title="New Page"
+                >
+                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                </button>
+                {showNewPageMenu && (
+                  <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-100 z-20 overflow-hidden">
+                    {Object.entries(entityTypes).map(([type, data]) => (
+                      <button
+                        key={type}
+                        onClick={() => handleNewPage(type)}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                      >
+                        {data.name || type}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Bulk Action Toolbar - Now Sticky at Top */}
+        {selectedPages.size > 0 && (
+          <div className="bg-gray-900 text-white rounded-xl p-3 mb-2 shadow-lg animate-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{selectedPages.size} Selected</span>
+              <button 
+                onClick={clearPageSelection} 
+                className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-full"
+                title="Clear selection"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={selectAllPages}
+                className="w-full text-[10px] py-1 bg-white/10 text-gray-300 rounded hover:bg-white/20 transition-all font-medium uppercase tracking-tight"
+              >
+                Select {searchResults ? 'matching' : 'all'}
+              </button>
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="flex items-center justify-center gap-2 text-xs py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 shadow-sm transition-all font-bold"
+              >
+                <Trash2 className="w-4 h-4" />
+                Archive Selection
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto px-0 mt-2">
 
         {searchResults !== null ? (
           <div className="flex flex-col flex-1 overflow-hidden -mx-4 -mb-4">
@@ -853,36 +887,7 @@ const WikiView: React.FC = () => {
           </>
         )}
         
-        {/* Bulk Action Toolbar */}
-        {selectedPages.size > 0 && (
-          <div className="mt-auto border-t border-gray-100 bg-gray-50/50 pt-3 pb-1 -mx-4 px-4 backdrop-blur-sm animate-in slide-in-from-bottom-4 duration-300">
-            <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedPages.size} Selected</span>
-              <button 
-                onClick={clearPageSelection} 
-                className="text-gray-400 hover:text-gray-900 transition-colors p-1 hover:bg-gray-200 rounded-full"
-                title="Clear selection"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex flex-col gap-2 pb-2">
-              <button
-                onClick={selectAllPages}
-                className="text-xs py-2 border border-gray-200 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition-all font-medium"
-              >
-                Select {searchResults ? 'matching' : 'all'}
-              </button>
-              <button
-                onClick={() => setShowConfirm(true)}
-                className="flex items-center justify-center gap-2 text-xs py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-sm hover:shadow-md transition-all font-bold"
-              >
-                <Trash2 className="w-4 h-4" />
-                Archive Selection
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Drag Handle Gutter */}
@@ -927,60 +932,69 @@ const WikiView: React.FC = () => {
 
           {selectedPage && (
             <div className="flex items-center space-x-2">
-              {isEditing ? (
+              {selectedPages.size === 0 && (
                 <>
+                  {isEditing ? (
+                    <>
+                      <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="flex items-center px-3 py-1.5 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Save className="w-4 h-4 mr-1.5" />}
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditing(false);
+                          setEditedContent(content || '');
+                        }}
+                        disabled={isSaving}
+                        className="flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors"
+                      >
+                        <X className="w-4 h-4 mr-1.5" />
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4 mr-1.5" />
+                      Edit
+                    </button>
+                  )}
+                  
                   <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="flex items-center px-3 py-1.5 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                    onClick={handleDownload}
+                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                    title="Download Page"
                   >
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Save className="w-4 h-4 mr-1.5" />}
-                    Save
+                    <Download className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => {
-                      setIsEditing(false);
-                      setEditedContent(content || '');
-                    }}
-                    disabled={isSaving}
-                    className="flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors"
+                    onClick={() => setShowMoveDialog(true)}
+                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                    title="Move to folder..."
                   >
-                    <X className="w-4 h-4 mr-1.5" />
-                    Cancel
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                    title="Move to Archive"
+                  >
+                    {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
                   </button>
                 </>
-              ) : (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
-                >
-                  <Edit3 className="w-4 h-4 mr-1.5" />
-                  Edit
-                </button>
               )}
-              
-              <button
-                onClick={handleDownload}
-                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
-                title="Download Page"
-              >
-                <Download className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setShowMoveDialog(true)}
-                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
-                title="Move to folder..."
-              >
-                <ArrowRight className="w-5 h-5" />
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
-                title="Move to Archive"
-              >
-                {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-              </button>
+              {selectedPages.size > 0 && (
+                <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-100">
+                  Bulk mode active
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -1203,54 +1217,69 @@ const WikiView: React.FC = () => {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center">
           {showActionMenu && (
             <div className="flex flex-col items-stretch space-y-3 mb-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
-              {isEditing ? (
+              {selectedPages.size === 0 && (
                 <>
+                  {isEditing ? (
+                    <>
+                      <button
+                        onClick={() => { handleSave(); setShowActionMenu(false); }}
+                        disabled={isSaving}
+                        className="flex justify-start items-center px-5 py-2 bg-green-600 text-white rounded-full shadow-md text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Save className="w-4 h-4 mr-3" />}
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditing(false);
+                          setEditedContent(content || '');
+                          setShowActionMenu(false);
+                        }}
+                        disabled={isSaving}
+                        className="flex justify-start items-center px-5 py-2 bg-gray-100 text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-200 transition-colors"
+                      >
+                        <X className="w-4 h-4 mr-3" />
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => { setIsEditing(true); setShowActionMenu(false); }}
+                      className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4 mr-3" />
+                      Edit
+                    </button>
+                  )}
+                  
                   <button
-                    onClick={() => { handleSave(); setShowActionMenu(false); }}
-                    disabled={isSaving}
-                    className="flex justify-start items-center px-5 py-2 bg-green-600 text-white rounded-full shadow-md text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                    onClick={() => { handleDownload(); setShowActionMenu(false); }}
+                    className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
                   >
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Save className="w-4 h-4 mr-3" />}
-                    Save
+                    <Download className="w-4 h-4 mr-3" />
+                    Download
                   </button>
                   <button
-                    onClick={() => {
-                      setIsEditing(false);
-                      setEditedContent(content || '');
-                      setShowActionMenu(false);
-                    }}
-                    disabled={isSaving}
-                    className="flex justify-start items-center px-5 py-2 bg-gray-100 text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-200 transition-colors"
+                    onClick={() => { handleDelete(); setShowActionMenu(false); }}
+                    disabled={isDeleting}
+                    className="flex justify-start items-center px-5 py-2 bg-red-50 text-red-600 rounded-full shadow-md text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
                   >
-                    <X className="w-4 h-4 mr-3" />
-                    Cancel
+                    {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Trash2 className="w-4 h-4 mr-3" />}
+                    Archive
                   </button>
                 </>
-              ) : (
-                <button
-                  onClick={() => { setIsEditing(true); setShowActionMenu(false); }}
-                  className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
-                >
-                  <Edit3 className="w-4 h-4 mr-3" />
-                  Edit
-                </button>
               )}
-              
-              <button
-                onClick={() => { handleDownload(); setShowActionMenu(false); }}
-                className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                <Download className="w-4 h-4 mr-3" />
-                Download
-              </button>
-              <button
-                onClick={() => { handleDelete(); setShowActionMenu(false); }}
-                disabled={isDeleting}
-                className="flex justify-start items-center px-5 py-2 bg-red-50 text-red-600 rounded-full shadow-md text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
-              >
-                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Trash2 className="w-4 h-4 mr-3" />}
-                Archive
-              </button>
+              {selectedPages.size > 0 && (
+                <div className="bg-gray-900/90 backdrop-blur-md p-4 rounded-3xl shadow-2xl border border-white/10 space-y-3">
+                  <div className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-1">{selectedPages.size} Selected</div>
+                  <button
+                    onClick={() => { setShowConfirm(true); setShowActionMenu(false); }}
+                    className="w-full flex justify-center items-center py-3 bg-red-600 text-white rounded-2xl font-bold"
+                  >
+                    Bulk Archive
+                  </button>
+                </div>
+              )}
             </div>
           )}
           
