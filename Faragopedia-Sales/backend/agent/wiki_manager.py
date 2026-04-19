@@ -246,8 +246,9 @@ class WikiManager:
         fm, body = self._parse_frontmatter(content)
         fm["tags"] = [str(t).lower().strip() for t in tags]
         new_content = self._render_frontmatter(fm, body)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(new_content)
+        async with self._write_lock:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(new_content)
         self._rebuild_search_index()
 
     def update_source_tags(self, filename: str, tags: list[str]) -> None:
@@ -289,13 +290,14 @@ class WikiManager:
     def mark_source_ingested(self, file_name: str, status: bool = True):
         """Mark a source as ingested in the metadata."""
         metadata = self._load_metadata()
+        existing = metadata.get(file_name, {})
         if status:
-            metadata[file_name] = {
-                "ingested": True,
-                "ingested_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
+            existing["ingested"] = True
+            existing["ingested_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         else:
-            metadata[file_name] = {"ingested": False, "ingested_at": None}
+            existing["ingested"] = False
+            existing["ingested_at"] = None
+        metadata[file_name] = existing
         self._save_metadata(metadata)
 
     def _get_page_path(self, title: str) -> str:
