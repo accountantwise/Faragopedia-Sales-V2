@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
-import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, MoveRight } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, ListChecks } from 'lucide-react';
 
 import ChatPanel from './ChatPanel';
 
@@ -77,6 +77,7 @@ const WikiView: React.FC = () => {
   const [tagVocabulary, setTagVocabulary] = useState<string[]>([]);
   const [addingTag, setAddingTag] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
+  const [isBulkMode, setIsBulkMode] = useState(false);
 
   // Folder management state
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
@@ -159,7 +160,7 @@ const WikiView: React.FC = () => {
     }
   };
 
-  const clearPageSelection = () => setSelectedPages(new Set());
+  const clearPageSelection = () => { setSelectedPages(new Set()); setIsBulkMode(false); };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -731,13 +732,13 @@ const WikiView: React.FC = () => {
         </div>
 
         {/* Bulk Action Toolbar - Now Sticky at Top */}
-        {selectedPages.size > 0 && (
-          <div className="bg-gray-900 text-white rounded-xl p-3 mb-2 shadow-lg animate-in slide-in-from-top-2 duration-300">
+        {(selectedPages.size > 0 || isBulkMode) && (
+          <div className="bg-white border border-gray-200 text-gray-900 rounded-xl p-3 mb-2 shadow-sm animate-in slide-in-from-top-2 duration-300">
             <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{selectedPages.size} Selected</span>
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedPages.size} Selected</span>
               <button 
                 onClick={clearPageSelection} 
-                className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-full"
+                className="text-gray-400 hover:text-gray-900 transition-colors p-1 hover:bg-gray-100 rounded-full"
                 title="Clear selection"
               >
                 <X className="w-4 h-4" />
@@ -746,7 +747,7 @@ const WikiView: React.FC = () => {
             <div className="flex flex-col gap-2">
               <button
                 onClick={selectAllPages}
-                className="w-full text-[10px] py-1 bg-white/10 text-gray-300 rounded hover:bg-white/20 transition-all font-medium uppercase tracking-tight"
+                className="w-full text-[10px] py-1 bg-gray-50 border border-gray-200 text-gray-600 rounded hover:bg-gray-100 transition-all font-medium uppercase tracking-tight"
               >
                 Select {searchResults ? 'matching' : 'all'}
               </button>
@@ -816,7 +817,7 @@ const WikiView: React.FC = () => {
                     onMouseEnter={() => setHoveredPage(entry.path)}
                     onMouseLeave={() => setHoveredPage(null)}
                   >
-                    {(hoveredPage === entry.path || selectedPages.size > 0) && (
+                    {(hoveredPage === entry.path || selectedPages.size > 0 || isBulkMode) && (
                       <input
                         type="checkbox"
                         checked={selectedPages.has(entry.path)}
@@ -919,7 +920,7 @@ const WikiView: React.FC = () => {
                           onMouseEnter={() => setHoveredPage(pagePath)}
                           onMouseLeave={() => setHoveredPage(null)}
                         >
-                          {(hoveredPage === pagePath || selectedPages.size > 0) && (
+                          {(hoveredPage === pagePath || selectedPages.size > 0 || isBulkMode) && (
                             <input
                               type="checkbox"
                               checked={selectedPages.has(pagePath)}
@@ -1277,6 +1278,17 @@ const WikiView: React.FC = () => {
           title="Back to Pages List"
         >
           <ArrowLeft className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Floating Mobile Bulk Mode Button */}
+      {!isDesktop && showMobileList && selectedPages.size === 0 && !isBulkMode && (
+        <button
+          onClick={() => setIsBulkMode(true)}
+          className="fixed bottom-6 right-6 p-4 bg-blue-600 text-white rounded-full shadow-xl hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
+          title="Enter Bulk Mode"
+        >
+          <ListChecks className="w-6 h-6" />
         </button>
       )}
 
