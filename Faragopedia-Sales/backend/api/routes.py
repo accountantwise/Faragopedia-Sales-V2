@@ -21,6 +21,10 @@ class BulkFilenames(BaseModel):
 class BulkPaths(BaseModel):
     paths: List[str]
 
+class BulkMove(BaseModel):
+    paths: List[str]
+    destination: str
+
 # The 'sources/' directory is at '../sources' from 'backend/' if running inside the container,
 # or './sources' from the root.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +47,42 @@ wiki_manager = WikiManager(
 def get_valid_entity_subdirs() -> set:
     """Get valid entity subdirectories dynamically from wiki_manager."""
     return set(wiki_manager.get_entity_types().keys())
+
+def rewrite_wikilinks(path_map: dict) -> dict:
+    """Scan all .md files in WIKI_DIR and rewrite wikilinks for moved pages.
+
+    path_map: {old_path: new_path} e.g. {"prospects/acme.md": "clients/acme.md"}
+    Returns: {file_path: count_of_rewrites}
+    """
+    links_rewritten = {}
+    for root, dirs, files in os.walk(WIKI_DIR):
+        for fname in files:
+            if not fname.endswith(".md"):
+                continue
+            full = os.path.join(root, fname)
+            try:
+                with open(full, "r", encoding="utf-8") as f:
+                    original = f.read()
+            except OSError:
+                continue
+            updated = original
+            count = 0
+            for old_path, new_path in path_map.items():
+                # Strip .md for wikilink format: [[subdir/page-name]]
+                old_link = old_path[:-3] if old_path.endswith(".md") else old_path
+                new_link = new_path[:-3] if new_path.endswith(".md") else new_path
+                pattern = r'\[\[' + re.escape(old_link) + r'\]\]'
+                replacement = f'[[{new_link}]]'
+                new_text, n = re.subn(pattern, replacement, updated)
+                updated = new_text
+                count += n
+            if count > 0 and updated != original:
+                with open(full, "w", encoding="utf-8") as f:
+                    f.write(updated)
+                # Use relative path from WIKI_DIR for the key
+                rel = os.path.relpath(full, WIKI_DIR).replace("\\", "/")
+                links_rewritten[rel] = count
+    return links_rewritten
 
 def secure_filename(filename: str) -> str:
     """
@@ -384,6 +424,40 @@ async def bulk_archive_pages(payload: BulkPaths):
         except Exception:
             errors.append(path)
     return {"archived": archived, "errors": errors}
+
+
+@router.post("/pages/bulk-move")
+async def bulk_move_pages(payload: BulkMove):
+    valid_destinations = get_valid_entity_subdirs()
+    if payload.destination not in valid_destinations:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid destination '{payload.destination}'. Must be one of: {sorted(valid_destinations)}"
+        )
+    moved = []
+    errors = []
+    path_map = {}
+    for path in payload.paths:
+        try:
+            safe_path = safe_wiki_filename(path)
+        except ValueError as e:
+            errors.append({"path": path, "error": str(e)})
+            continue
+        filename = safe_path.split("/")[1]  # e.g. "acme.md"
+        new_path = f"{payload.destination}/{filename}"
+        src = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
+        dst = os.path.join(WIKI_DIR, new_path.replace("/", os.sep))
+        if os.path.exists(dst):
+            errors.append({"path": path, "error": "destination already exists"})
+            continue
+        try:
+            os.rename(src, dst)
+            moved.append(f"{safe_path} → {new_path}")
+            path_map[safe_path] = new_path
+        except OSError as e:
+            errors.append({"path": path, "error": str(e)})
+    links_rewritten = rewrite_wikilinks(path_map) if path_map else {}
+    return {"moved": moved, "errors": errors, "links_rewritten": links_rewritten}
 
 
 @router.delete("/pages/{path:path}")

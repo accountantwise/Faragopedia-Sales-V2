@@ -85,3 +85,66 @@ async def test_bulk_archive_pages():
     data = resp.json()
     assert set(data["archived"]) == {"clients/acme.md", "contacts/bob.md"}
     assert data["errors"] == []
+
+
+@pytest.mark.asyncio
+async def test_bulk_move_pages_success():
+    """Pages are renamed and wikilinks are rewritten."""
+    moved_calls = []
+
+    def rename_side_effect(src, dst):
+        moved_calls.append((src, dst))
+
+    def exists_side_effect(path):
+        # Source exists, destination doesn't
+        return "prospects/acme.md" in path
+
+    with patch("api.routes.wiki_manager") as mock_wm, \
+         patch("api.routes.safe_wiki_filename", side_effect=lambda p: p), \
+         patch("api.routes.os.path.exists", side_effect=exists_side_effect), \
+         patch("api.routes.os.rename", side_effect=rename_side_effect), \
+         patch("api.routes.rewrite_wikilinks", return_value={"contacts/john.md": 1}):
+        mock_wm.get_entity_types.return_value = {"clients": {}, "prospects": {}, "contacts": {}}
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.post(
+                "/pages/bulk-move",
+                json={"paths": ["prospects/acme.md"], "destination": "clients"}
+            )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["moved"]) == 1
+    assert data["errors"] == []
+    assert data["links_rewritten"] == {"contacts/john.md": 1}
+
+
+@pytest.mark.asyncio
+async def test_bulk_move_pages_invalid_destination():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+        resp = await ac.post(
+            "/pages/bulk-move",
+            json={"paths": ["prospects/acme.md"], "destination": "invoices"}
+        )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_bulk_move_pages_destination_exists():
+    """If destination file already exists, it's reported as an error."""
+    def exists_side_effect(path):
+        return "clients/acme.md" in path  # destination file already exists
+
+    with patch("api.routes.wiki_manager") as mock_wm, \
+         patch("api.routes.safe_wiki_filename", side_effect=lambda p: p), \
+         patch("api.routes.os.path.exists", side_effect=exists_side_effect), \
+         patch("api.routes.rewrite_wikilinks", return_value={}):
+        mock_wm.get_entity_types.return_value = {"clients": {}, "prospects": {}, "contacts": {}}
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.post(
+                "/pages/bulk-move",
+                json={"paths": ["prospects/acme.md"], "destination": "clients"}
+            )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["moved"] == []
+    assert len(data["errors"]) == 1
+    assert data["errors"][0]["path"] == "prospects/acme.md"
