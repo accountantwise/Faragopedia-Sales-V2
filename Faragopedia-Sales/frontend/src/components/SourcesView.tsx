@@ -293,6 +293,32 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
     }
   };
 
+  const handleBulkDownloadSources = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sources/bulk-download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filenames: Array.from(selectedItems) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(err.detail ?? 'Failed to download sources');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sources-export.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Failed to download selected sources');
+    }
+  };
+
   const searchResults: SourceEntry[] | null = (() => {
     if (!searchQuery.trim()) return null;
     const q = searchQuery.toLowerCase();
@@ -417,13 +443,20 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
               >
                 Select {searchResults ? 'matching' : 'all'}
               </button>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={handleBulkIngest}
                   className="flex items-center justify-center gap-2 text-xs py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 shadow-sm transition-all font-bold"
                 >
                   <Database className="w-3.5 h-3.5" />
                   Ingest
+                </button>
+                <button
+                  onClick={handleBulkDownloadSources}
+                  className="flex items-center justify-center gap-2 text-xs py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 shadow-sm transition-all font-bold"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
                 </button>
                 <button
                   onClick={() => setShowConfirm(true)}
