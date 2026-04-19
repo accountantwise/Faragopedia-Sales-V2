@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
-import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare, FolderPlus, Pencil } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search } from 'lucide-react';
 
 import ChatPanel from './ChatPanel';
 
@@ -10,6 +10,25 @@ import { formatPageName } from '../utils/formatPageName';
 import ErrorToast from './ErrorToast';
 
 type PageTree = Record<string, string[]>;
+
+type SearchEntry = {
+  path: string;
+  title: string;
+  entity_type: string;
+  tags: string[];
+  frontmatter: Record<string, unknown>;
+  content_preview: string;
+};
+
+type SearchIndex = {
+  pages: SearchEntry[];
+  sources: Array<{
+    filename: string;
+    display_name: string;
+    tags: string[];
+    metadata: { ingested: boolean; upload_date: string | null };
+  }>;
+};
 
 const WikiView: React.FC = () => {
   const [pageTree, setPageTree] = useState<PageTree>({});
@@ -45,6 +64,12 @@ const WikiView: React.FC = () => {
   const [contentLoading, setContentLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchIndex, setSearchIndex] = useState<SearchIndex | null>(null);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+
   // Folder management state
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -53,6 +78,17 @@ const WikiView: React.FC = () => {
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
   const [renameFolderValue, setRenameFolderValue] = useState('');
   const [showMoveDialog, setShowMoveDialog] = useState(false);
+
+  const fetchSearchIndex = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/search/index`);
+      if (!res.ok) return;
+      const data: SearchIndex = await res.json();
+      setSearchIndex(data);
+    } catch {
+      // search unavailable — silently degrade
+    }
+  };
 
   const fetchEntityTypes = async () => {
     try {
@@ -75,6 +111,7 @@ const WikiView: React.FC = () => {
   useEffect(() => {
     fetchEntityTypes();
     fetchPages();
+    fetchSearchIndex();
 
     // Track window resizes for responsive layout
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
@@ -397,6 +434,41 @@ const WikiView: React.FC = () => {
     return { tags: [], content: text };
   };
 
+  const searchResults: SearchEntry[] | null = (() => {
+    if (!searchIndex || !searchQuery.trim()) return null;
+    const q = searchQuery.toLowerCase();
+    return searchIndex.pages.filter(page => {
+      const matchesQuery =
+        page.title.toLowerCase().includes(q) ||
+        page.content_preview.toLowerCase().includes(q) ||
+        page.tags.some(t => t.toLowerCase().includes(q)) ||
+        Object.values(page.frontmatter).some(v => String(v).toLowerCase().includes(q));
+      const matchesTags =
+        tagFilter.length === 0 || tagFilter.every(t => page.tags.includes(t));
+      return matchesQuery && matchesTags;
+    });
+  })();
+
+  const resultTags: string[] = (() => {
+    if (!searchResults) return [];
+    const all = new Set<string>();
+    searchResults.forEach(r => r.tags.forEach(t => all.add(t)));
+    return Array.from(all).sort();
+  })();
+
+  const highlightMatch = (text: string, query: string): React.ReactNode => {
+    if (!query.trim()) return text;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return text;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark className="bg-yellow-200/30 text-yellow-300">{text.slice(idx, idx + query.length)}</mark>
+        {text.slice(idx + query.length)}
+      </>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -406,7 +478,31 @@ const WikiView: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full relative">
+    <div className="flex flex-col h-full relative">
+      {/* Search bar — full width above sidebar+content */}
+      <div className="border-b border-gray-700 bg-gray-900 px-4 py-2 flex items-center gap-3">
+        <Search className="w-4 h-4 text-gray-400 shrink-0" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => { setSearchQuery(e.target.value); setTagFilter([]); }}
+          placeholder="Search wiki pages…"
+          className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-500 outline-none"
+        />
+        {searchQuery && (
+          <button onClick={() => { setSearchQuery(''); setTagFilter([]); }}
+                  className="text-gray-500 hover:text-gray-300">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {searchIndex && (
+          <span className="text-xs text-gray-500 shrink-0">
+            {searchResults ? `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}` : ''}
+          </span>
+        )}
+        {!searchIndex && <span className="text-xs text-gray-500">Search unavailable</span>}
+      </div>
+      <div className="flex flex-1 min-h-0 relative">
       {/* Sidebar - Page List */}
       <div 
         className={`border-r bg-white overflow-y-auto p-4 flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
@@ -449,6 +545,67 @@ const WikiView: React.FC = () => {
           </div>
         </div>
 
+        {searchResults !== null ? (
+          <div className="flex flex-col flex-1 overflow-hidden -mx-4 -mb-4">
+            {/* Tag filter row */}
+            {resultTags.length > 0 && (
+              <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-gray-700 bg-gray-850">
+                <span className="text-xs text-gray-500 self-center mr-1">Filter:</span>
+                {resultTags.map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() =>
+                      setTagFilter(prev =>
+                        prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                      )
+                    }
+                    className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                      tagFilter.includes(tag)
+                        ? 'bg-blue-600 border-blue-500 text-white'
+                        : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-gray-400'
+                    }`}
+                  >
+                    {tagFilter.includes(tag) ? `${tag} ×` : tag}
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Results list */}
+            <div className="flex-1 overflow-y-auto">
+              {searchResults.length === 0 ? (
+                <p className="text-sm text-gray-500 p-4">No pages match.</p>
+              ) : (
+                searchResults.map(entry => (
+                  <button
+                    key={entry.path}
+                    onClick={() => { fetchPageContent(entry.path); setSearchQuery(''); setTagFilter([]); }}
+                    className="w-full text-left px-3 py-3 border-b border-gray-800 hover:bg-gray-800 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-gray-200">
+                        {highlightMatch(entry.title, searchQuery)}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-2 shrink-0">{entry.entity_type}</span>
+                    </div>
+                    {entry.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {entry.tags.map(t => (
+                          <span key={t} className="text-xs px-1.5 py-0.5 rounded-full bg-blue-900/40 text-blue-300">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-400 line-clamp-2">
+                      {highlightMatch(entry.content_preview, searchQuery)}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
         {/* Collapsible tree */}
         {Object.keys(entityTypes).length === 0 ? (
           <p className="text-gray-500 text-sm">No pages found. Ingest some data first!</p>
@@ -527,6 +684,8 @@ const WikiView: React.FC = () => {
               );
             })}
           </div>
+        )}
+          </>
         )}
       </div>
 
@@ -936,6 +1095,7 @@ const WikiView: React.FC = () => {
       {error && (
         <ErrorToast message={error} onDismiss={() => setError(null)} />
       )}
+      </div>
     </div>
   );
 };
