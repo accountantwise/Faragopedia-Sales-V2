@@ -748,7 +748,7 @@ const WikiView: React.FC = () => {
                             }`}
                           >
                             <FileText className="w-3.5 h-3.5 mr-2 flex-shrink-0 opacity-50" />
-                            <span className="break-words line-clamp-2">
+                            <span className="break-all line-clamp-2">
                               {pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
                             </span>
                           </button>
@@ -799,7 +799,7 @@ const WikiView: React.FC = () => {
               <ArrowRight className="w-5 h-5" />
             </button>
             {selectedPage && (
-              <span className="ml-4 text-sm font-medium text-gray-500 truncate max-w-xs">
+              <span className="ml-4 text-sm font-medium text-gray-500 truncate max-w-[160px] sm:max-w-xs">
                 {selectedPage.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
               </span>
             )}
@@ -865,7 +865,7 @@ const WikiView: React.FC = () => {
           )}
         </div>
 
-        <div className="p-8 flex-grow pb-28 lg:pb-8">
+        <div className="p-8 flex-grow pb-28 lg:pb-8 min-w-0 overflow-x-hidden">
           {contentLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="animate-spin mr-2" /> Loading content...
@@ -930,7 +930,7 @@ const WikiView: React.FC = () => {
                 ))}
               </div>
             )}
-            <div className="prose prose-slate max-w-none">
+            <div className="prose prose-slate max-w-none break-words">
               {(() => {
                  const { tags, content: cleanContent } = parseFrontmatter(content);
                  return (

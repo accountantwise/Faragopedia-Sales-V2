@@ -404,9 +404,9 @@ const SourcesView: React.FC = () => {
                         : 'hover:bg-gray-100 text-gray-700'
                     }`}
                   >
-                    <span className="flex items-start text-left max-w-[85%]">
+                    <span className="flex items-start text-left max-w-[88%] min-w-0">
                       <FileCheck className={`w-4 h-4 mr-2 mt-0.5 shrink-0 ${metadata[source]?.ingested ? 'text-green-500' : 'text-gray-400 opacity-50'}`} />
-                      <span className="break-words line-clamp-2">{source}</span>
+                      <span className="break-all line-clamp-2">{source}</span>
                     </span>
                     {selectedSource === source && <ChevronRight className="w-4 h-4" />}
                   </button>
@@ -451,8 +451,8 @@ const SourcesView: React.FC = () => {
               <ArrowRight className="w-5 h-5" />
             </button>
             {selectedSource && (
-              <div className="flex items-center ml-4 space-x-3">
-                <span className="text-sm font-medium text-gray-500 truncate max-w-xs">
+              <div className="flex items-center ml-4 space-x-3 min-w-0">
+                <span className="text-sm font-medium text-gray-500 truncate max-w-[160px] sm:max-w-xs">
                   {selectedSource}
                 </span>
                 {metadata[selectedSource]?.ingested ? (
@@ -535,14 +535,14 @@ const SourcesView: React.FC = () => {
           </div>
         )}
 
-        <div className="p-8 flex-grow pb-28 lg:pb-8">
+        <div className="p-8 flex-grow pb-28 lg:pb-8 min-w-0 overflow-x-hidden">
           {contentLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="animate-spin mr-2" /> Loading source content...
             </div>
           ) : content ? (
             selectedSource?.endsWith('.md') ? (
-              <div className="prose prose-slate max-w-none">
+              <div className="prose prose-slate max-w-none break-words">
                 {(() => {
                    const { tags, content: cleanContent } = parseFrontmatter(content);
                    return (
