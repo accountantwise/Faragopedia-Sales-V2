@@ -307,7 +307,7 @@ const WikiView: React.FC = () => {
     setAddingTag(false);
     setNewTagInput('');
     try {
-      await fetch(`${API_BASE}/pages/${selectedPage}/tags`, {
+      await fetch(`${API_BASE}/pages/${encodeURIComponent(selectedPage)}/tags`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tags: newTags }),
@@ -322,7 +322,7 @@ const WikiView: React.FC = () => {
     const newTags = pageTags.filter(t => t !== tag);
     setPageTags(newTags);
     try {
-      await fetch(`${API_BASE}/pages/${selectedPage}/tags`, {
+      await fetch(`${API_BASE}/pages/${encodeURIComponent(selectedPage)}/tags`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tags: newTags }),
