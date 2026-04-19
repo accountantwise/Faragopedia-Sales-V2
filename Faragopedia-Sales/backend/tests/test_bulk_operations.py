@@ -119,11 +119,13 @@ async def test_bulk_move_pages_success():
 
 @pytest.mark.asyncio
 async def test_bulk_move_pages_invalid_destination():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
-        resp = await ac.post(
-            "/pages/bulk-move",
-            json={"paths": ["prospects/acme.md"], "destination": "invoices"}
-        )
+    with patch("api.routes.wiki_manager") as mock_wm:
+        mock_wm.get_entity_types.return_value = {"clients": {}, "prospects": {}, "contacts": {}, "photographers": {}, "productions": {}}
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.post(
+                "/pages/bulk-move",
+                json={"paths": ["prospects/acme.md"], "destination": "invoices"}
+            )
     assert resp.status_code == 400
 
 
