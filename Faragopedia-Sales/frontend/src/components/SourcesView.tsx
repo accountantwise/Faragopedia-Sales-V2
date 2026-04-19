@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database, MoreVertical, X } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database, MoreVertical, X, Search } from 'lucide-react';
 
 import { API_BASE } from '../config';
 import ErrorToast from './ErrorToast';
 import AddSourcesModal from './AddSourcesModal';
+
+type SourceEntry = {
+  filename: string;
+  display_name: string;
+  tags: string[];
+  metadata: { ingested: boolean; upload_date: string | null };
+};
 
 const SourcesView: React.FC = () => {
   const [sources, setSources] = useState<string[]>([]);
@@ -12,7 +19,7 @@ const SourcesView: React.FC = () => {
   const [content, setContent] = useState<string | null>(null);
   const [historyStack, setHistoryStack] = useState<string[]>([]);
   const [forwardStack, setForwardStack] = useState<string[]>([]);
-  const [metadata, setMetadata] = useState<Record<string, { ingested: boolean, ingested_at: string | null }>>({});
+  const [metadata, setMetadata] = useState<Record<string, { ingested: boolean, ingested_at: string | null; tags: string[] }>>({});
   const [ingesting, setIngesting] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
 
@@ -21,6 +28,15 @@ const SourcesView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // Search and tags state
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sourceIndex, setSourceIndex] = useState<SourceEntry[]>([]);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [sourceTags, setSourceTags] = useState<string[]>([]);
+  const [tagVocabulary, setTagVocabulary] = useState<string[]>([]);
+  const [addingTag, setAddingTag] = useState(false);
+  const [newTagInput, setNewTagInput] = useState('');
 
   // Resizable sidebar state
   const [sidebarWidth, setSidebarWidth] = useState<number>(256);
@@ -68,9 +84,17 @@ const SourcesView: React.FC = () => {
   }, [handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
+    if (!selectedSource) { setSourceTags([]); return; }
+    const entry = sourceIndex.find(s => s.filename === selectedSource);
+    setSourceTags(entry?.tags ?? []);
+  }, [selectedSource, sourceIndex]);
+
+  useEffect(() => {
     fetchSources();
     fetchMetadata();
-    
+    fetchSourceIndex();
+    fetchTagVocabulary();
+
     // Poll metadata occasionally to catch background ingestion updates
     const interval = setInterval(fetchMetadata, 5000);
     return () => clearInterval(interval);
@@ -119,6 +143,24 @@ const SourcesView: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchSourceIndex = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/search/index`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSourceIndex(data.sources || []);
+    } catch {}
+  };
+
+  const fetchTagVocabulary = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tags`);
+      if (!res.ok) return;
+      const data: Record<string, number> = await res.json();
+      setTagVocabulary(Object.keys(data).sort());
+    } catch {}
   };
 
   const fetchSourceContent = async (filename: string, addToHistory: boolean = true) => {
@@ -205,6 +247,58 @@ const SourcesView: React.FC = () => {
     window.open(`${API_BASE}/sources/${encodeURIComponent(selectedSource)}/download`);
   };
 
+  const searchResults: SourceEntry[] | null = (() => {
+    if (!searchQuery.trim()) return null;
+    const q = searchQuery.toLowerCase();
+    return sourceIndex.filter(src => {
+      const matchesQuery =
+        src.filename.toLowerCase().includes(q) ||
+        src.tags.some(t => t.toLowerCase().includes(q));
+      const matchesTags =
+        tagFilter.length === 0 || tagFilter.every(t => src.tags.includes(t));
+      return matchesQuery && matchesTags;
+    });
+  })();
+
+  const resultTags: string[] = (() => {
+    if (!searchResults) return [];
+    const all = new Set<string>();
+    searchResults.forEach(r => r.tags.forEach(t => all.add(t)));
+    return Array.from(all).sort();
+  })();
+
+  const handleAddSourceTag = async (tag: string) => {
+    const trimmed = tag.toLowerCase().trim();
+    if (!trimmed || sourceTags.includes(trimmed) || !selectedSource) return;
+    const newTags = [...sourceTags, trimmed];
+    setSourceTags(newTags);
+    setAddingTag(false);
+    setNewTagInput('');
+    try {
+      await fetch(`${API_BASE}/sources/${encodeURIComponent(selectedSource)}/tags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      });
+      fetchSourceIndex();
+      fetchTagVocabulary();
+    } catch { setSourceTags(sourceTags); }
+  };
+
+  const handleRemoveSourceTag = async (tag: string) => {
+    if (!selectedSource) return;
+    const newTags = sourceTags.filter(t => t !== tag);
+    setSourceTags(newTags);
+    try {
+      await fetch(`${API_BASE}/sources/${encodeURIComponent(selectedSource)}/tags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      });
+      fetchSourceIndex();
+    } catch { setSourceTags(sourceTags); }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -214,7 +308,31 @@ const SourcesView: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full relative">
+    <div className="flex flex-col h-full relative">
+      {/* Search bar */}
+      <div className="border-b border-gray-700 bg-gray-900 px-4 py-2 flex items-center gap-3">
+        <Search className="w-4 h-4 text-gray-400 shrink-0" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => { setSearchQuery(e.target.value); setTagFilter([]); }}
+          placeholder="Search sources…"
+          className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-500 outline-none"
+        />
+        {searchQuery && (
+          <button onClick={() => { setSearchQuery(''); setTagFilter([]); }}
+                  className="text-gray-500 hover:text-gray-300">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {searchResults && (
+          <span className="text-xs text-gray-500 shrink-0">
+            {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-1 min-h-0 relative">
       {/* Sidebar - Source List */}
       <div 
         className={`border-r bg-white overflow-y-auto p-4 flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
@@ -230,29 +348,72 @@ const SourcesView: React.FC = () => {
             <Plus className="w-4 h-4" />
           </button>
         </div>
-        {sources.length === 0 ? (
-          <p className="text-gray-500 text-sm">No source files found. Upload some data!</p>
+        {searchResults !== null ? (
+          <div className="flex flex-col h-full overflow-hidden">
+            {resultTags.length > 0 && (
+              <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-gray-700">
+                <span className="text-xs text-gray-500 self-center mr-1">Filter:</span>
+                {resultTags.map(tag => (
+                  <button key={tag}
+                          onClick={() => setTagFilter(prev =>
+                            prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                          )}
+                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                            tagFilter.includes(tag)
+                              ? 'bg-blue-600 border-blue-500 text-white'
+                              : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-gray-400'
+                          }`}>
+                    {tagFilter.includes(tag) ? `${tag} ×` : tag}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto">
+              {searchResults.length === 0 ? (
+                <p className="text-sm text-gray-500 p-4">No sources match.</p>
+              ) : (
+                searchResults.map(entry => (
+                  <button key={entry.filename}
+                          onClick={() => { fetchSourceContent(entry.filename); setSearchQuery(''); setTagFilter([]); }}
+                          className="w-full text-left px-3 py-3 border-b border-gray-800 hover:bg-gray-800">
+                    <div className="text-sm text-gray-200 mb-1">{entry.filename}</div>
+                    {entry.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {entry.tags.map(t => (
+                          <span key={t} className="text-xs px-1.5 py-0.5 rounded-full bg-blue-900/40 text-blue-300">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
         ) : (
-          <ul className="space-y-1">
-            {sources.map((source) => (
-              <li key={source}>
-                <button
-                  onClick={() => fetchSourceContent(source)}
-                  className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center justify-between ${
-                    selectedSource === source
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'hover:bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  <span className="flex items-start text-left max-w-[85%]">
-                    <FileCheck className={`w-4 h-4 mr-2 mt-0.5 shrink-0 ${metadata[source]?.ingested ? 'text-green-500' : 'text-gray-400 opacity-50'}`} />
-                    <span className="break-words line-clamp-2">{source}</span>
-                  </span>
-                  {selectedSource === source && <ChevronRight className="w-4 h-4" />}
-                </button>
-              </li>
-            ))}
-          </ul>
+          sources.length === 0 ? (
+            <p className="text-gray-500 text-sm">No source files found. Upload some data!</p>
+          ) : (
+            <ul className="space-y-1">
+              {sources.map((source) => (
+                <li key={source}>
+                  <button
+                    onClick={() => fetchSourceContent(source)}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center justify-between ${
+                      selectedSource === source
+                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        : 'hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    <span className="flex items-start text-left max-w-[85%]">
+                      <FileCheck className={`w-4 h-4 mr-2 mt-0.5 shrink-0 ${metadata[source]?.ingested ? 'text-green-500' : 'text-gray-400 opacity-50'}`} />
+                      <span className="break-words line-clamp-2">{source}</span>
+                    </span>
+                    {selectedSource === source && <ChevronRight className="w-4 h-4" />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
         )}
       </div>
 
@@ -343,6 +504,36 @@ const SourcesView: React.FC = () => {
             </div>
           )}
         </div>
+
+        {selectedSource && (
+          <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-800">
+            {sourceTags.map(tag => (
+              <span key={tag}
+                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800">
+                {tag}
+                <button onClick={() => handleRemoveSourceTag(tag)} className="text-blue-400 hover:text-blue-200">×</button>
+              </span>
+            ))}
+            {addingTag ? (
+              <div className="relative">
+                <input autoFocus value={newTagInput}
+                       onChange={e => setNewTagInput(e.target.value)}
+                       onKeyDown={e => {
+                         if (e.key === 'Enter') handleAddSourceTag(newTagInput);
+                         if (e.key === 'Escape') { setAddingTag(false); setNewTagInput(''); }
+                       }}
+                       placeholder="tag name"
+                       className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-gray-200 outline-none w-28"
+                       list="source-tag-vocab" />
+                <datalist id="source-tag-vocab">
+                  {tagVocabulary.filter(t => !sourceTags.includes(t)).map(t => <option key={t} value={t} />)}
+                </datalist>
+              </div>
+            ) : (
+              <button onClick={() => setAddingTag(true)} className="text-xs text-gray-500 hover:text-gray-300 px-1">+ tag</button>
+            )}
+          </div>
+        )}
 
         <div className="p-8 flex-grow pb-28 lg:pb-8">
           {contentLoading ? (
@@ -459,6 +650,8 @@ const SourcesView: React.FC = () => {
           </button>
         </div>
       )}
+
+      </div>{/* end inner flex row */}
 
       <AddSourcesModal
         open={showAddModal}
