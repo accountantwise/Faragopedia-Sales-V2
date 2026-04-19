@@ -13,6 +13,38 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.runnables import Runnable
+
+class _LLMProxy(Runnable):
+    """Thin ``Runnable`` wrapper around a LangChain LLM.
+
+    Inheriting from ``Runnable`` (not from Pydantic's ``BaseModel``) means
+    instance attributes like ``ainvoke`` can be freely replaced in tests
+    via simple assignment while still being recognised by LangChain chains
+    (``prompt | self.llm | parser``).
+
+    Attribute access falls through to the wrapped LLM so that callers can
+    read provider-specific attributes (e.g. ``model_name``) transparently.
+    """
+
+    def __init__(self, llm):
+        self._llm = llm
+
+    # ── Runnable interface ────────────────────────────────────────────────
+
+    def invoke(self, input, config=None, **kwargs):
+        return self._llm.invoke(input, config, **kwargs)
+
+    async def ainvoke(self, input, config=None, **kwargs):
+        return await self._llm.ainvoke(input, config, **kwargs)
+
+    # ── Transparent attribute delegation ─────────────────────────────────
+
+    def __getattr__(self, name):
+        # Called only when the attribute is NOT found on the proxy itself,
+        # so instance-level overrides (e.g. mock replacements) take priority.
+        return getattr(self._llm, name)
+
 
 class WikiPage(BaseModel):
     path: str = Field(description="Relative path for the wiki page, e.g. 'clients/louis-vuitton.md'")
@@ -135,21 +167,22 @@ class WikiManager:
     def _init_llm(self):
         provider = os.getenv("AI_PROVIDER", "openai").lower()
         model = os.getenv("AI_MODEL", "gpt-4o-mini")
-        
+
         if provider == "openai":
-            return ChatOpenAI(model=model)
+            llm = ChatOpenAI(model=model)
         elif provider == "anthropic":
-            return ChatAnthropic(model=model)
+            llm = ChatAnthropic(model=model)
         elif provider == "google":
-            return ChatGoogleGenerativeAI(model=model)
+            llm = ChatGoogleGenerativeAI(model=model)
         elif provider == "openrouter":
-            return ChatOpenAI(
+            llm = ChatOpenAI(
                 model=model,
                 openai_api_base="https://openrouter.ai/api/v1",
                 openai_api_key=os.getenv("OPENROUTER_API_KEY")
             )
         else:
             raise ValueError(f"Unsupported AI provider: {provider}")
+        return _LLMProxy(llm)
 
     def _parse_frontmatter(self, content: str) -> tuple[dict, str]:
         content = content.replace('\r\n', '\n').replace('\r', '\n')
@@ -259,6 +292,31 @@ class WikiManager:
         metadata[filename] = entry
         self._save_metadata(metadata)
         self._rebuild_search_index()
+
+    async def _suggest_tags(self, content: str, entity_type: str) -> list[str]:
+        """Ask the LLM for 3-5 tags. Returns empty list on any failure."""
+        from langchain_core.prompts import ChatPromptTemplate
+        prompt = ChatPromptTemplate.from_messages([
+            ("human", (
+                "Suggest 3-5 short, lowercase tags for this {entity_type} page. "
+                "Return ONLY a JSON array of strings, e.g. [\"tag1\", \"tag2\"]. "
+                "Content:\n{content}"
+            ))
+        ])
+        chain = prompt | self.llm
+        try:
+            response = await chain.ainvoke({
+                "entity_type": entity_type,
+                "content": content[:2000],
+            })
+            text = response.content if hasattr(response, "content") else str(response)
+            match = re.search(r'\[.*?\]', text, re.DOTALL)
+            if match:
+                tags = json.loads(match.group())
+                return [str(t).lower().strip() for t in tags if isinstance(t, str)][:5]
+        except Exception:
+            pass
+        return []
 
     def _load_metadata(self) -> Dict:
         if not os.path.exists(self.metadata_path):
@@ -455,6 +513,23 @@ class WikiManager:
             self.update_index()
             self.mark_source_ingested(file_name, True)
             self._append_to_log("ingest", result.log_entry)
+
+        # Phase 3: Auto-apply AI tags (outside lock — async LLM calls)
+        for page in result.pages:
+            try:
+                entity_type = page.path.split("/")[0]
+                tags = await self._suggest_tags(page.content, entity_type)
+                if tags:
+                    await self.update_page_tags(page.path, tags)
+            except Exception:
+                pass
+        try:
+            source_tags = await self._suggest_tags(content[:2000], "source")
+            if source_tags:
+                self.update_source_tags(file_name, source_tags)
+        except Exception:
+            pass
+        self._rebuild_search_index()
 
         return result
 
@@ -920,7 +995,7 @@ class WikiManager:
     async def save_page_content(self, page_path: str, content: str) -> list[str]:
         """
         Save content to a wiki page and log the action.
-        Returns AI-suggested tags not already on the page (populated in Task 4).
+        Returns AI-suggested tags not already present on the page.
         """
         path = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
         async with self._write_lock:
@@ -929,5 +1004,10 @@ class WikiManager:
             self.update_index()
             self._append_to_log("edit", f"Updated {page_path}")
         self._rebuild_search_index()
-        return []
+
+        entity_type = page_path.split("/")[0]
+        fm, _ = self._parse_frontmatter(content)
+        existing_tags = [str(t).lower() for t in fm.get("tags", []) if isinstance(t, str)]
+        all_suggestions = await self._suggest_tags(content, entity_type)
+        return [t for t in all_suggestions if t not in existing_tags]
 

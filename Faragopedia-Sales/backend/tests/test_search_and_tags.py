@@ -256,3 +256,69 @@ def test_get_sources_metadata_includes_tags_default(wiki_env):
     meta = manager.get_sources_metadata()
     assert "tags" in meta["file.txt"]
     assert meta["file.txt"]["tags"] == []
+
+
+# ── Tag suggestion ────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_suggest_tags_returns_list(wiki_env):
+    manager = make_manager(wiki_env)
+    from unittest.mock import AsyncMock, MagicMock
+    mock_response = MagicMock()
+    mock_response.content = '["wedding", "commercial", "VIP"]'
+    manager.llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    tags = await manager._suggest_tags("Some page content about weddings.", "clients")
+    assert isinstance(tags, list)
+    assert all(isinstance(t, str) for t in tags)
+    assert len(tags) <= 5
+
+
+@pytest.mark.asyncio
+async def test_suggest_tags_returns_empty_on_error(wiki_env):
+    manager = make_manager(wiki_env)
+    from unittest.mock import AsyncMock
+    manager.llm.ainvoke = AsyncMock(side_effect=Exception("LLM error"))
+
+    tags = await manager._suggest_tags("content", "clients")
+    assert tags == []
+
+
+@pytest.mark.asyncio
+async def test_save_page_content_returns_new_suggestions(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    write_page(wiki, "clients/acme.md",
+               "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nContent.")
+
+    from unittest.mock import AsyncMock, MagicMock
+    mock_response = MagicMock()
+    mock_response.content = '["wedding", "VIP"]'
+    manager.llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    suggestions = await manager.save_page_content(
+        "clients/acme.md",
+        "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nUpdated."
+    )
+    assert isinstance(suggestions, list)
+    assert "wedding" in suggestions
+
+
+@pytest.mark.asyncio
+async def test_save_page_content_excludes_existing_tags_from_suggestions(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    write_page(wiki, "clients/acme.md",
+               "---\nname: Acme\ntags:\n- wedding\n---\n\n# Acme\n\nContent.")
+
+    from unittest.mock import AsyncMock, MagicMock
+    mock_response = MagicMock()
+    mock_response.content = '["wedding", "VIP"]'  # "wedding" already on page
+    manager.llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    suggestions = await manager.save_page_content(
+        "clients/acme.md",
+        "---\nname: Acme\ntags:\n- wedding\n---\n\n# Acme\n\nUpdated."
+    )
+    assert "wedding" not in suggestions
+    assert "vip" in suggestions
