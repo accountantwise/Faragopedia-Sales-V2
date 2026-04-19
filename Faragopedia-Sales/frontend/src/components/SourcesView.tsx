@@ -310,14 +310,14 @@ const SourcesView: React.FC = () => {
   return (
     <div className="flex flex-col h-full relative">
       {/* Search bar */}
-      <div className="border-b border-gray-700 bg-gray-900 px-4 py-2 flex items-center gap-3">
+      <div className="border-b border-gray-100 bg-white px-4 py-2 flex items-center gap-3">
         <Search className="w-4 h-4 text-gray-400 shrink-0" />
         <input
           type="text"
           value={searchQuery}
           onChange={e => { setSearchQuery(e.target.value); setTagFilter([]); }}
           placeholder="Search sources…"
-          className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-500 outline-none"
+          className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
         />
         {searchQuery && (
           <button onClick={() => { setSearchQuery(''); setTagFilter([]); }}
@@ -351,7 +351,7 @@ const SourcesView: React.FC = () => {
         {searchResults !== null ? (
           <div className="flex flex-col h-full overflow-hidden">
             {resultTags.length > 0 && (
-              <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-gray-700">
+              <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-gray-100 bg-gray-50/50">
                 <span className="text-xs text-gray-500 self-center mr-1">Filter:</span>
                 {resultTags.map(tag => (
                   <button key={tag}
@@ -361,7 +361,7 @@ const SourcesView: React.FC = () => {
                           className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                             tagFilter.includes(tag)
                               ? 'bg-blue-600 border-blue-500 text-white'
-                              : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-gray-400'
+                              : 'bg-gray-100 border-gray-200 text-gray-500 hover:border-gray-300'
                           }`}>
                     {tagFilter.includes(tag) ? `${tag} ×` : tag}
                   </button>
@@ -375,8 +375,8 @@ const SourcesView: React.FC = () => {
                 searchResults.map(entry => (
                   <button key={entry.filename}
                           onClick={() => { fetchSourceContent(entry.filename); setSearchQuery(''); setTagFilter([]); }}
-                          className="w-full text-left px-3 py-3 border-b border-gray-800 hover:bg-gray-800">
-                    <div className="text-sm text-gray-200 mb-1">{entry.filename}</div>
+                          className="w-full text-left px-3 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <div className="text-sm text-gray-900 mb-1">{entry.filename}</div>
                     {entry.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {entry.tags.map(t => (
@@ -506,7 +506,7 @@ const SourcesView: React.FC = () => {
         </div>
 
         {selectedSource && (
-          <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-800">
+          <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-100 bg-gray-50/30">
             {sourceTags.map(tag => (
               <span key={tag}
                     className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800">
@@ -523,7 +523,7 @@ const SourcesView: React.FC = () => {
                          if (e.key === 'Escape') { setAddingTag(false); setNewTagInput(''); }
                        }}
                        placeholder="tag name"
-                       className="text-xs bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-gray-200 outline-none w-28"
+                       className="text-xs bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-900 outline-none w-28"
                        list="source-tag-vocab" />
                 <datalist id="source-tag-vocab">
                   {tagVocabulary.filter(t => !sourceTags.includes(t)).map(t => <option key={t} value={t} />)}
