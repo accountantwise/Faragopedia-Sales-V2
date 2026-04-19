@@ -10,6 +10,37 @@
 
 ---
 
+## ⚡ Handoff Status (2026-04-19)
+
+**Claude completed:** Tasks 1 and 2 (all backend work). Commits: `a185c12`, `89c5a9f`.
+
+**Gemini to complete:** Tasks 3–6 (all frontend work). See task details below.
+
+**Claude returns for:** Tasks 7 and 8 (smoke test + full test suite). Do NOT run these — hand back to Claude when Tasks 3–6 are done.
+
+### What Gemini MUST NOT touch
+- `backend/` — all backend work is done and tested. Do not modify any backend files.
+- `backend/tests/` — 5 tests are passing. Do not modify.
+
+### What Gemini implements (Tasks 3–6)
+- `frontend/src/components/ConfirmDialog.tsx` — create new file (Task 3)
+- `frontend/src/App.tsx` — lift metadata poll, add toast state (Task 4)
+- `frontend/src/components/SourcesView.tsx` — remove internal metadata poll, accept prop, add bulk selection UI (Tasks 4 + 5)
+- `frontend/src/components/WikiView.tsx` — add bulk selection UI for wiki pages (Task 6)
+
+### Key facts Gemini needs
+- API base URL is imported from `frontend/src/config.ts` as `API_BASE`
+- The app router prefix is `/api` — all fetch calls use `${API_BASE}/sources/bulk-ingest`, `${API_BASE}/sources/bulk` (DELETE), `${API_BASE}/pages/bulk` (DELETE)
+- `SourcesView` currently owns a `metadata` state + `fetchMetadata` function + a `setInterval(fetchMetadata, 5000)` inside a `useEffect` — all of this moves to `App.tsx` in Task 4
+- After Task 4, `SourcesView` receives `sourcesMetadata` as a prop instead of owning it internally
+- The `filteredSources` variable in `SourcesView` is the correct list to use for "select all" — it's already computed in the component
+- `pageTree` in `WikiView` is `Record<string, string[]>` — `Object.values(pageTree).flat()` gives all page paths for "select all"
+- `fetchPages` is the function to call after bulk archiving wiki pages to refresh the list
+- `fetchSources` is the function to call after bulk archiving sources to refresh the list
+- Verify TypeScript compiles (`npx tsc --noEmit`) after each task before committing
+
+---
+
 ## File Map
 
 | File | Action | Responsibility |
