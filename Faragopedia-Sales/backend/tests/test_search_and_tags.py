@@ -135,3 +135,51 @@ def test_init_creates_index_if_missing(wiki_env):
     assert not os.path.exists(os.path.join(wiki, "search-index.json"))
     make_manager(wiki_env)
     assert os.path.exists(os.path.join(wiki, "search-index.json"))
+
+
+# ── Index sync on writes ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_save_page_content_rebuilds_index(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    write_page(wiki, "clients/acme.md",
+               "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nOld content.")
+
+    new_content = "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nNew content."
+    await manager.save_page_content("clients/acme.md", new_content)
+
+    with open(os.path.join(wiki, "search-index.json")) as f:
+        index = json.load(f)
+    entry = next(p for p in index["pages"] if p["path"] == "clients/acme.md")
+    assert "New content" in entry["content_preview"]
+
+
+@pytest.mark.asyncio
+async def test_archive_page_removes_from_index(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    write_page(wiki, "clients/gone.md",
+               "---\nname: Gone\ntags: []\n---\n\n# Gone\n\nContent.")
+    manager._rebuild_search_index()
+
+    await manager.archive_page("clients/gone.md")
+
+    with open(os.path.join(wiki, "search-index.json")) as f:
+        index = json.load(f)
+    assert not any(p["path"] == "clients/gone.md" for p in index["pages"])
+
+
+@pytest.mark.asyncio
+async def test_restore_page_adds_to_index(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    write_page(wiki, "clients/restored.md",
+               "---\nname: Restored\ntags: []\n---\n\n# Restored\n\nContent.")
+    await manager.archive_page("clients/restored.md")
+
+    await manager.restore_page("clients/restored.md")
+
+    with open(os.path.join(wiki, "search-index.json")) as f:
+        index = json.load(f)
+    assert any(p["path"] == "clients/restored.md" for p in index["pages"])

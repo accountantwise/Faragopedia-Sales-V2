@@ -555,7 +555,8 @@ class WikiManager:
 
             self.update_index()
             self._append_to_log("create", f"Created {rel_path}")
-            return rel_path
+        self._rebuild_search_index()
+        return rel_path
 
     def rebuild_schema(self):
         """Regenerate SCHEMA.md from SCHEMA_TEMPLATE.md and _type.yaml files."""
@@ -699,6 +700,7 @@ class WikiManager:
             shutil.move(src, dest)
             self.update_index()
             self._append_to_log("archive", f"Archived {page_path}")
+        self._rebuild_search_index()
 
     async def archive_source(self, filename: str):
         """Move a source file to the archive."""
@@ -726,16 +728,17 @@ class WikiManager:
         async with self._write_lock:
             if not os.path.exists(src):
                 raise FileNotFoundError(f"Archived page not found: {filename}")
-            
+
             # Handle collision in wiki_dir
             if os.path.exists(dest):
                 base, ext = os.path.splitext(filename)
                 timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 dest = os.path.join(self.wiki_dir, f"{base}_{timestamp}{ext}")
-                
+
             shutil.move(src, dest)
             self.update_index()
             self._append_to_log("restore", f"Restored {filename}")
+        self._rebuild_search_index()
 
     async def restore_source(self, filename: str):
         """Move an archived source file back to the main sources directory."""
@@ -885,9 +888,10 @@ class WikiManager:
 
         return sorted(backlinks)
 
-    async def save_page_content(self, page_path: str, content: str):
+    async def save_page_content(self, page_path: str, content: str) -> list[str]:
         """
         Save content to a wiki page and log the action.
+        Returns AI-suggested tags not already on the page (populated in Task 4).
         """
         path = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
         async with self._write_lock:
@@ -895,4 +899,6 @@ class WikiManager:
                 f.write(content)
             self.update_index()
             self._append_to_log("edit", f"Updated {page_path}")
+        self._rebuild_search_index()
+        return []
 
