@@ -829,7 +829,7 @@ const WikiView: React.FC = () => {
                     <button
                       onClick={() => { fetchPageContent(entry.path); setSearchQuery(''); setTagFilter([]); }}
                       className={`w-full text-left py-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
-                        (hoveredPage === entry.path || selectedPages.size > 0) ? 'pl-9 pr-3' : 'px-3'
+                        (hoveredPage === entry.path || selectedPages.size > 0 || isBulkMode) ? 'pl-9 pr-3' : 'px-3'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -932,7 +932,7 @@ const WikiView: React.FC = () => {
                           <button
                             onClick={() => fetchPageContent(pagePath)}
                             className={`w-full text-left py-1.5 rounded-lg text-sm transition-all flex items-center ${
-                              (hoveredPage === pagePath || selectedPages.size > 0) ? 'pl-8 pr-2' : 'px-2'
+                              (hoveredPage === pagePath || selectedPages.size > 0 || isBulkMode) ? 'pl-8 pr-2' : 'px-2'
                             } ${
                               selectedPage === pagePath
                                 ? 'bg-blue-50 text-blue-700 font-bold'
