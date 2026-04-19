@@ -1,0 +1,37 @@
+import pytest
+from httpx import AsyncClient, ASGITransport
+from unittest.mock import AsyncMock, patch, MagicMock
+import os, sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from main import app
+
+
+@pytest.mark.asyncio
+async def test_bulk_ingest_returns_202():
+    with patch("api.routes.wiki_manager") as mock_wm, \
+         patch("api.routes.asyncio.create_task") as mock_task, \
+         patch("api.routes.os.path.exists", return_value=True):
+        mock_wm.ingest_source = AsyncMock()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.post("/sources/bulk-ingest", json={"filenames": ["a.pdf", "b.txt"]})
+    assert resp.status_code == 202
+    assert resp.json()["queued"] == ["a.pdf", "b.txt"]
+
+
+@pytest.mark.asyncio
+async def test_bulk_ingest_skips_missing_files():
+    def exists_side_effect(path):
+        return "a.pdf" in path
+
+    with patch("api.routes.wiki_manager") as mock_wm, \
+         patch("api.routes.asyncio.create_task"), \
+         patch("api.routes.os.path.exists", side_effect=exists_side_effect), \
+         patch("api.routes.os.path.join", side_effect=lambda *a: "/".join(a)):
+        mock_wm.ingest_source = AsyncMock()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.post("/sources/bulk-ingest", json={"filenames": ["a.pdf", "missing.txt"]})
+    assert resp.status_code == 202
+    data = resp.json()
+    assert "a.pdf" in data["queued"]
+    assert "missing.txt" in data["skipped"]

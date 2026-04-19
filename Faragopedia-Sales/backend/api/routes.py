@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks
 from datetime import datetime
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import os
 import json
@@ -14,6 +14,12 @@ router = APIRouter()
 
 class TagsUpdate(BaseModel):
     tags: List[str]
+
+class BulkFilenames(BaseModel):
+    filenames: List[str]
+
+class BulkPaths(BaseModel):
+    paths: List[str]
 
 # The 'sources/' directory is at '../sources' from 'backend/' if running inside the container,
 # or './sources' from the root.
@@ -194,6 +200,19 @@ async def ingest_source(filename: str):
         raise HTTPException(status_code=404, detail="Source file not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error starting ingestion: {str(e)}")
+
+@router.post("/sources/bulk-ingest")
+async def bulk_ingest_sources(payload: BulkFilenames):
+    queued = []
+    skipped = []
+    for filename in payload.filenames:
+        safe_name = os.path.basename(filename)
+        if os.path.exists(os.path.join(SOURCES_DIR, safe_name)):
+            asyncio.create_task(wiki_manager.ingest_source(safe_name))
+            queued.append(safe_name)
+        else:
+            skipped.append(safe_name)
+    return JSONResponse(status_code=202, content={"queued": queued, "skipped": skipped})
 
 @router.get("/pages/{path:path}/backlinks")
 async def get_backlinks(path: str):
