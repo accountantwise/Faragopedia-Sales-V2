@@ -1,7 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks
 from datetime import datetime
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 import os
+import json
 import shutil
 import re
 import asyncio
@@ -9,6 +11,9 @@ from typing import Dict, List
 from agent.wiki_manager import WikiManager
 
 router = APIRouter()
+
+class TagsUpdate(BaseModel):
+    tags: List[str]
 
 # The 'sources/' directory is at '../sources' from 'backend/' if running inside the container,
 # or './sources' from the root.
@@ -474,6 +479,72 @@ async def download_source(filename: str):
         raise HTTPException(status_code=404, detail="Source not found")
     return FileResponse(path, filename=safe_name)
 
+@router.get("/search/index")
+async def get_search_index():
+    index_path = os.path.join(WIKI_DIR, "search-index.json")
+    if not os.path.exists(index_path):
+        wiki_manager._rebuild_search_index()
+    try:
+        with open(index_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading search index: {str(e)}")
+
+
+@router.get("/tags")
+async def get_tags():
+    index_path = os.path.join(WIKI_DIR, "search-index.json")
+    if not os.path.exists(index_path):
+        wiki_manager._rebuild_search_index()
+    try:
+        with open(index_path, "r", encoding="utf-8") as f:
+            index = json.load(f)
+        tag_counts: dict[str, int] = {}
+        for page in index.get("pages", []):
+            for t in page.get("tags", []):
+                tag_counts[t] = tag_counts.get(t, 0) + 1
+        for src in index.get("sources", []):
+            for t in src.get("tags", []):
+                tag_counts[t] = tag_counts.get(t, 0) + 1
+        return tag_counts
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading tags: {str(e)}")
+
+
+@router.patch("/pages/{path:path}/tags")
+async def update_page_tags(path: str, body: TagsUpdate):
+    try:
+        safe_path = safe_wiki_filename(path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        await wiki_manager.update_page_tags(safe_path, body.tags)
+        return {"tags": body.tags}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Page not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating tags: {str(e)}")
+
+
+@router.patch("/sources/{filename}/tags")
+async def update_source_tags(filename: str, body: TagsUpdate):
+    safe_name = os.path.basename(filename)
+    try:
+        wiki_manager.update_source_tags(safe_name, body.tags)
+        return {"tags": body.tags}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating source tags: {str(e)}")
+
+
+@router.post("/search/rebuild")
+async def rebuild_search_index():
+    try:
+        wiki_manager._rebuild_search_index()
+        return {"message": "Search index rebuilt"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error rebuilding index: {str(e)}")
+
+
 @router.put("/pages/{path:path}")
 async def update_page(path: str, payload: dict):
     try:
@@ -484,7 +555,7 @@ async def update_page(path: str, payload: dict):
     if content is None:
         raise HTTPException(status_code=422, detail="Content is required")
     try:
-        await wiki_manager.save_page_content(safe_path, content)
-        return {"message": "Page updated successfully"}
+        suggested_tags = await wiki_manager.save_page_content(safe_path, content)
+        return {"message": "Page updated successfully", "suggested_tags": suggested_tags}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating page: {str(e)}")

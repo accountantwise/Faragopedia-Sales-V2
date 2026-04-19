@@ -322,3 +322,100 @@ async def test_save_page_content_excludes_existing_tags_from_suggestions(wiki_en
     )
     assert "wedding" not in suggestions
     assert "vip" in suggestions
+
+
+# ── API endpoints ─────────────────────────────────────────────────────────────
+
+from fastapi.testclient import TestClient
+
+@pytest.fixture
+def client(wiki_env, monkeypatch):
+    sources, wiki, archive = wiki_env
+    monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+    monkeypatch.setenv("AI_MODEL", "gpt-4o-mini")
+
+    from api import routes as r
+    r.SOURCES_DIR = sources
+    r.WIKI_DIR = wiki
+    r.ARCHIVE_DIR = archive
+    r.wiki_manager = WikiManager(sources_dir=sources, wiki_dir=wiki, archive_dir=archive)
+
+    from fastapi import FastAPI
+    app = FastAPI()
+    app.include_router(r.router)
+    return TestClient(app)
+
+
+def test_get_search_index(client, wiki_env):
+    sources, wiki, archive = wiki_env
+    write_page(wiki, "clients/test.md",
+               "---\nname: Test\ntags:\n- foo\n---\n\n# Test\n\nContent.")
+    import api.routes as r
+    r.wiki_manager._rebuild_search_index()
+
+    resp = client.get("/search/index")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "pages" in data
+    assert "sources" in data
+
+
+def test_get_tags(client, wiki_env):
+    sources, wiki, archive = wiki_env
+    write_page(wiki, "clients/test.md",
+               "---\nname: Test\ntags:\n- foo\n- bar\n---\n\n# Test\n\nContent.")
+    import api.routes as r
+    r.wiki_manager._rebuild_search_index()
+
+    resp = client.get("/tags")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "foo" in data
+    assert "bar" in data
+
+
+def test_patch_page_tags(client, wiki_env):
+    sources, wiki, archive = wiki_env
+    write_page(wiki, "clients/test.md",
+               "---\nname: Test\ntags: []\n---\n\n# Test\n\nContent.")
+
+    resp = client.patch("/pages/clients/test.md/tags", json={"tags": ["wedding", "VIP"]})
+    assert resp.status_code == 200
+    import api.routes as r
+    fm, _ = r.wiki_manager._parse_frontmatter(
+        r.wiki_manager.get_page_content("clients/test.md")
+    )
+    assert fm["tags"] == ["wedding", "vip"]
+
+
+def test_patch_source_tags(client, wiki_env):
+    sources, wiki, archive = wiki_env
+    src_path = os.path.join(sources, "file.txt")
+    with open(src_path, "w") as f:
+        f.write("content")
+
+    resp = client.patch("/sources/file.txt/tags", json={"tags": ["brief"]})
+    assert resp.status_code == 200
+    import api.routes as r
+    meta = r.wiki_manager._load_metadata()
+    assert meta["file.txt"]["tags"] == ["brief"]
+
+
+def test_put_page_returns_suggested_tags(client, wiki_env):
+    sources, wiki, archive = wiki_env
+    write_page(wiki, "clients/test.md",
+               "---\nname: Test\ntags: []\n---\n\n# Test\n\nContent.")
+
+    from unittest.mock import AsyncMock, MagicMock
+    import api.routes as r
+    mock_resp = MagicMock()
+    mock_resp.content = '["wedding"]'
+    r.wiki_manager.llm.ainvoke = AsyncMock(return_value=mock_resp)
+
+    resp = client.put("/pages/clients/test.md",
+                      json={"content": "---\nname: Test\ntags: []\n---\n\n# Test\n\nNew."})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "suggested_tags" in data
+    assert isinstance(data["suggested_tags"], list)
