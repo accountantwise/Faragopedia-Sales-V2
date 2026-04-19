@@ -236,6 +236,29 @@ class WikiManager:
                 pass
             raise
 
+    async def update_page_tags(self, page_path: str, tags: list[str]) -> None:
+        """Replace the tags list on a wiki page's YAML frontmatter and rebuild index."""
+        path = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Page not found: {page_path}")
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        fm, body = self._parse_frontmatter(content)
+        fm["tags"] = [str(t).lower().strip() for t in tags]
+        new_content = self._render_frontmatter(fm, body)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        self._rebuild_search_index()
+
+    def update_source_tags(self, filename: str, tags: list[str]) -> None:
+        """Replace the tags list on a source's metadata entry and rebuild index."""
+        metadata = self._load_metadata()
+        entry = metadata.get(filename, {"ingested": False, "ingested_at": None})
+        entry["tags"] = [str(t).lower().strip() for t in tags]
+        metadata[filename] = entry
+        self._save_metadata(metadata)
+        self._rebuild_search_index()
+
     def _load_metadata(self) -> Dict:
         if not os.path.exists(self.metadata_path):
             return {}
@@ -253,10 +276,14 @@ class WikiManager:
         """Return metadata for all current sources."""
         metadata = self._load_metadata()
         current_sources = self.list_sources()
-        # Filter metadata to only include current sources and add defaults
         result = {}
         for s in current_sources:
-            result[s] = metadata.get(s, {"ingested": False, "ingested_at": None})
+            stored = metadata.get(s, {})
+            result[s] = {
+                "ingested": stored.get("ingested", False),
+                "ingested_at": stored.get("ingested_at", None),
+                "tags": stored.get("tags", []),
+            }
         return result
 
     def mark_source_ingested(self, file_name: str, status: bool = True):

@@ -183,3 +183,76 @@ async def test_restore_page_adds_to_index(wiki_env):
     with open(os.path.join(wiki, "search-index.json")) as f:
         index = json.load(f)
     assert any(p["path"] == "clients/restored.md" for p in index["pages"])
+
+
+# ── Tag management ────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_update_page_tags_writes_frontmatter(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    write_page(wiki, "clients/acme.md",
+               "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nContent.")
+
+    await manager.update_page_tags("clients/acme.md", ["wedding", "VIP"])
+
+    content = manager.get_page_content("clients/acme.md")
+    fm, _ = manager._parse_frontmatter(content)
+    assert fm["tags"] == ["wedding", "vip"]
+
+
+@pytest.mark.asyncio
+async def test_update_page_tags_rebuilds_index(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    write_page(wiki, "clients/acme.md",
+               "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nContent.")
+
+    await manager.update_page_tags("clients/acme.md", ["commercial"])
+
+    with open(os.path.join(wiki, "search-index.json")) as f:
+        index = json.load(f)
+    entry = next(p for p in index["pages"] if p["path"] == "clients/acme.md")
+    assert "commercial" in entry["tags"]
+
+
+def test_update_source_tags_writes_metadata(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    src = os.path.join(sources, "brief.txt")
+    with open(src, "w") as f:
+        f.write("content")
+    manager.mark_source_ingested("brief.txt", True)
+
+    manager.update_source_tags("brief.txt", ["brief", "wedding"])
+
+    raw = manager._load_metadata()
+    assert raw["brief.txt"]["tags"] == ["brief", "wedding"]
+
+
+def test_update_source_tags_rebuilds_index(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    src = os.path.join(sources, "brief.txt")
+    with open(src, "w") as f:
+        f.write("content")
+
+    manager.update_source_tags("brief.txt", ["brief"])
+
+    with open(os.path.join(wiki, "search-index.json")) as f:
+        index = json.load(f)
+    entry = next((s for s in index["sources"] if s["filename"] == "brief.txt"), None)
+    assert entry is not None
+    assert "brief" in entry["tags"]
+
+
+def test_get_sources_metadata_includes_tags_default(wiki_env):
+    sources, wiki, archive = wiki_env
+    manager = make_manager(wiki_env)
+    src = os.path.join(sources, "file.txt")
+    with open(src, "w") as f:
+        f.write("x")
+
+    meta = manager.get_sources_metadata()
+    assert "tags" in meta["file.txt"]
+    assert meta["file.txt"]["tags"] == []
