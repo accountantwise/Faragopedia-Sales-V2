@@ -821,6 +821,12 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                     Bulk Ingest
                   </button>
                   <button
+                    onClick={() => { handleBulkDownloadSources(); setShowActionMenu(false); }}
+                    className="w-full flex justify-center items-center py-3 bg-gray-600 text-white rounded-2xl font-bold"
+                  >
+                    Bulk Download
+                  </button>
+                  <button
                     onClick={() => { setShowConfirm(true); setShowActionMenu(false); }}
                     className="w-full flex justify-center items-center py-3 bg-red-600 text-white rounded-2xl font-bold"
                   >

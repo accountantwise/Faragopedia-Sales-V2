@@ -1341,6 +1341,18 @@ const WikiView: React.FC = () => {
                 <div className="bg-gray-900/90 backdrop-blur-md p-4 rounded-3xl shadow-2xl border border-white/10 space-y-3">
                   <div className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-1">{selectedPages.size} Selected</div>
                   <button
+                    onClick={() => { setShowBulkMoveDialog(true); setShowActionMenu(false); }}
+                    className="w-full flex justify-center items-center py-3 bg-blue-600 text-white rounded-2xl font-bold"
+                  >
+                    Bulk Move
+                  </button>
+                  <button
+                    onClick={() => { handleBulkDownloadPages(); setShowActionMenu(false); }}
+                    className="w-full flex justify-center items-center py-3 bg-gray-600 text-white rounded-2xl font-bold"
+                  >
+                    Bulk Download
+                  </button>
+                  <button
                     onClick={() => { setShowConfirm(true); setShowActionMenu(false); }}
                     className="w-full flex justify-center items-center py-3 bg-red-600 text-white rounded-2xl font-bold"
                   >
