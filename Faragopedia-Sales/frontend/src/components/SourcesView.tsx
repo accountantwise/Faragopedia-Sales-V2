@@ -385,15 +385,16 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
         style={isDesktop ? { width: sidebarWidth } : undefined}
       >
         <div className="p-4 border-b border-gray-50 flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Sources</h2>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-            title="Add Source"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Sources</h2>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+              title="Add Source"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         
         {/* Bulk Action Toolbar - Now Sticky at Top */}
@@ -495,7 +496,6 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                   </div>
                 ))
               )}
-            </div>
             </div>
           </div>
         ) : (
