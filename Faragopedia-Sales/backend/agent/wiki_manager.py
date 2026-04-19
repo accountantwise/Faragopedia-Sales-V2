@@ -158,7 +158,7 @@ class WikiManager:
             raise FileNotFoundError(f"SCHEMA.md not found at {schema_path}")
         if not os.path.exists(profile_path):
             raise FileNotFoundError(f"company_profile.md not found at {profile_path}")
-        with open(schema_path, "r", encoding="utf-8") as f:
+        with open(schema_path, "r", encoding="utf-8", errors="replace") as f:
             schema = f.read()
         with open(profile_path, "r", encoding="utf-8") as f:
             profile = f.read()
@@ -269,7 +269,7 @@ class WikiManager:
                 pass
             raise
 
-    async def update_page_tags(self, page_path: str, tags: list[str]) -> None:
+    async def update_page_tags(self, page_path: str, tags: list[str], _rebuild: bool = True) -> None:
         """Replace the tags list on a wiki page's YAML frontmatter and rebuild index."""
         path = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
         if not os.path.exists(path):
@@ -282,20 +282,21 @@ class WikiManager:
         async with self._write_lock:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(new_content)
-        self._rebuild_search_index()
+        if _rebuild:
+            self._rebuild_search_index()
 
-    def update_source_tags(self, filename: str, tags: list[str]) -> None:
+    def update_source_tags(self, filename: str, tags: list[str], _rebuild: bool = True) -> None:
         """Replace the tags list on a source's metadata entry and rebuild index."""
         metadata = self._load_metadata()
         entry = metadata.get(filename, {"ingested": False, "ingested_at": None})
         entry["tags"] = [str(t).lower().strip() for t in tags]
         metadata[filename] = entry
         self._save_metadata(metadata)
-        self._rebuild_search_index()
+        if _rebuild:
+            self._rebuild_search_index()
 
     async def _suggest_tags(self, content: str, entity_type: str) -> list[str]:
         """Ask the LLM for 3-5 tags. Returns empty list on any failure."""
-        from langchain_core.prompts import ChatPromptTemplate
         prompt = ChatPromptTemplate.from_messages([
             ("human", (
                 "Suggest 3-5 short, lowercase tags for this {entity_type} page. "
@@ -520,13 +521,13 @@ class WikiManager:
                 entity_type = page.path.split("/")[0]
                 tags = await self._suggest_tags(page.content, entity_type)
                 if tags:
-                    await self.update_page_tags(page.path, tags)
+                    await self.update_page_tags(page.path, tags, _rebuild=False)
             except Exception:
                 pass
         try:
             source_tags = await self._suggest_tags(content[:2000], "source")
             if source_tags:
-                self.update_source_tags(file_name, source_tags)
+                self.update_source_tags(file_name, source_tags, _rebuild=False)
         except Exception:
             pass
         self._rebuild_search_index()
