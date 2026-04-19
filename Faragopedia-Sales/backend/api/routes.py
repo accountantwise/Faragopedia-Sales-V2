@@ -529,6 +529,9 @@ async def update_page_tags(path: str, body: TagsUpdate):
 @router.patch("/sources/{filename}/tags")
 async def update_source_tags(filename: str, body: TagsUpdate):
     safe_name = os.path.basename(filename)
+    src_path = os.path.join(SOURCES_DIR, safe_name)
+    if not os.path.exists(src_path):
+        raise HTTPException(status_code=404, detail="Source not found")
     try:
         wiki_manager.update_source_tags(safe_name, body.tags)
         return {"tags": body.tags}
