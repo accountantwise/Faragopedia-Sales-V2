@@ -1,6 +1,6 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock, mock_open
 import os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -150,3 +150,40 @@ async def test_bulk_move_pages_destination_exists():
     assert data["moved"] == []
     assert len(data["errors"]) == 1
     assert data["errors"][0]["path"] == "prospects/acme.md"
+
+
+@pytest.mark.asyncio
+async def test_bulk_download_pages_success():
+    """Returns a ZIP with the requested pages."""
+    import io, zipfile as zf
+
+    fake_content = b"# Acme\nSome content"
+
+    with patch("api.routes.safe_wiki_filename", side_effect=lambda p: p), \
+         patch("api.routes.os.path.exists", return_value=True), \
+         patch("builtins.open", mock_open(read_data=fake_content)):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.post(
+                "/pages/bulk-download",
+                json={"paths": ["clients/acme.md"]}
+            )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+    assert "pages-export.zip" in resp.headers["content-disposition"]
+    # Verify it's a valid ZIP
+    buf = io.BytesIO(resp.content)
+    with zf.ZipFile(buf) as z:
+        assert "clients/acme.md" in z.namelist()
+
+
+@pytest.mark.asyncio
+async def test_bulk_download_pages_missing_file():
+    """Returns 404 if any requested page doesn't exist."""
+    with patch("api.routes.safe_wiki_filename", side_effect=lambda p: p), \
+         patch("api.routes.os.path.exists", return_value=False):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.post(
+                "/pages/bulk-download",
+                json={"paths": ["clients/missing.md"]}
+            )
+    assert resp.status_code == 404

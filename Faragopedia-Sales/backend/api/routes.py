@@ -1,11 +1,13 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks
 from datetime import datetime
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import os
 import json
 import shutil
 import re
+import zipfile
+import io
 import asyncio
 from typing import Dict, List
 from agent.wiki_manager import WikiManager
@@ -458,6 +460,34 @@ async def bulk_move_pages(payload: BulkMove):
             errors.append({"path": path, "error": str(e)})
     links_rewritten = rewrite_wikilinks(path_map) if path_map else {}
     return {"moved": moved, "errors": errors, "links_rewritten": links_rewritten}
+
+
+@router.post("/pages/bulk-download")
+async def bulk_download_pages(payload: BulkPaths):
+    # Validate and resolve all paths first (fail fast)
+    resolved = []
+    for path in payload.paths:
+        try:
+            safe_path = safe_wiki_filename(path)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        full_path = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"Page not found: {path}")
+        resolved.append((safe_path, full_path))
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for safe_path, full_path in resolved:
+            with open(full_path, "rb") as f:
+                zf.writestr(safe_path, f.read())
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="pages-export.zip"'}
+    )
 
 
 @router.delete("/pages/{path:path}")
