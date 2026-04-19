@@ -152,10 +152,13 @@ class WikiManager:
             raise ValueError(f"Unsupported AI provider: {provider}")
 
     def _parse_frontmatter(self, content: str) -> tuple[dict, str]:
+        content = content.replace('\r\n', '\n').replace('\r', '\n')
         match = re.match(r'^---\n(.*?)\n---\n?(.*)', content, re.DOTALL)
         if match:
             try:
-                fm = yaml.safe_load(match.group(1)) or {}
+                fm = yaml.safe_load(match.group(1))
+                if not isinstance(fm, dict):
+                    fm = {}
             except yaml.YAMLError:
                 fm = {}
             return fm, match.group(2)
@@ -219,9 +222,19 @@ class WikiManager:
             "pages": pages,
             "sources": sources,
         }
+        import tempfile
         index_path = os.path.join(self.wiki_dir, "search-index.json")
-        with open(index_path, "w", encoding="utf-8") as f:
-            json.dump(index, f, indent=2, ensure_ascii=False)
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=self.wiki_dir)
+        try:
+            with os.fdopen(tmp_fd, 'w', encoding='utf-8') as f:
+                json.dump(index, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, index_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def _load_metadata(self) -> Dict:
         if not os.path.exists(self.metadata_path):
