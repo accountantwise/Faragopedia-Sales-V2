@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
-import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, MoveRight } from 'lucide-react';
 
 import ChatPanel from './ChatPanel';
 
@@ -9,6 +9,7 @@ import { API_BASE } from '../config';
 import { formatPageName } from '../utils/formatPageName';
 import ErrorToast from './ErrorToast';
 import ConfirmDialog from './ConfirmDialog';
+import MoveDialog from './MoveDialog';
 
 type PageTree = Record<string, string[]>;
 
@@ -88,6 +89,7 @@ const WikiView: React.FC = () => {
   const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set());
   const [hoveredPage, setHoveredPage] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
 
   const fetchSearchIndex = async () => {
     try {
@@ -413,6 +415,56 @@ const WikiView: React.FC = () => {
     }
   };
 
+  const handleBulkMove = async (destination: string) => {
+    setShowBulkMoveDialog(false);
+    try {
+      const res = await fetch(`${API_BASE}/pages/bulk-move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: Array.from(selectedPages), destination }),
+      });
+      const data = await res.json();
+      const movedCount = data.moved?.length ?? 0;
+      const linkCount = Object.values(data.links_rewritten ?? {}).reduce((a: number, b) => a + (b as number), 0);
+      if (data.errors?.length) {
+        setError(`Moved ${movedCount} page(s). Failed: ${data.errors.map((e: { path: string }) => e.path).join(', ')}`);
+      } else if (movedCount > 0) {
+        const linkMsg = linkCount > 0 ? ` ${linkCount} wikilink(s) updated.` : '';
+        setError(`Moved ${movedCount} page(s) to ${destination}.${linkMsg}`);
+      }
+      clearPageSelection();
+      fetchPages();
+    } catch {
+      setError('Failed to move selected pages');
+    }
+  };
+
+  const handleBulkDownloadPages = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/pages/bulk-download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: Array.from(selectedPages) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(err.detail ?? 'Failed to download pages');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pages-export.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Failed to download selected pages');
+    }
+  };
+
   const handleDownload = () => {
     if (!selectedPage) return;
     window.open(`${API_BASE}/pages/${encodeURIComponent(selectedPage)}/download`);
@@ -698,13 +750,29 @@ const WikiView: React.FC = () => {
               >
                 Select {searchResults ? 'matching' : 'all'}
               </button>
-              <button
-                onClick={() => setShowConfirm(true)}
-                className="flex items-center justify-center gap-2 text-xs py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 shadow-sm transition-all font-bold"
-              >
-                <Trash2 className="w-4 h-4" />
-                Archive Selection
-              </button>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setShowBulkMoveDialog(true)}
+                  className="flex items-center justify-center gap-2 text-xs py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 shadow-sm transition-all font-bold"
+                >
+                  <MoveRight className="w-3.5 h-3.5" />
+                  Move
+                </button>
+                <button
+                  onClick={handleBulkDownloadPages}
+                  className="flex items-center justify-center gap-2 text-xs py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 shadow-sm transition-all font-bold"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </button>
+                <button
+                  onClick={() => setShowConfirm(true)}
+                  className="flex items-center justify-center gap-2 text-xs py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 shadow-sm transition-all font-bold"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Archive
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1369,6 +1437,19 @@ const WikiView: React.FC = () => {
 
       {error && (
         <ErrorToast message={error} onDismiss={() => setError(null)} />
+      )}
+
+      {showBulkMoveDialog && (
+        <MoveDialog
+          selectedCount={selectedPages.size}
+          initialDestination={
+            selectedPages.size > 0
+              ? (Array.from(selectedPages)[0].split('/')[0] as any)
+              : undefined
+          }
+          onConfirm={handleBulkMove}
+          onClose={() => setShowBulkMoveDialog(false)}
+        />
       )}
 
       {showConfirm && (
