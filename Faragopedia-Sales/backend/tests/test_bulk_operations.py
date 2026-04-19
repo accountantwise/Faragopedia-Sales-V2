@@ -187,3 +187,36 @@ async def test_bulk_download_pages_missing_file():
                 json={"paths": ["clients/missing.md"]}
             )
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_bulk_download_sources_success():
+    """Returns a ZIP with the requested source files."""
+    import io, zipfile as zf
+
+    fake_content = b"PDF content here"
+
+    with patch("api.routes.os.path.exists", return_value=True), \
+         patch("builtins.open", mock_open(read_data=fake_content)):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.post(
+                "/sources/bulk-download",
+                json={"filenames": ["brief-2026-01.pdf"]}
+            )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+    assert "sources-export.zip" in resp.headers["content-disposition"]
+    buf = io.BytesIO(resp.content)
+    with zf.ZipFile(buf) as z:
+        assert "brief-2026-01.pdf" in z.namelist()
+
+
+@pytest.mark.asyncio
+async def test_bulk_download_sources_missing_file():
+    with patch("api.routes.os.path.exists", return_value=False):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.post(
+                "/sources/bulk-download",
+                json={"filenames": ["missing.pdf"]}
+            )
+    assert resp.status_code == 404

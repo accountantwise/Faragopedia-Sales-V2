@@ -490,6 +490,31 @@ async def bulk_download_pages(payload: BulkPaths):
     )
 
 
+@router.post("/sources/bulk-download")
+async def bulk_download_sources(payload: BulkFilenames):
+    # Validate and resolve all filenames first (fail fast)
+    resolved = []
+    for filename in payload.filenames:
+        safe_name = os.path.basename(filename)
+        full_path = os.path.join(SOURCES_DIR, safe_name)
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"Source not found: {filename}")
+        resolved.append((safe_name, full_path))
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for safe_name, full_path in resolved:
+            with open(full_path, "rb") as f:
+                zf.writestr(safe_name, f.read())
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="sources-export.zip"'}
+    )
+
+
 @router.delete("/pages/{path:path}")
 async def delete_page(path: str):
     try:
