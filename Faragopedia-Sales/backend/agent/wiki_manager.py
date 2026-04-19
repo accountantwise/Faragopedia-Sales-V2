@@ -218,7 +218,7 @@ class WikiManager:
             })
 
         index = {
-            "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
             "pages": pages,
             "sources": sources,
         }
