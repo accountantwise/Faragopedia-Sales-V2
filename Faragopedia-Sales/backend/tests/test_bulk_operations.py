@@ -35,3 +35,53 @@ async def test_bulk_ingest_skips_missing_files():
     data = resp.json()
     assert "a.pdf" in data["queued"]
     assert "missing.txt" in data["skipped"]
+
+
+@pytest.mark.asyncio
+async def test_bulk_archive_sources():
+    with patch("api.routes.wiki_manager") as mock_wm:
+        mock_wm.archive_source = AsyncMock()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.request(
+                "DELETE", "/sources/bulk",
+                json={"filenames": ["a.pdf", "b.txt"]}
+            )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert set(data["archived"]) == {"a.pdf", "b.txt"}
+    assert data["errors"] == []
+
+
+@pytest.mark.asyncio
+async def test_bulk_archive_sources_partial_failure():
+    async def archive_side_effect(name):
+        if name == "bad.pdf":
+            raise FileNotFoundError("not found")
+
+    with patch("api.routes.wiki_manager") as mock_wm:
+        mock_wm.archive_source = AsyncMock(side_effect=archive_side_effect)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.request(
+                "DELETE", "/sources/bulk",
+                json={"filenames": ["good.pdf", "bad.pdf"]}
+            )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "good.pdf" in data["archived"]
+    assert "bad.pdf" in data["errors"]
+
+
+@pytest.mark.asyncio
+async def test_bulk_archive_pages():
+    with patch("api.routes.wiki_manager") as mock_wm, \
+         patch("api.routes.safe_wiki_filename", side_effect=lambda p: p):
+        mock_wm.archive_page = AsyncMock()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
+            resp = await ac.request(
+                "DELETE", "/pages/bulk",
+                json={"paths": ["clients/acme.md", "contacts/bob.md"]}
+            )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert set(data["archived"]) == {"clients/acme.md", "contacts/bob.md"}
+    assert data["errors"] == []

@@ -358,6 +358,34 @@ async def run_lint():
         raise HTTPException(status_code=500, detail=f"Error running lint: {str(e)}")
 
 
+@router.delete("/sources/bulk")
+async def bulk_archive_sources(payload: BulkFilenames):
+    archived = []
+    errors = []
+    for filename in payload.filenames:
+        safe_name = os.path.basename(filename)
+        try:
+            await wiki_manager.archive_source(safe_name)
+            archived.append(safe_name)
+        except Exception:
+            errors.append(safe_name)
+    return {"archived": archived, "errors": errors}
+
+
+@router.delete("/pages/bulk")
+async def bulk_archive_pages(payload: BulkPaths):
+    archived = []
+    errors = []
+    for path in payload.paths:
+        try:
+            safe_path = safe_wiki_filename(path)
+            await wiki_manager.archive_page(safe_path)
+            archived.append(path)
+        except Exception:
+            errors.append(path)
+    return {"archived": archived, "errors": errors}
+
+
 @router.delete("/pages/{path:path}")
 async def delete_page(path: str):
     try:
