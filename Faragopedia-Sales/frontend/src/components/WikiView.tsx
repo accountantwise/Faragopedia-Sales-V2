@@ -1285,7 +1285,7 @@ const WikiView: React.FC = () => {
       {!isDesktop && showMobileList && selectedPages.size === 0 && !isBulkMode && (
         <button
           onClick={() => setIsBulkMode(true)}
-          className="fixed bottom-6 right-6 p-4 bg-blue-600 text-white rounded-full shadow-xl hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
+          className="fixed bottom-6 right-6 p-4 bg-gray-900 text-white rounded-full shadow-xl hover:bg-black hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
           title="Enter Bulk Mode"
         >
           <ListChecks className="w-6 h-6" />
