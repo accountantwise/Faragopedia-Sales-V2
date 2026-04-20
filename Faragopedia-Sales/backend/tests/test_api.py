@@ -49,6 +49,20 @@ def client(tmp_path):
         mock_wm.delete_folder = AsyncMock()
         mock_wm.rename_folder = AsyncMock()
         mock_wm.move_page = AsyncMock(return_value="prospects/test-page.md")
+        
+        from agent.wiki_manager import FixReport, Snapshot
+        mock_wm.fix_lint_findings = AsyncMock(return_value=FixReport(
+            files_changed=["concepts/e-sign.md"],
+            skipped=[],
+            summary="Fixed 1 finding.",
+            snapshot_id="20260420-143201",
+        ))
+        mock_wm.list_snapshots.return_value = [
+            Snapshot(id="20260420-143201", label="pre-lint 2026-04-20 14:32", created_at="2026-04-20T14:32:01", file_count=5)
+        ]
+        mock_wm.restore_snapshot = MagicMock()
+        mock_wm.delete_snapshot = MagicMock()
+
         MockWM.return_value = mock_wm
 
         from main import app
@@ -198,3 +212,67 @@ def test_create_page_dynamic_entity_type(client):
         mock_wm.create_new_page = AsyncMock(return_value="stylists/Untitled.md")
         response = client.post("/api/pages?entity_type=stylists")
     assert response.status_code in (200, 400, 500)
+
+
+def test_lint_fix_endpoint(client):
+    payload = {
+        "findings": [
+            {
+                "severity": "suggestion",
+                "page": "global",
+                "description": "E-sign concept page is missing.",
+                "fix_confidence": "stub",
+                "fix_description": "Create a stub concepts/e-sign.md page.",
+            }
+        ]
+    }
+    with patch('api.routes.wiki_manager') as mock_wm:
+        from agent.wiki_manager import FixReport, Snapshot
+        mock_wm.fix_lint_findings = AsyncMock(return_value=FixReport(
+            files_changed=["concepts/e-sign.md"],
+            skipped=[],
+            summary="Fixed 1 finding.",
+            snapshot_id="20260420-143201",
+        ))
+        response = client.post("/api/lint/fix", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "files_changed" in data
+    assert "snapshot_id" in data
+    assert data["snapshot_id"] == "20260420-143201"
+
+
+def test_lint_fix_empty_findings(client):
+    response = client.post("/api/lint/fix", json={"findings": []})
+    assert response.status_code == 422
+
+
+def test_list_snapshots_endpoint(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        from agent.wiki_manager import Snapshot
+        mock_wm.list_snapshots.return_value = [
+            Snapshot(id="20260420-143201", label="pre-lint 2026-04-20 14:32", created_at="2026-04-20T14:32:01", file_count=5)
+        ]
+        response = client.get("/api/snapshots")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert data[0]["id"] == "20260420-143201"
+
+
+def test_restore_snapshot_endpoint(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.restore_snapshot = MagicMock()
+        response = client.post("/api/snapshots/20260420-143201/restore")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+
+
+def test_delete_snapshot_endpoint(client):
+    with patch('api.routes.wiki_manager') as mock_wm:
+        mock_wm.delete_snapshot = MagicMock()
+        response = client.delete("/api/snapshots/20260420-143201")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True

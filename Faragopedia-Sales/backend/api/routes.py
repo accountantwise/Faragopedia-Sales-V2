@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks
 from datetime import datetime
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 import os
 import json
 import shutil
@@ -10,7 +10,7 @@ import zipfile
 import io
 import asyncio
 from typing import Dict, List
-from agent.wiki_manager import WikiManager
+from agent.wiki_manager import WikiManager, LintFinding, FixReport, Snapshot
 
 router = APIRouter()
 
@@ -26,6 +26,15 @@ class BulkPaths(BaseModel):
 class BulkMove(BaseModel):
     paths: List[str]
     destination: str
+
+class LintFixRequest(BaseModel):
+    findings: List[LintFinding]
+
+    @validator('findings')
+    def findings_not_empty(cls, v):
+        if not v:
+            raise ValueError('findings must not be empty')
+        return v
 
 # The 'sources/' directory is at '../sources' from 'backend/' if running inside the container,
 # or './sources' from the root.
@@ -398,6 +407,46 @@ async def run_lint():
         return report.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error running lint: {str(e)}")
+
+
+@router.post("/lint/fix")
+async def fix_lint_findings(request: LintFixRequest):
+    try:
+        report = await wiki_manager.fix_lint_findings(request.findings)
+        return report.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error applying lint fixes: {str(e)}")
+
+
+@router.get("/snapshots")
+async def list_snapshots():
+    try:
+        snapshots = wiki_manager.list_snapshots()
+        return [s.model_dump() for s in snapshots]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing snapshots: {str(e)}")
+
+
+@router.post("/snapshots/{snapshot_id}/restore")
+async def restore_snapshot(snapshot_id: str):
+    try:
+        wiki_manager.restore_snapshot(snapshot_id)
+        return {"success": True, "message": f"Snapshot {snapshot_id} restored successfully"}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Snapshot {snapshot_id} not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error restoring snapshot: {str(e)}")
+
+
+@router.delete("/snapshots/{snapshot_id}")
+async def delete_snapshot(snapshot_id: str):
+    try:
+        wiki_manager.delete_snapshot(snapshot_id)
+        return {"success": True}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Snapshot {snapshot_id} not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting snapshot: {str(e)}")
 
 
 @router.delete("/sources/bulk")
