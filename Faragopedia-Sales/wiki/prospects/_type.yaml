@@ -1,0 +1,37 @@
+name: Prospects
+description: Pipeline and potential clients or publications being actively pursued
+singular: prospect
+fields:
+- name: type
+  type: string
+  default: prospect
+- name: name
+  type: string
+  required: true
+- name: industry
+  type: string
+- name: tier
+  type: enum
+  values:
+  - A
+  - B
+  - C
+  description: A = high priority, B = medium, C = low/watch
+- name: status
+  type: enum
+  values:
+  - prospect
+  - target
+- name: hq
+  type: string
+- name: last_contact
+  type: date
+- name: source_count
+  type: integer
+sections:
+- Overview
+- Key Contacts
+- Why Farago
+- Outreach History
+- Open Opportunities
+- Sources

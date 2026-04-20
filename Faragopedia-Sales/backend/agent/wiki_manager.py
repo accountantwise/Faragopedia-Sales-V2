@@ -13,6 +13,38 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.runnables import Runnable
+
+class _LLMProxy(Runnable):
+    """Thin ``Runnable`` wrapper around a LangChain LLM.
+
+    Inheriting from ``Runnable`` (not from Pydantic's ``BaseModel``) means
+    instance attributes like ``ainvoke`` can be freely replaced in tests
+    via simple assignment while still being recognised by LangChain chains
+    (``prompt | self.llm | parser``).
+
+    Attribute access falls through to the wrapped LLM so that callers can
+    read provider-specific attributes (e.g. ``model_name``) transparently.
+    """
+
+    def __init__(self, llm):
+        self._llm = llm
+
+    # ── Runnable interface ────────────────────────────────────────────────
+
+    def invoke(self, input, config=None, **kwargs):
+        return self._llm.invoke(input, config, **kwargs)
+
+    async def ainvoke(self, input, config=None, **kwargs):
+        return await self._llm.ainvoke(input, config, **kwargs)
+
+    # ── Transparent attribute delegation ─────────────────────────────────
+
+    def __getattr__(self, name):
+        # Called only when the attribute is NOT found on the proxy itself,
+        # so instance-level overrides (e.g. mock replacements) take priority.
+        return getattr(self._llm, name)
+
 
 class WikiPage(BaseModel):
     path: str = Field(description="Relative path for the wiki page, e.g. 'clients/louis-vuitton.md'")
@@ -115,6 +147,11 @@ class WikiManager:
         bootstrap_type_yamls(self.wiki_dir)
         self.rebuild_schema()
 
+        # Build search index on startup if missing
+        index_path = os.path.join(self.wiki_dir, "search-index.json")
+        if not os.path.exists(index_path):
+            self._rebuild_search_index()
+
     def _load_system_prompt(self) -> str:
         schema_path = os.path.join(self.schema_dir, "SCHEMA.md")
         profile_path = os.path.join(self.schema_dir, "company_profile.md")
@@ -122,7 +159,7 @@ class WikiManager:
             raise FileNotFoundError(f"SCHEMA.md not found at {schema_path}")
         if not os.path.exists(profile_path):
             raise FileNotFoundError(f"company_profile.md not found at {profile_path}")
-        with open(schema_path, "r", encoding="utf-8") as f:
+        with open(schema_path, "r", encoding="utf-8", errors="replace") as f:
             schema = f.read()
         with open(profile_path, "r", encoding="utf-8") as f:
             profile = f.read()
@@ -131,21 +168,157 @@ class WikiManager:
     def _init_llm(self):
         provider = os.getenv("AI_PROVIDER", "openai").lower()
         model = os.getenv("AI_MODEL", "gpt-4o-mini")
-        
+
         if provider == "openai":
-            return ChatOpenAI(model=model)
+            llm = ChatOpenAI(model=model)
         elif provider == "anthropic":
-            return ChatAnthropic(model=model)
+            llm = ChatAnthropic(model=model)
         elif provider == "google":
-            return ChatGoogleGenerativeAI(model=model)
+            llm = ChatGoogleGenerativeAI(model=model)
         elif provider == "openrouter":
-            return ChatOpenAI(
+            llm = ChatOpenAI(
                 model=model,
                 openai_api_base="https://openrouter.ai/api/v1",
                 openai_api_key=os.getenv("OPENROUTER_API_KEY")
             )
         else:
             raise ValueError(f"Unsupported AI provider: {provider}")
+        return _LLMProxy(llm)
+
+    def _parse_frontmatter(self, content: str) -> tuple[dict, str]:
+        content = content.replace('\r\n', '\n').replace('\r', '\n')
+        match = re.match(r'^---\n(.*?)\n---\n?(.*)', content, re.DOTALL)
+        if match:
+            try:
+                fm = yaml.safe_load(match.group(1))
+                if not isinstance(fm, dict):
+                    fm = {}
+            except yaml.YAMLError:
+                fm = {}
+            return fm, match.group(2)
+        return {}, content
+
+    def _render_frontmatter(self, frontmatter: dict, body: str) -> str:
+        fm_str = yaml.dump(frontmatter, default_flow_style=False,
+                           allow_unicode=True, sort_keys=False).rstrip()
+        return f"---\n{fm_str}\n---\n{body}"
+
+    def _strip_markdown(self, text: str) -> str:
+        text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
+        text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+        text = re.sub(r'[*_`~]', '', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
+
+    def _rebuild_search_index(self) -> None:
+        pages = []
+        for rel_path in self.list_pages():
+            try:
+                content = self.get_page_content(rel_path)
+                fm, body = self._parse_frontmatter(content)
+                entity_type = rel_path.split("/")[0]
+                title = fm.get("name") or fm.get("title") or \
+                    rel_path.split("/")[-1].replace("-", " ").replace("_", " ").title()
+                tags = fm.get("tags", [])
+                if not isinstance(tags, list):
+                    tags = []
+                pages.append({
+                    "path": rel_path,
+                    "title": str(title),
+                    "entity_type": entity_type,
+                    "tags": [str(t) for t in tags],
+                    "frontmatter": {k: v for k, v in fm.items() if k != "tags"},
+                    "content_preview": self._strip_markdown(body)[:500],
+                })
+            except Exception:
+                continue
+
+        raw_meta = self._load_metadata()
+        sources = []
+        for filename in self.list_sources():
+            m = raw_meta.get(filename, {})
+            tags = m.get("tags", [])
+            if not isinstance(tags, list):
+                tags = []
+            sources.append({
+                "filename": filename,
+                "display_name": filename,
+                "tags": [str(t) for t in tags],
+                "metadata": {
+                    "ingested": m.get("ingested", False),
+                    "upload_date": m.get("ingested_at"),
+                },
+            })
+
+        index = {
+            "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+            "pages": pages,
+            "sources": sources,
+        }
+        import tempfile
+        index_path = os.path.join(self.wiki_dir, "search-index.json")
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=self.wiki_dir)
+        try:
+            with os.fdopen(tmp_fd, 'w', encoding='utf-8') as f:
+                json.dump(index, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, index_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
+    async def update_page_tags(self, page_path: str, tags: list[str], _rebuild: bool = True) -> None:
+        """Replace the tags list on a wiki page's YAML frontmatter and rebuild index."""
+        path = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Page not found: {page_path}")
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        fm, body = self._parse_frontmatter(content)
+        fm["tags"] = [str(t).lower().strip() for t in tags]
+        new_content = self._render_frontmatter(fm, body)
+        async with self._write_lock:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+        if _rebuild:
+            self._rebuild_search_index()
+
+    def update_source_tags(self, filename: str, tags: list[str], _rebuild: bool = True) -> None:
+        """Replace the tags list on a source's metadata entry and rebuild index."""
+        metadata = self._load_metadata()
+        entry = metadata.get(filename, {"ingested": False, "ingested_at": None})
+        entry["tags"] = [str(t).lower().strip() for t in tags]
+        metadata[filename] = entry
+        self._save_metadata(metadata)
+        if _rebuild:
+            self._rebuild_search_index()
+
+    async def _suggest_tags(self, content: str, entity_type: str) -> list[str]:
+        """Ask the LLM for 3-5 tags. Returns empty list on any failure."""
+        prompt = ChatPromptTemplate.from_messages([
+            ("human", (
+                "Suggest 3-5 short, lowercase tags for this {entity_type} page. "
+                "Return ONLY a JSON array of strings, e.g. [\"tag1\", \"tag2\"]. "
+                "Content:\n{content}"
+            ))
+        ])
+        chain = prompt | self.llm
+        try:
+            response = await chain.ainvoke({
+                "entity_type": entity_type,
+                "content": content[:2000],
+            })
+            text = response.content if hasattr(response, "content") else str(response)
+            match = re.search(r'\[.*?\]', text, re.DOTALL)
+            if match:
+                tags = json.loads(match.group())
+                return [str(t).lower().strip() for t in tags if isinstance(t, str)][:5]
+        except Exception:
+            pass
+        return []
 
     def _load_metadata(self) -> Dict:
         if not os.path.exists(self.metadata_path):
@@ -164,22 +337,27 @@ class WikiManager:
         """Return metadata for all current sources."""
         metadata = self._load_metadata()
         current_sources = self.list_sources()
-        # Filter metadata to only include current sources and add defaults
         result = {}
         for s in current_sources:
-            result[s] = metadata.get(s, {"ingested": False, "ingested_at": None})
+            stored = metadata.get(s, {})
+            result[s] = {
+                "ingested": stored.get("ingested", False),
+                "ingested_at": stored.get("ingested_at", None),
+                "tags": stored.get("tags", []),
+            }
         return result
 
     def mark_source_ingested(self, file_name: str, status: bool = True):
         """Mark a source as ingested in the metadata."""
         metadata = self._load_metadata()
+        existing = metadata.get(file_name, {})
         if status:
-            metadata[file_name] = {
-                "ingested": True,
-                "ingested_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
+            existing["ingested"] = True
+            existing["ingested_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         else:
-            metadata[file_name] = {"ingested": False, "ingested_at": None}
+            existing["ingested"] = False
+            existing["ingested_at"] = None
+        metadata[file_name] = existing
         self._save_metadata(metadata)
 
     def _get_page_path(self, title: str) -> str:
@@ -341,6 +519,23 @@ class WikiManager:
             self.mark_source_ingested(file_name, True)
             self._append_to_log("ingest", result.log_entry)
 
+        # Phase 3: Auto-apply AI tags (outside lock — async LLM calls)
+        for page in result.pages:
+            try:
+                entity_type = page.path.split("/")[0]
+                tags = await self._suggest_tags(page.content, entity_type)
+                if tags:
+                    await self.update_page_tags(page.path, tags, _rebuild=False)
+            except Exception:
+                pass
+        try:
+            source_tags = await self._suggest_tags(content[:2000], "source")
+            if source_tags:
+                self.update_source_tags(file_name, source_tags, _rebuild=False)
+        except Exception:
+            pass
+        self._rebuild_search_index()
+
         return result
 
     async def _run_query_llm(self, user_query: str, index_content: str, context: str) -> str:
@@ -469,7 +664,8 @@ class WikiManager:
 
             self.update_index()
             self._append_to_log("create", f"Created {rel_path}")
-            return rel_path
+        self._rebuild_search_index()
+        return rel_path
 
     def rebuild_schema(self):
         """Regenerate SCHEMA.md from SCHEMA_TEMPLATE.md and _type.yaml files."""
@@ -613,6 +809,7 @@ class WikiManager:
             shutil.move(src, dest)
             self.update_index()
             self._append_to_log("archive", f"Archived {page_path}")
+        self._rebuild_search_index()
 
     async def archive_source(self, filename: str):
         """Move a source file to the archive."""
@@ -640,16 +837,17 @@ class WikiManager:
         async with self._write_lock:
             if not os.path.exists(src):
                 raise FileNotFoundError(f"Archived page not found: {filename}")
-            
+
             # Handle collision in wiki_dir
             if os.path.exists(dest):
                 base, ext = os.path.splitext(filename)
                 timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 dest = os.path.join(self.wiki_dir, f"{base}_{timestamp}{ext}")
-                
+
             shutil.move(src, dest)
             self.update_index()
             self._append_to_log("restore", f"Restored {filename}")
+        self._rebuild_search_index()
 
     async def restore_source(self, filename: str):
         """Move an archived source file back to the main sources directory."""
@@ -799,9 +997,10 @@ class WikiManager:
 
         return sorted(backlinks)
 
-    async def save_page_content(self, page_path: str, content: str):
+    async def save_page_content(self, page_path: str, content: str) -> list[str]:
         """
         Save content to a wiki page and log the action.
+        Returns AI-suggested tags not already present on the page.
         """
         path = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
         async with self._write_lock:
@@ -809,4 +1008,11 @@ class WikiManager:
                 f.write(content)
             self.update_index()
             self._append_to_log("edit", f"Updated {page_path}")
+        self._rebuild_search_index()
+
+        entity_type = page_path.split("/")[0]
+        fm, _ = self._parse_frontmatter(content)
+        existing_tags = [str(t).lower() for t in fm.get("tags", []) if isinstance(t, str)]
+        all_suggestions = await self._suggest_tags(content, entity_type)
+        return [t for t in all_suggestions if t not in existing_tags]
 

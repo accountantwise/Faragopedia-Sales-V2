@@ -1,15 +1,35 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
-import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare, FolderPlus, Pencil } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search } from 'lucide-react';
 
 import ChatPanel from './ChatPanel';
 
 import { API_BASE } from '../config';
 import { formatPageName } from '../utils/formatPageName';
 import ErrorToast from './ErrorToast';
+import ConfirmDialog from './ConfirmDialog';
 
 type PageTree = Record<string, string[]>;
+
+type SearchEntry = {
+  path: string;
+  title: string;
+  entity_type: string;
+  tags: string[];
+  frontmatter: Record<string, unknown>;
+  content_preview: string;
+};
+
+type SearchIndex = {
+  pages: SearchEntry[];
+  sources: Array<{
+    filename: string;
+    display_name: string;
+    tags: string[];
+    metadata: { ingested: boolean; upload_date: string | null };
+  }>;
+};
 
 const WikiView: React.FC = () => {
   const [pageTree, setPageTree] = useState<PageTree>({});
@@ -45,6 +65,18 @@ const WikiView: React.FC = () => {
   const [contentLoading, setContentLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchIndex, setSearchIndex] = useState<SearchIndex | null>(null);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+
+  // Tag management state
+  const [pageTags, setPageTags] = useState<string[]>([]);
+  const [tagVocabulary, setTagVocabulary] = useState<string[]>([]);
+  const [addingTag, setAddingTag] = useState(false);
+  const [newTagInput, setNewTagInput] = useState('');
+
   // Folder management state
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -53,6 +85,29 @@ const WikiView: React.FC = () => {
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
   const [renameFolderValue, setRenameFolderValue] = useState('');
   const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set());
+  const [hoveredPage, setHoveredPage] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const fetchSearchIndex = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/search/index`);
+      if (!res.ok) return;
+      const data: SearchIndex = await res.json();
+      setSearchIndex(data);
+    } catch {
+      // search unavailable — silently degrade
+    }
+  };
+
+  const fetchTagVocabulary = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tags`);
+      if (!res.ok) return;
+      const data: Record<string, number> = await res.json();
+      setTagVocabulary(Object.keys(data).sort());
+    } catch {}
+  };
 
   const fetchEntityTypes = async () => {
     try {
@@ -75,11 +130,41 @@ const WikiView: React.FC = () => {
   useEffect(() => {
     fetchEntityTypes();
     fetchPages();
+    fetchSearchIndex();
+    fetchTagVocabulary();
 
     // Track window resizes for responsive layout
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const togglePageSelection = (path: string) => {
+    setSelectedPages(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      return next;
+    });
+  };
+
+  const selectAllPages = () => {
+    // Select based on current search results if searching, otherwise all pages
+    if (searchResults) {
+      setSelectedPages(new Set(searchResults.map(r => r.path)));
+    } else {
+      const allPaths: string[] = Object.values(pageTree).flat();
+      setSelectedPages(new Set(allPaths));
+    }
+  };
+
+  const clearPageSelection = () => setSelectedPages(new Set());
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') clearPageSelection();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -172,6 +257,24 @@ const WikiView: React.FC = () => {
       setContent(contentData.content);
       setEditedContent(contentData.content);
       setBacklinks(backlinksData);
+
+      // Parse tags from frontmatter
+      const tagsMatch = contentData.content.match(/^tags:\s*\n((?:\s+-\s+\S+\n?)*)/m);
+      if (tagsMatch) {
+        const tags = tagsMatch[1]
+          .split('\n')
+          .map((l: string) => l.replace(/^\s+-\s+/, '').trim())
+          .filter(Boolean);
+        setPageTags(tags);
+      } else {
+        const inlineMatch = contentData.content.match(/^tags:\s*\[([^\]]*)\]/m);
+        if (inlineMatch) {
+          setPageTags(inlineMatch[1].split(',').map((t: string) => t.trim().replace(/['"]/g, '')).filter(Boolean));
+        } else {
+          setPageTags([]);
+        }
+      }
+      setSuggestedTags([]);
       
       // Auto-switch away from list view on small screens
       setShowMobileList(false);
@@ -193,7 +296,12 @@ const WikiView: React.FC = () => {
       });
 
       if (!response.ok) throw new Error('Failed to save page');
-      
+
+      const saveData = await response.json();
+      if (saveData.suggested_tags && saveData.suggested_tags.length > 0) {
+        setSuggestedTags(saveData.suggested_tags);
+      }
+
       setContent(editedContent);
       setIsEditing(false);
       // Refresh list in case title changed (though current implementation doesn't change filename on save)
@@ -223,6 +331,43 @@ const WikiView: React.FC = () => {
     }
   };
 
+  const handleAddTag = async (tag: string) => {
+    const trimmed = tag.toLowerCase().trim();
+    if (!trimmed || pageTags.includes(trimmed) || !selectedPage) return;
+    const newTags = [...pageTags, trimmed];
+    setPageTags(newTags);
+    setAddingTag(false);
+    setNewTagInput('');
+    try {
+      await fetch(`${API_BASE}/pages/${encodeURIComponent(selectedPage)}/tags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      });
+      fetchSearchIndex();
+      fetchTagVocabulary();
+    } catch { setPageTags(pageTags); }
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    if (!selectedPage) return;
+    const newTags = pageTags.filter(t => t !== tag);
+    setPageTags(newTags);
+    try {
+      await fetch(`${API_BASE}/pages/${encodeURIComponent(selectedPage)}/tags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      });
+      fetchSearchIndex();
+    } catch { setPageTags(pageTags); }
+  };
+
+  const handleAcceptSuggestedTag = async (tag: string) => {
+    setSuggestedTags(prev => prev.filter(t => t !== tag));
+    await handleAddTag(tag);
+  };
+
   const handleDelete = async () => {
     if (!selectedPage) return;
     if (!window.confirm(`Move '${formatPageName(selectedPage)}' to archive?`)) return;
@@ -241,6 +386,30 @@ const WikiView: React.FC = () => {
       setError(err.message);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleBulkArchivePages = async () => {
+    setShowConfirm(false);
+    try {
+      const res = await fetch(`${API_BASE}/pages/bulk`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: Array.from(selectedPages) }),
+      });
+      const data = await res.json();
+      if (data.errors?.length) {
+        setError(`Failed to archive: ${data.errors.join(', ')}`);
+      }
+      // If currently selected page was archived, clear it
+      if (selectedPage && selectedPages.has(selectedPage)) {
+        setSelectedPage(null);
+        setContent(null);
+      }
+      clearPageSelection();
+      fetchPages();
+    } catch {
+      setError('Failed to archive selected pages');
     }
   };
 
@@ -397,6 +566,41 @@ const WikiView: React.FC = () => {
     return { tags: [], content: text };
   };
 
+  const searchResults: SearchEntry[] | null = (() => {
+    if (!searchIndex || !searchQuery.trim()) return null;
+    const q = searchQuery.toLowerCase();
+    return searchIndex.pages.filter(page => {
+      const matchesQuery =
+        page.title.toLowerCase().includes(q) ||
+        page.content_preview.toLowerCase().includes(q) ||
+        page.tags.some(t => t.toLowerCase().includes(q)) ||
+        Object.values(page.frontmatter).some(v => String(v).toLowerCase().includes(q));
+      const matchesTags =
+        tagFilter.length === 0 || tagFilter.every(t => page.tags.includes(t));
+      return matchesQuery && matchesTags;
+    });
+  })();
+
+  const resultTags: string[] = (() => {
+    if (!searchResults) return [];
+    const all = new Set<string>();
+    searchResults.forEach(r => r.tags.forEach(t => all.add(t)));
+    return Array.from(all).sort();
+  })();
+
+  const highlightMatch = (text: string, query: string): React.ReactNode => {
+    if (!query.trim()) return text;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return text;
+    return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-yellow-100 text-yellow-800 rounded-sm px-0.5">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -406,7 +610,31 @@ const WikiView: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full relative">
+    <div className="flex flex-col h-full relative">
+      {/* Search bar — full width above sidebar+content */}
+      <div className="border-b border-gray-100 bg-white px-4 py-2 flex items-center gap-3">
+        <Search className="w-4 h-4 text-gray-400 shrink-0" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => { setSearchQuery(e.target.value); setTagFilter([]); }}
+          placeholder="Search wiki pages…"
+          className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
+        />
+        {searchQuery && (
+          <button onClick={() => { setSearchQuery(''); setTagFilter([]); }}
+                  className="text-gray-500 hover:text-gray-300">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {searchIndex && (
+          <span className="text-xs text-gray-500 shrink-0">
+            {searchResults ? `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}` : ''}
+          </span>
+        )}
+        {!searchIndex && <span className="text-xs text-gray-500">Search unavailable</span>}
+      </div>
+      <div className="flex flex-1 min-h-0 relative">
       {/* Sidebar - Page List */}
       <div 
         className={`border-r bg-white overflow-y-auto p-4 flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
@@ -449,6 +677,84 @@ const WikiView: React.FC = () => {
           </div>
         </div>
 
+        {searchResults !== null ? (
+          <div className="flex flex-col flex-1 overflow-hidden -mx-4 -mb-4">
+            {/* Tag filter row */}
+            {resultTags.length > 0 && (
+              <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-gray-100 bg-gray-50/50">
+                <span className="text-xs text-gray-500 self-center mr-1">Filter:</span>
+                {resultTags.map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() =>
+                      setTagFilter(prev =>
+                        prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                      )
+                    }
+                    className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                      tagFilter.includes(tag)
+                        ? 'bg-blue-600 border-blue-500 text-white'
+                        : 'bg-gray-100 border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    {tagFilter.includes(tag) ? `${tag} ×` : tag}
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Results list */}
+            <div className="flex-1 overflow-y-auto">
+              {searchResults.length === 0 ? (
+                <p className="text-sm text-gray-500 p-4">No pages match.</p>
+              ) : (
+                searchResults.map(entry => (
+                  <div 
+                    key={entry.path}
+                    className="relative group flex items-center"
+                    onMouseEnter={() => setHoveredPage(entry.path)}
+                    onMouseLeave={() => setHoveredPage(null)}
+                  >
+                    {(hoveredPage === entry.path || selectedPages.size > 0) && (
+                      <input
+                        type="checkbox"
+                        checked={selectedPages.has(entry.path)}
+                        onChange={() => togglePageSelection(entry.path)}
+                        onClick={e => e.stopPropagation()}
+                        className="absolute left-3 z-10 w-4 h-4 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
+                      />
+                    )}
+                    <button
+                      onClick={() => { fetchPageContent(entry.path); setSearchQuery(''); setTagFilter([]); }}
+                      className={`w-full text-left py-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
+                        (hoveredPage === entry.path || selectedPages.size > 0) ? 'pl-9 pr-3' : 'px-3'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-bold text-gray-900 leading-tight">
+                          {highlightMatch(entry.title, searchQuery)}
+                        </span>
+                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ml-2 shrink-0">{entry.entity_type}</span>
+                      </div>
+                      {entry.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {entry.tags.map(t => (
+                            <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 font-medium">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
+                        {highlightMatch(entry.content_preview, searchQuery)}
+                      </p>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
         {/* Collapsible tree */}
         {Object.keys(entityTypes).length === 0 ? (
           <p className="text-gray-500 text-sm">No pages found. Ingest some data first!</p>
@@ -505,17 +811,33 @@ const WikiView: React.FC = () => {
                   {expandedSections[section] && sectionPages.length > 0 && (
                     <ul className="ml-1 space-y-0.5 mb-1">
                       {sectionPages.map(pagePath => (
-                        <li key={pagePath}>
+                        <li 
+                          key={pagePath}
+                          className="relative group flex items-center"
+                          onMouseEnter={() => setHoveredPage(pagePath)}
+                          onMouseLeave={() => setHoveredPage(null)}
+                        >
+                          {(hoveredPage === pagePath || selectedPages.size > 0) && (
+                            <input
+                              type="checkbox"
+                              checked={selectedPages.has(pagePath)}
+                              onChange={() => togglePageSelection(pagePath)}
+                              onClick={e => e.stopPropagation()}
+                              className="absolute left-3 z-10 w-3.5 h-3.5 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
+                            />
+                          )}
                           <button
                             onClick={() => fetchPageContent(pagePath)}
-                            className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center ${
+                            className={`w-full text-left py-1.5 rounded-lg text-sm transition-all flex items-center ${
+                              (hoveredPage === pagePath || selectedPages.size > 0) ? 'pl-8 pr-2' : 'px-2'
+                            } ${
                               selectedPage === pagePath
-                                ? 'bg-blue-50 text-blue-700 font-medium'
-                                : 'hover:bg-gray-100 text-gray-700'
+                                ? 'bg-blue-50 text-blue-700 font-bold'
+                                : 'hover:bg-gray-50 text-gray-700'
                             }`}
                           >
-                            <FileText className="w-3.5 h-3.5 mr-2 flex-shrink-0 opacity-50" />
-                            <span className="break-words line-clamp-2">
+                            <FileText className="w-4 h-4 mr-2 flex-shrink-0 opacity-40" />
+                            <span className="break-all line-clamp-2 leading-tight">
                               {pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
                             </span>
                           </button>
@@ -526,6 +848,39 @@ const WikiView: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        )}
+          </>
+        )}
+        
+        {/* Bulk Action Toolbar */}
+        {selectedPages.size > 0 && (
+          <div className="mt-auto border-t border-gray-100 bg-gray-50/50 pt-3 pb-1 -mx-4 px-4 backdrop-blur-sm animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedPages.size} Selected</span>
+              <button 
+                onClick={clearPageSelection} 
+                className="text-gray-400 hover:text-gray-900 transition-colors p-1 hover:bg-gray-200 rounded-full"
+                title="Clear selection"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2 pb-2">
+              <button
+                onClick={selectAllPages}
+                className="text-xs py-2 border border-gray-200 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition-all font-medium"
+              >
+                Select {searchResults ? 'matching' : 'all'}
+              </button>
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="flex items-center justify-center gap-2 text-xs py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-sm hover:shadow-md transition-all font-bold"
+              >
+                <Trash2 className="w-4 h-4" />
+                Archive Selection
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -564,7 +919,7 @@ const WikiView: React.FC = () => {
               <ArrowRight className="w-5 h-5" />
             </button>
             {selectedPage && (
-              <span className="ml-4 text-sm font-medium text-gray-500 truncate max-w-xs">
+              <span className="ml-4 text-sm font-medium text-gray-500 truncate max-w-[160px] sm:max-w-xs">
                 {selectedPage.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
               </span>
             )}
@@ -630,7 +985,7 @@ const WikiView: React.FC = () => {
           )}
         </div>
 
-        <div className="p-8 flex-grow pb-28 lg:pb-8">
+        <div className="p-8 flex-grow pb-28 lg:pb-8 min-w-0 overflow-x-hidden">
           {contentLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="animate-spin mr-2" /> Loading content...
@@ -646,7 +1001,56 @@ const WikiView: React.FC = () => {
               />
             </div>
           ) : content ? (
-            <div className="prose prose-slate max-w-none">
+            <>
+            {selectedPage && !isEditing && (
+              <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-100 bg-gray-50/30 -mx-8 mb-4">
+                {pageTags.map(tag => (
+                  <span key={tag}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800">
+                    {tag}
+                    <button onClick={() => handleRemoveTag(tag)}
+                            className="text-blue-400 hover:text-blue-200 leading-none">×</button>
+                  </span>
+                ))}
+                {addingTag ? (
+                  <div className="relative">
+                    <input
+                      autoFocus
+                      value={newTagInput}
+                      onChange={e => setNewTagInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleAddTag(newTagInput);
+                        if (e.key === 'Escape') { setAddingTag(false); setNewTagInput(''); }
+                      }}
+                      placeholder="tag name"
+                      className="text-xs bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-900 outline-none w-28"
+                      list="tag-vocab"
+                    />
+                    <datalist id="tag-vocab">
+                      {tagVocabulary
+                        .filter(t => !pageTags.includes(t))
+                        .map(t => <option key={t} value={t} />)}
+                    </datalist>
+                  </div>
+                ) : (
+                  <button onClick={() => setAddingTag(true)}
+                          className="text-xs text-gray-500 hover:text-gray-300 px-1">
+                    + tag
+                  </button>
+                )}
+                {/* AI suggestion chips */}
+                {suggestedTags.map(tag => (
+                  <span key={tag} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-900/30 text-green-400 border border-green-800">
+                    ✦ {tag}
+                    <button onClick={() => handleAcceptSuggestedTag(tag)}
+                            className="text-green-400 hover:text-green-200 font-medium">Accept</button>
+                    <button onClick={() => setSuggestedTags(prev => prev.filter(t => t !== tag))}
+                            className="text-green-500 hover:text-green-300">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="prose prose-slate max-w-none break-words">
               {(() => {
                  const { tags, content: cleanContent } = parseFrontmatter(content);
                  return (
@@ -724,6 +1128,7 @@ const WikiView: React.FC = () => {
                 </div>
               )}
             </div>
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <FileText className="w-16 h-16 mb-4 opacity-20" />
@@ -936,6 +1341,16 @@ const WikiView: React.FC = () => {
       {error && (
         <ErrorToast message={error} onDismiss={() => setError(null)} />
       )}
+
+      {showConfirm && (
+        <ConfirmDialog
+          message={`Archive ${selectedPages.size} page${selectedPages.size === 1 ? '' : 's'}? This can be undone from the Archive view.`}
+          confirmLabel="Archive"
+          onConfirm={handleBulkArchivePages}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+      </div>
     </div>
   );
 };

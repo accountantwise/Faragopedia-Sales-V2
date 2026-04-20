@@ -1,0 +1,31 @@
+name: Photographers
+description: Photographer roster and potential collaborators
+singular: photographer
+fields:
+- name: type
+  type: string
+  default: photographer
+- name: name
+  type: string
+  required: true
+- name: tier
+  type: enum
+  values:
+  - A
+  - B
+  - C
+  description: A = frequent collaborator, B = occasional, C = one-off/prospect
+- name: representation
+  type: string
+- name: based
+  type: string
+- name: speciality
+  type: list
+  default: '[]'
+sections:
+- Bio
+- Style Notes
+- Productions
+- Client Relationships
+- Availability Notes
+- Sources
