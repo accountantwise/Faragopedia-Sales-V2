@@ -6,7 +6,7 @@ import json
 import shutil
 import yaml
 from pydantic import BaseModel, Field
-from typing import List, Dict
+from typing import List, Dict, Literal
 from agent.schema_builder import discover_entity_types, build_schema_md, bootstrap_type_yamls
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -59,7 +59,7 @@ class LintFinding(BaseModel):
     severity: str = Field(description="'error', 'warning', or 'suggestion'")
     page: str = Field(description="Affected page path (e.g. 'clients/louis-vuitton.md') or 'global'")
     description: str = Field(description="Description of the issue or suggestion")
-    fix_confidence: str = Field(default="full", description="'full' (LLM can resolve from existing context), 'stub' (LLM creates a starting-point), or 'needs_source' (requires ingesting new external source material first)")
+    fix_confidence: Literal["full", "stub", "needs_source"] = Field(default="stub", description="'full' (LLM can resolve from existing context), 'stub' (LLM creates a starting-point), or 'needs_source' (requires ingesting new source material first)")
     fix_description: str = Field(default="", description="Plain-English sentence describing what applying the fix will do")
 
 class LintReport(BaseModel):
@@ -151,7 +151,7 @@ FIX_HUMAN_TEMPLATE = """You are applying selected lint fixes to the Farago Proje
 All current wiki pages:
 {wiki_content}
 
-Selected findings to fix:
+Selected findings to fix (each entry shows: index. [CONFIDENCE] description (page: path) / Fix: fix_description):
 {findings_text}
 
 Instructions:

@@ -258,7 +258,7 @@ def test_lint_finding_fix_fields_default():
         page="clients/acme.md",
         description="Some issue.",
     )
-    assert finding.fix_confidence == "full"
+    assert finding.fix_confidence == "stub"
     assert finding.fix_description == ""
 
 
