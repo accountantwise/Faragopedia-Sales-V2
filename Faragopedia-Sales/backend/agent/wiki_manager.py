@@ -754,6 +754,56 @@ class WikiManager:
         if os.path.exists(meta_path):
             os.remove(meta_path)
 
+    async def _run_fix_llm(self, findings: List[LintFinding], wiki_content: str) -> LintFixPlan:
+        findings_text = "\n".join([
+            f"{i+1}. [{f.fix_confidence.upper()}] {f.description} (page: {f.page})\n   Fix: {f.fix_description}"
+            for i, f in enumerate(findings)
+        ])
+        parser = PydanticOutputParser(pydantic_object=LintFixPlan)
+        prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template("{system_prompt}"),
+            HumanMessagePromptTemplate.from_template(FIX_HUMAN_TEMPLATE),
+        ])
+        chain = prompt | self.llm | parser
+        return await chain.ainvoke({
+            "system_prompt": self.system_prompt,
+            "wiki_content": wiki_content,
+            "findings_text": findings_text,
+            "format_instructions": parser.get_format_instructions(),
+        })
+
+    async def fix_lint_findings(self, findings: List[LintFinding]) -> FixReport:
+        wiki_content = ""
+        for rel_path in self.list_pages():
+            full_path = os.path.join(self.wiki_dir, rel_path.replace("/", os.sep))
+            if os.path.exists(full_path):
+                with open(full_path, "r", encoding="utf-8") as f:
+                    wiki_content += f"\n=== {rel_path} ===\n{f.read()}\n"
+
+        snapshot = self.create_snapshot()
+        fix_plan = await self._run_fix_llm(findings, wiki_content)
+
+        async with self._write_lock:
+            files_changed = []
+            for page in fix_plan.pages:
+                page_full_path = os.path.join(self.wiki_dir, page.path.replace("/", os.sep))
+                os.makedirs(os.path.dirname(page_full_path), exist_ok=True)
+                with open(page_full_path, "w", encoding="utf-8") as f:
+                    f.write(page.content)
+                files_changed.append(page.path)
+
+            self.update_index()
+            self._append_to_log("lint-fix", fix_plan.summary)
+
+        self._rebuild_search_index()
+
+        return FixReport(
+            files_changed=files_changed,
+            skipped=fix_plan.skipped,
+            summary=fix_plan.summary,
+            snapshot_id=snapshot.id,
+        )
+
     async def create_new_page(self, entity_type: str = "clients") -> str:
         """Create a new Untitled page in the given entity subdirectory.
         Returns the relative path, e.g. 'clients/Untitled.md'.

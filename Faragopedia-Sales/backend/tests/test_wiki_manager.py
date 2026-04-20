@@ -902,3 +902,56 @@ def test_delete_snapshot(tmp_path):
     manager.delete_snapshot(snap.id)
     assert not (snapshots / f"{snap.id}.zip").exists()
     assert not (snapshots / f"{snap.id}.meta.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_fix_lint_findings(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "acme.md").write_text("---\ntype: client\nname: Acme\n---\n# Acme\n")
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    mock_fix_plan = LintFixPlan(
+        pages=[WikiPage(
+            path="concepts/e-sign.md",
+            content="---\ntype: concept\nname: E-Sign\n---\n# E-Sign\n\nStub page.\n",
+            action="create",
+        )],
+        skipped=[],
+        summary="Fixed 1 finding: created 1 stub.",
+    )
+
+    findings = [
+        LintFinding(
+            severity="suggestion",
+            page="global",
+            description="E-sign concept page is missing.",
+            fix_confidence="stub",
+            fix_description="Create a stub concepts/e-sign.md page.",
+        )
+    ]
+
+    with patch.object(manager, '_run_fix_llm', new_callable=AsyncMock) as mock_fix_llm:
+        mock_fix_llm.return_value = mock_fix_plan
+        report = await manager.fix_lint_findings(findings)
+
+    assert isinstance(report, FixReport)
+    assert "concepts/e-sign.md" in report.files_changed
+    assert report.snapshot_id != ""
+    assert (snapshots / f"{report.snapshot_id}.zip").exists()
+    assert (wiki / "concepts" / "e-sign.md").exists()
+    log_content = (wiki / "log.md").read_text()
+    assert "lint-fix" in log_content
