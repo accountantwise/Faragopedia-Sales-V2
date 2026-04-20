@@ -514,8 +514,8 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                     )}
                     <button
                       onClick={() => { fetchSourceContent(entry.filename); setSearchQuery(''); setTagFilter([]); }}
-                      className={`w-full text-left py-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
-                        (hoveredItem === entry.filename || selectedItems.size > 0 || isBulkMode) ? 'pl-9 pr-3' : 'px-3'
+                      className={`w-full text-left py-2.5 hover:bg-gray-50 transition-all ${
+                        (hoveredItem === entry.filename || selectedItems.size > 0 || isBulkMode) ? 'pl-10 pr-4' : 'px-4'
                       }`}
                     >
                       <div className="text-sm font-medium text-gray-900 mb-1">{entry.filename}</div>

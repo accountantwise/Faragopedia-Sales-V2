@@ -828,8 +828,8 @@ const WikiView: React.FC = () => {
                     )}
                     <button
                       onClick={() => { fetchPageContent(entry.path); setSearchQuery(''); setTagFilter([]); }}
-                      className={`w-full text-left py-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
-                        (hoveredPage === entry.path || selectedPages.size > 0 || isBulkMode) ? 'pl-9 pr-3' : 'px-3'
+                      className={`w-full text-left py-2.5 hover:bg-gray-50 transition-all ${
+                        (hoveredPage === entry.path || selectedPages.size > 0 || isBulkMode) ? 'pl-10 pr-4' : 'px-4'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
