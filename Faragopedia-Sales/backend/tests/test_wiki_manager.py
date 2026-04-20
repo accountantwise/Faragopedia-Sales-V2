@@ -3,7 +3,8 @@ import os
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from agent.wiki_manager import (
-    WikiManager, WikiPage, FaragoIngestionResult, LintFinding, LintReport
+    WikiManager, WikiPage, FaragoIngestionResult, LintFinding, LintReport,
+    LintFixPlan, FixReport, Snapshot
 )
 
 @pytest.fixture(autouse=True)
@@ -237,6 +238,64 @@ def test_lint_report_model():
     assert len(report.findings) == 3
     errors = [f for f in report.findings if f.severity == "error"]
     assert len(errors) == 1
+
+
+def test_lint_finding_has_fix_fields():
+    finding = LintFinding(
+        severity="warning",
+        page="clients/louis-vuitton.md",
+        description="Missing 'last_contact' field.",
+        fix_confidence="full",
+        fix_description="Add a last_contact field to the frontmatter.",
+    )
+    assert finding.fix_confidence == "full"
+    assert finding.fix_description == "Add a last_contact field to the frontmatter."
+
+
+def test_lint_finding_fix_fields_default():
+    finding = LintFinding(
+        severity="warning",
+        page="clients/acme.md",
+        description="Some issue.",
+    )
+    assert finding.fix_confidence == "full"
+    assert finding.fix_description == ""
+
+
+def test_lint_fix_plan_model():
+    from agent.wiki_manager import LintFixPlan
+    plan = LintFixPlan(
+        pages=[WikiPage(path="concepts/e-sign.md", content="# E-Sign\n\nStub.", action="create")],
+        skipped=["needs_source: Whitmore bottleneck pages"],
+        summary="Fixed 1 finding: created 1 stub.",
+    )
+    assert len(plan.pages) == 1
+    assert plan.pages[0].path == "concepts/e-sign.md"
+    assert len(plan.skipped) == 1
+
+
+def test_fix_report_model():
+    from agent.wiki_manager import FixReport
+    report = FixReport(
+        files_changed=["concepts/e-sign.md"],
+        skipped=["needs_source: Whitmore bottleneck pages"],
+        summary="Fixed 1 finding: created 1 stub.",
+        snapshot_id="20260420-143201",
+    )
+    assert report.snapshot_id == "20260420-143201"
+    assert "concepts/e-sign.md" in report.files_changed
+
+
+def test_snapshot_model():
+    from agent.wiki_manager import Snapshot
+    snap = Snapshot(
+        id="20260420-143201",
+        label="pre-lint 2026-04-20 14:32",
+        created_at="2026-04-20T14:32:01",
+        file_count=12,
+    )
+    assert snap.id == "20260420-143201"
+    assert snap.file_count == 12
 
 
 def test_system_prompt_loaded_from_schema_dir(tmp_path):

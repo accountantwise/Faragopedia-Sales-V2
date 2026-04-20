@@ -59,10 +59,29 @@ class LintFinding(BaseModel):
     severity: str = Field(description="'error', 'warning', or 'suggestion'")
     page: str = Field(description="Affected page path (e.g. 'clients/louis-vuitton.md') or 'global'")
     description: str = Field(description="Description of the issue or suggestion")
+    fix_confidence: str = Field(default="full", description="'full' (LLM can resolve from existing context), 'stub' (LLM creates a starting-point), or 'needs_source' (requires ingesting new external source material first)")
+    fix_description: str = Field(default="", description="Plain-English sentence describing what applying the fix will do")
 
 class LintReport(BaseModel):
     findings: List[LintFinding] = Field(description="All findings from the lint operation")
     summary: str = Field(description="One-line summary of findings count by severity")
+
+class LintFixPlan(BaseModel):
+    pages: List[WikiPage] = Field(description="Pages to create or update to resolve the selected findings")
+    skipped: List[str] = Field(description="Descriptions of findings that could not be actioned")
+    summary: str = Field(description="One-line summary, e.g. 'Fixed 3 findings: updated 2 pages, created 1 stub'")
+
+class FixReport(BaseModel):
+    files_changed: List[str] = Field(description="Relative paths of wiki pages that were created or modified")
+    skipped: List[str] = Field(description="Descriptions of findings that could not be actioned")
+    summary: str = Field(description="One-line summary of what was changed")
+    snapshot_id: str = Field(description="ID of the pre-fix snapshot created before any edits")
+
+class Snapshot(BaseModel):
+    id: str = Field(description="Timestamp-based ID, e.g. '20260420-143201'")
+    label: str = Field(description="Human-readable label, e.g. 'pre-lint 2026-04-20 14:32'")
+    created_at: str = Field(description="ISO timestamp of when snapshot was created")
+    file_count: int = Field(description="Number of wiki files captured in the snapshot")
 
 
 INGEST_HUMAN_TEMPLATE = """You are ingesting a new source document into the Farago Projects wiki.
@@ -120,6 +139,31 @@ Instructions (per SCHEMA.md lint operation):
 
 Return findings grouped by severity: 'error' (structural problems), 'warning' (data quality), 'suggestion' (gaps to fill).
 Use page='global' for findings that are not specific to one page.
+
+For each finding also set:
+- fix_confidence: 'full' if the fix can be applied entirely from existing wiki context; 'stub' if a useful starting-point page or edit can be created but the user will need to complete it; 'needs_source' if fixing requires ingesting new external source material first.
+- fix_description: A short plain-English sentence describing what will happen when the fix is applied (e.g. "Replace all raw/ paths with source/ across 14 files", "Create a stub concepts/e-sign.md page", "Add [[wikilink]] references from index.md to photographers/jane-doe.md").
+
+{format_instructions}"""
+
+FIX_HUMAN_TEMPLATE = """You are applying selected lint fixes to the Farago Projects wiki.
+
+All current wiki pages:
+{wiki_content}
+
+Selected findings to fix:
+{findings_text}
+
+Instructions:
+1. For each finding, produce the full updated or new page content that resolves the issue.
+2. Use existing wiki context to produce accurate, realistic content.
+3. For 'full' confidence findings: fully resolve the issue.
+4. For 'stub' confidence findings: create a well-structured page with clearly marked placeholder sections (e.g. "<!-- TODO: add content -->").
+5. For 'needs_source' findings: skip them and add a brief explanation to the skipped list.
+6. Always use [[subdir/page-name]] wikilink syntax for cross-references.
+7. Use action='create' for new pages, action='update' for modified existing pages.
+8. Only include pages that genuinely need to change — do not regenerate unchanged pages.
+9. Write a one-line summary (e.g. "Fixed 3 findings: updated 2 pages, created 1 stub").
 
 {format_instructions}"""
 
