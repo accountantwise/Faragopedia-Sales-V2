@@ -473,7 +473,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
 
         <div className="flex-1 overflow-y-auto px-0 mt-2">
         {searchResults !== null ? (
-          <div className="flex flex-col h-full overflow-hidden">
+          <div className="flex flex-col">
             {resultTags.length > 0 && (
               <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-gray-100 bg-gray-50/50">
                 <span className="text-xs text-gray-500 self-center mr-1">Filter:</span>
@@ -492,7 +492,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                 ))}
               </div>
             )}
-            <div className="flex-1 overflow-y-auto">
+            <div className="divide-y divide-gray-50/50">
               {searchResults.length === 0 ? (
                 <p className="text-sm text-gray-500 p-4">No sources match.</p>
               ) : (
