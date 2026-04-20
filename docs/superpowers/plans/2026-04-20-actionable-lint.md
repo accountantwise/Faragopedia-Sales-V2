@@ -1,6 +1,6 @@
 # Actionable Lint Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Extend the lint feature so the LLM not only identifies wiki issues but applies selected fixes, with snapshot-based rollback stored on a persistent Docker volume.
 
@@ -30,7 +30,7 @@
 - Modify: `backend/agent/wiki_manager.py:58-124`
 - Modify: `backend/tests/test_wiki_manager.py:218-239`
 
-- [ ] **Step 1: Write failing tests for updated `LintFinding` and new models**
+- [x] **Step 1: Write failing tests for updated `LintFinding` and new models**
 
 Add at the bottom of `backend/tests/test_wiki_manager.py`, after the existing `test_lint_report_model` test:
 
@@ -101,7 +101,7 @@ from agent.wiki_manager import (
 )
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -110,7 +110,7 @@ python -m pytest tests/test_wiki_manager.py::test_lint_finding_has_fix_fields te
 
 Expected: `ImportError` or `ValidationError` — the new models and fields don't exist yet.
 
-- [ ] **Step 3: Update `LintFinding` and add new models in `wiki_manager.py`**
+- [x] **Step 3: Update `LintFinding` and add new models in `wiki_manager.py`**
 
 Replace lines 58–66 (the existing `LintFinding` and `LintReport` classes):
 
@@ -144,7 +144,7 @@ class Snapshot(BaseModel):
     file_count: int = Field(description="Number of wiki files captured in the snapshot")
 ```
 
-- [ ] **Step 4: Update `LINT_HUMAN_TEMPLATE` and add `FIX_HUMAN_TEMPLATE`**
+- [x] **Step 4: Update `LINT_HUMAN_TEMPLATE` and add `FIX_HUMAN_TEMPLATE`**
 
 Replace lines 110–124 (the existing `LINT_HUMAN_TEMPLATE`):
 
@@ -191,7 +191,7 @@ Instructions:
 {format_instructions}"""
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -200,7 +200,7 @@ python -m pytest tests/test_wiki_manager.py::test_lint_finding_has_fix_fields te
 
 Expected: all 5 PASS.
 
-- [ ] **Step 6: Run existing lint model tests to confirm no regressions**
+- [x] **Step 6: Run existing lint model tests to confirm no regressions**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -209,7 +209,7 @@ python -m pytest tests/test_wiki_manager.py::test_lint_finding_model tests/test_
 
 Expected: all 3 PASS (old tests use fields that now have defaults, so they still work).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Faragopedia-Sales/backend/agent/wiki_manager.py Faragopedia-Sales/backend/tests/test_wiki_manager.py
@@ -225,7 +225,7 @@ git commit -m "feat(lint): add fix_confidence/fix_description to LintFinding, ad
 - Modify: `backend/tests/test_wiki_manager.py`
 - Modify: `docker-compose.yml`
 
-- [ ] **Step 1: Write failing snapshot tests**
+- [x] **Step 1: Write failing snapshot tests**
 
 Add to `backend/tests/test_wiki_manager.py` after existing tests:
 
@@ -352,7 +352,7 @@ def test_delete_snapshot(tmp_path):
     assert not (snapshots / f"{snap.id}.meta.json").exists()
 ```
 
-- [ ] **Step 2: Run to confirm tests fail**
+- [x] **Step 2: Run to confirm tests fail**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -361,7 +361,7 @@ python -m pytest tests/test_wiki_manager.py::test_create_snapshot tests/test_wik
 
 Expected: `TypeError` — `WikiManager.__init__` doesn't accept `snapshots_dir` yet.
 
-- [ ] **Step 3: Add `snapshots_dir` to `WikiManager.__init__` and add `import zipfile` at top**
+- [x] **Step 3: Add `snapshots_dir` to `WikiManager.__init__` and add `import zipfile` at top**
 
 At the top of `wiki_manager.py`, after the existing imports (line 8), add:
 ```python
@@ -388,7 +388,7 @@ In the directory creation loop at line 142, add `self.snapshots_dir`:
                 os.makedirs(d, exist_ok=True)
 ```
 
-- [ ] **Step 4: Add snapshot methods to `WikiManager`**
+- [x] **Step 4: Add snapshot methods to `WikiManager`**
 
 Add these four methods to `WikiManager`, after the `lint()` method (after line 639):
 
@@ -459,7 +459,7 @@ Add these four methods to `WikiManager`, after the `lint()` method (after line 6
             os.remove(meta_path)
 ```
 
-- [ ] **Step 5: Run snapshot tests to verify they pass**
+- [x] **Step 5: Run snapshot tests to verify they pass**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -468,7 +468,7 @@ python -m pytest tests/test_wiki_manager.py::test_create_snapshot tests/test_wik
 
 Expected: all 5 PASS.
 
-- [ ] **Step 6: Add `snapshots_data` volume to `docker-compose.yml`**
+- [x] **Step 6: Add `snapshots_data` volume to `docker-compose.yml`**
 
 In `docker-compose.yml`, add `snapshots_data` to the top-level `volumes` block:
 ```yaml
@@ -487,7 +487,7 @@ And add the mount to the `backend` service `volumes` list:
       - snapshots_data:/app/snapshots
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Faragopedia-Sales/backend/agent/wiki_manager.py Faragopedia-Sales/backend/tests/test_wiki_manager.py Faragopedia-Sales/docker-compose.yml
@@ -502,7 +502,7 @@ git commit -m "feat(lint): add snapshot methods (create/list/restore/delete) wit
 - Modify: `backend/agent/wiki_manager.py`
 - Modify: `backend/tests/test_wiki_manager.py`
 
-- [ ] **Step 1: Write failing test for `fix_lint_findings`**
+- [x] **Step 1: Write failing test for `fix_lint_findings`**
 
 Add to `backend/tests/test_wiki_manager.py`:
 
@@ -560,7 +560,7 @@ async def test_fix_lint_findings(tmp_path):
     assert "lint-fix" in log_content
 ```
 
-- [ ] **Step 2: Run to confirm test fails**
+- [x] **Step 2: Run to confirm test fails**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -569,7 +569,7 @@ python -m pytest tests/test_wiki_manager.py::test_fix_lint_findings -v
 
 Expected: `AttributeError` — `fix_lint_findings` doesn't exist yet.
 
-- [ ] **Step 3: Add `_run_fix_llm` and `fix_lint_findings` to `WikiManager`**
+- [x] **Step 3: Add `_run_fix_llm` and `fix_lint_findings` to `WikiManager`**
 
 Add after the `delete_snapshot` method (after the last snapshot method added in Task 2):
 
@@ -625,7 +625,7 @@ Add after the `delete_snapshot` method (after the last snapshot method added in 
         )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -634,7 +634,7 @@ python -m pytest tests/test_wiki_manager.py::test_fix_lint_findings -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Run full wiki_manager test suite to confirm no regressions**
+- [x] **Step 5: Run full wiki_manager test suite to confirm no regressions**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -643,7 +643,7 @@ python -m pytest tests/test_wiki_manager.py -v
 
 Expected: all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Faragopedia-Sales/backend/agent/wiki_manager.py Faragopedia-Sales/backend/tests/test_wiki_manager.py
@@ -658,7 +658,7 @@ git commit -m "feat(lint): add fix_lint_findings and _run_fix_llm to WikiManager
 - Modify: `backend/api/routes.py`
 - Modify: `backend/tests/test_api.py`
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Add to `backend/tests/test_api.py`, within the fixture-scoped tests (use the existing `client` fixture):
 
@@ -729,7 +729,7 @@ def test_delete_snapshot_endpoint(client):
     assert data["success"] is True
 ```
 
-- [ ] **Step 2: Run to confirm tests fail**
+- [x] **Step 2: Run to confirm tests fail**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -738,7 +738,7 @@ python -m pytest tests/test_api.py::test_lint_fix_endpoint tests/test_api.py::te
 
 Expected: `404` responses — the endpoints don't exist yet.
 
-- [ ] **Step 3: Add the `LintFixRequest` model and update imports in `routes.py`**
+- [x] **Step 3: Add the `LintFixRequest` model and update imports in `routes.py`**
 
 Update the import at line 13:
 ```python
@@ -779,7 +779,7 @@ Note: `pydantic` is already available; just add `validator` to the existing `fro
 from pydantic import BaseModel, validator
 ```
 
-- [ ] **Step 4: Add the four new endpoints in `routes.py`**
+- [x] **Step 4: Add the four new endpoints in `routes.py`**
 
 After the existing `/lint` endpoint (after line 400), add:
 
@@ -824,7 +824,7 @@ async def delete_snapshot(snapshot_id: str):
         raise HTTPException(status_code=500, detail=f"Error deleting snapshot: {str(e)}")
 ```
 
-- [ ] **Step 5: Run API tests to verify they pass**
+- [x] **Step 5: Run API tests to verify they pass**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -833,7 +833,7 @@ python -m pytest tests/test_api.py::test_lint_fix_endpoint tests/test_api.py::te
 
 Expected: all PASS.
 
-- [ ] **Step 6: Run full API test suite to confirm no regressions**
+- [x] **Step 6: Run full API test suite to confirm no regressions**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -842,7 +842,7 @@ python -m pytest tests/test_api.py -v
 
 Expected: all tests PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Faragopedia-Sales/backend/api/routes.py Faragopedia-Sales/backend/tests/test_api.py
@@ -856,7 +856,7 @@ git commit -m "feat(lint): add /lint/fix, /snapshots CRUD endpoints"
 **Files:**
 - Modify: `frontend/src/components/LintView.tsx`
 
-- [ ] **Step 1: Replace the full contents of `LintView.tsx`**
+- [x] **Step 1: Replace the full contents of `LintView.tsx`**
 
 ```tsx
 import React, { useState } from 'react';
@@ -1134,7 +1134,7 @@ const LintView: React.FC = () => {
 export default LintView;
 ```
 
-- [ ] **Step 2: Verify the TypeScript compiles**
+- [x] **Step 2: Verify the TypeScript compiles**
 
 ```bash
 cd Faragopedia-Sales/frontend
@@ -1143,7 +1143,7 @@ npm run build 2>&1 | head -40
 
 Expected: build succeeds with no TypeScript errors. If `Wrench` is not available in the installed version of `lucide-react`, replace it with `Hammer` or `Settings`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Faragopedia-Sales/frontend/src/components/LintView.tsx
@@ -1157,7 +1157,7 @@ git commit -m "feat(lint): add checkboxes, fix-confidence badges, and Apply Sele
 **Files:**
 - Create: `frontend/src/components/SnapshotsPanel.tsx`
 
-- [ ] **Step 1: Create `SnapshotsPanel.tsx`**
+- [x] **Step 1: Create `SnapshotsPanel.tsx`**
 
 ```tsx
 import React, { useState, useEffect, useCallback } from 'react';
@@ -1312,7 +1312,7 @@ const SnapshotsPanel: React.FC = () => {
 export default SnapshotsPanel;
 ```
 
-- [ ] **Step 2: Verify the build**
+- [x] **Step 2: Verify the build**
 
 ```bash
 cd Faragopedia-Sales/frontend
@@ -1321,7 +1321,7 @@ npm run build 2>&1 | head -40
 
 Expected: no TypeScript errors.
 
-- [ ] **Step 3: Run full backend test suite one final time**
+- [x] **Step 3: Run full backend test suite one final time**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -1330,7 +1330,7 @@ python -m pytest tests/ -v
 
 Expected: all tests PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Faragopedia-Sales/frontend/src/components/SnapshotsPanel.tsx
@@ -1344,7 +1344,7 @@ git commit -m "feat(lint): add SnapshotsPanel component with restore/delete and 
 **Files:**
 - Modify: `backend/api/routes.py` (or wherever `WikiManager` is instantiated with its paths)
 
-- [ ] **Step 1: Add `SNAPSHOTS_DIR` constant and pass it to `WikiManager` in `routes.py`**
+- [x] **Step 1: Add `SNAPSHOTS_DIR` constant and pass it to `WikiManager` in `routes.py`**
 
 In `backend/api/routes.py`, after line 40 (`ARCHIVE_DIR = os.path.join(BASE_DIR, "archive")`), add:
 
@@ -1363,7 +1363,7 @@ wiki_manager = WikiManager(
 )
 ```
 
-- [ ] **Step 3: Verify backend starts without errors**
+- [x] **Step 3: Verify backend starts without errors**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -1372,7 +1372,7 @@ python -m pytest tests/ -v
 
 Expected: all tests PASS.
 
-- [ ] **Step 4: Final commit**
+- [x] **Step 4: Final commit**
 
 ```bash
 git add Faragopedia-Sales/backend/api/routes.py
