@@ -1,9 +1,11 @@
 import asyncio
 import os
+import time
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from agent.wiki_manager import (
-    WikiManager, WikiPage, FaragoIngestionResult, LintFinding, LintReport
+    WikiManager, WikiPage, FaragoIngestionResult, LintFinding, LintReport,
+    LintFixPlan, FixReport, Snapshot
 )
 
 @pytest.fixture(autouse=True)
@@ -237,6 +239,64 @@ def test_lint_report_model():
     assert len(report.findings) == 3
     errors = [f for f in report.findings if f.severity == "error"]
     assert len(errors) == 1
+
+
+def test_lint_finding_has_fix_fields():
+    finding = LintFinding(
+        severity="warning",
+        page="clients/louis-vuitton.md",
+        description="Missing 'last_contact' field.",
+        fix_confidence="full",
+        fix_description="Add a last_contact field to the frontmatter.",
+    )
+    assert finding.fix_confidence == "full"
+    assert finding.fix_description == "Add a last_contact field to the frontmatter."
+
+
+def test_lint_finding_fix_fields_default():
+    finding = LintFinding(
+        severity="warning",
+        page="clients/acme.md",
+        description="Some issue.",
+    )
+    assert finding.fix_confidence == "stub"
+    assert finding.fix_description == ""
+
+
+def test_lint_fix_plan_model():
+    from agent.wiki_manager import LintFixPlan
+    plan = LintFixPlan(
+        pages=[WikiPage(path="concepts/e-sign.md", content="# E-Sign\n\nStub.", action="create")],
+        skipped=["needs_source: Whitmore bottleneck pages"],
+        summary="Fixed 1 finding: created 1 stub.",
+    )
+    assert len(plan.pages) == 1
+    assert plan.pages[0].path == "concepts/e-sign.md"
+    assert len(plan.skipped) == 1
+
+
+def test_fix_report_model():
+    from agent.wiki_manager import FixReport
+    report = FixReport(
+        files_changed=["concepts/e-sign.md"],
+        skipped=["needs_source: Whitmore bottleneck pages"],
+        summary="Fixed 1 finding: created 1 stub.",
+        snapshot_id="20260420-143201",
+    )
+    assert report.snapshot_id == "20260420-143201"
+    assert "concepts/e-sign.md" in report.files_changed
+
+
+def test_snapshot_model():
+    from agent.wiki_manager import Snapshot
+    snap = Snapshot(
+        id="20260420-143201",
+        label="pre-lint 2026-04-20 14:32",
+        created_at="2026-04-20T14:32:01",
+        file_count=12,
+    )
+    assert snap.id == "20260420-143201"
+    assert snap.file_count == 12
 
 
 def test_system_prompt_loaded_from_schema_dir(tmp_path):
@@ -713,3 +773,185 @@ async def test_create_new_page_rejects_invalid_type(tmp_path):
 
     with pytest.raises(ValueError, match="Invalid entity type"):
         await manager.create_new_page(entity_type="invoices")
+
+
+def test_create_snapshot(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "acme.md").write_text("# Acme\n")
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    snap = manager.create_snapshot()
+    assert snap.file_count >= 1
+    assert (snapshots / f"{snap.id}.zip").exists()
+    assert (snapshots / f"{snap.id}.meta.json").exists()
+
+
+def test_list_snapshots(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    manager.create_snapshot(label="snap-1")
+    time.sleep(0.01)  # ensure distinct timestamps
+    manager.create_snapshot(label="snap-2")
+    snaps = manager.list_snapshots()
+    assert len(snaps) == 2
+    labels = {s.label for s in snaps}
+    assert "snap-1" in labels
+    assert "snap-2" in labels
+    assert snaps[0].label == "snap-2"  # newest first
+
+
+def test_restore_snapshot(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    original_file = wiki / "clients" / "acme.md"
+    original_file.write_text("# Original\n")
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    snap = manager.create_snapshot()
+    # Modify the file after snapshot
+    original_file.write_text("# Modified\n")
+    assert original_file.read_text() == "# Modified\n"
+
+    with patch.object(manager, 'update_index') as mock_idx, \
+         patch.object(manager, '_rebuild_search_index') as mock_search:
+        manager.restore_snapshot(snap.id)
+
+    assert original_file.read_text() == "# Original\n"
+    mock_idx.assert_called_once()
+    mock_search.assert_called_once()
+
+
+def test_restore_snapshot_not_found(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(tmp_path / "wiki"),
+            snapshots_dir=str(tmp_path / "snapshots"),
+            schema_dir=str(schema_dir),
+        )
+
+    with pytest.raises(FileNotFoundError):
+        manager.restore_snapshot("nonexistent-id")
+
+
+def test_delete_snapshot(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    snap = manager.create_snapshot()
+    assert (snapshots / f"{snap.id}.zip").exists()
+    manager.delete_snapshot(snap.id)
+    assert not (snapshots / f"{snap.id}.zip").exists()
+    assert not (snapshots / f"{snap.id}.meta.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_fix_lint_findings(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "acme.md").write_text("---\ntype: client\nname: Acme\n---\n# Acme\n")
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    mock_fix_plan = LintFixPlan(
+        pages=[WikiPage(
+            path="concepts/e-sign.md",
+            content="---\ntype: concept\nname: E-Sign\n---\n# E-Sign\n\nStub page.\n",
+            action="create",
+        )],
+        skipped=[],
+        summary="Fixed 1 finding: created 1 stub.",
+    )
+
+    findings = [
+        LintFinding(
+            severity="suggestion",
+            page="global",
+            description="E-sign concept page is missing.",
+            fix_confidence="stub",
+            fix_description="Create a stub concepts/e-sign.md page.",
+        )
+    ]
+
+    with patch.object(manager, '_run_fix_llm', new_callable=AsyncMock) as mock_fix_llm:
+        mock_fix_llm.return_value = mock_fix_plan
+        report = await manager.fix_lint_findings(findings)
+
+    assert isinstance(report, FixReport)
+    assert "concepts/e-sign.md" in report.files_changed
+    assert report.snapshot_id != ""
+    assert (snapshots / f"{report.snapshot_id}.zip").exists()
+    assert (wiki / "concepts" / "e-sign.md").exists()
+    log_content = (wiki / "log.md").read_text()
+    assert "lint-fix" in log_content

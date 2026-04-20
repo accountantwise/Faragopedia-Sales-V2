@@ -290,7 +290,7 @@ git commit -m "feat: add DELETE /sources/bulk and DELETE /pages/bulk endpoints"
 **Files:**
 - Create: `Faragopedia-Sales/frontend/src/components/ConfirmDialog.tsx`
 
-- [ ] **Step 1: Create the component**
+- [x] **Step 1: Create the component**
 
 ```tsx
 import React from 'react';
@@ -327,7 +327,7 @@ const ConfirmDialog: React.FC<Props> = ({ message, onConfirm, onCancel, confirmL
 export default ConfirmDialog;
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
 ```bash
 cd Faragopedia-Sales/frontend
@@ -335,7 +335,7 @@ npx tsc --noEmit
 ```
 Expected: No errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Faragopedia-Sales/frontend/src/components/ConfirmDialog.tsx
@@ -352,7 +352,7 @@ git commit -m "feat: add reusable ConfirmDialog component"
 
 The goal: metadata polling currently lives inside `SourcesView`. Moving it to `App` means the status persists when the user navigates away and back. We'll also wire up toast notifications for completed ingestions.
 
-- [ ] **Step 1: Add metadata state and poll to `App.tsx`**
+- [x] **Step 1: Add metadata state and poll to `App.tsx`**
 
 In `App.tsx`, add these imports at the top:
 
@@ -424,7 +424,7 @@ case 'Sources':
   return <SourcesView sourcesMetadata={sourcesMetadata} />;
 ```
 
-- [ ] **Step 2: Update `SourcesView` to accept metadata as prop**
+- [x] **Step 2: Update `SourcesView` to accept metadata as prop**
 
 At the top of `SourcesView.tsx`, update the component signature:
 
@@ -446,7 +446,7 @@ Replace every reference to `metadata` with `sourcesMetadata` throughout the file
 
 Remove the `fetchMetadata` function and its `setInterval` call from the internal `useEffect` in `SourcesView`.
 
-- [ ] **Step 3: Verify compilation**
+- [x] **Step 3: Verify compilation**
 
 ```bash
 cd Faragopedia-Sales/frontend
@@ -454,7 +454,7 @@ npx tsc --noEmit
 ```
 Expected: No errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Faragopedia-Sales/frontend/src/App.tsx Faragopedia-Sales/frontend/src/components/SourcesView.tsx
@@ -468,7 +468,7 @@ git commit -m "feat: lift metadata poll to App.tsx with ingestion completion toa
 **Files:**
 - Modify: `Faragopedia-Sales/frontend/src/components/SourcesView.tsx`
 
-- [ ] **Step 1: Add selection state and hover state**
+- [x] **Step 1: Add selection state and hover state**
 
 Inside `SourcesView`, add:
 
@@ -484,7 +484,7 @@ Add `ConfirmDialog` import at the top:
 import ConfirmDialog from './ConfirmDialog';
 ```
 
-- [ ] **Step 2: Add checkbox toggle helper**
+- [x] **Step 2: Add checkbox toggle helper**
 
 ```tsx
 const toggleSelection = (filename: string) => {
@@ -503,7 +503,7 @@ const selectAll = () => {
 const clearSelection = () => setSelectedItems(new Set());
 ```
 
-- [ ] **Step 3: Add checkboxes to each source list item**
+- [x] **Step 3: Add checkboxes to each source list item**
 
 In the JSX where each source item is rendered (find the `<div>` or `<button>` that wraps a single source row in the sidebar list), wrap it to add hover tracking and a checkbox:
 
@@ -536,7 +536,7 @@ In the JSX where each source item is rendered (find the `<div>` or `<button>` th
 
 Note: preserve all existing class names on the inner div — only add the conditional `pl-8` / `pl-2` switching.
 
-- [ ] **Step 4: Add bulk action toolbar**
+- [x] **Step 4: Add bulk action toolbar**
 
 At the bottom of the sources sidebar list panel (just before the closing div of the list panel), add:
 
@@ -569,7 +569,7 @@ At the bottom of the sources sidebar list panel (just before the closing div of 
 )}
 ```
 
-- [ ] **Step 5: Add bulk ingest and bulk archive handlers**
+- [x] **Step 5: Add bulk ingest and bulk archive handlers**
 
 ```tsx
 const handleBulkIngest = async () => {
@@ -605,7 +605,7 @@ const handleBulkArchive = async () => {
 };
 ```
 
-- [ ] **Step 6: Add Escape key handler and ConfirmDialog render**
+- [x] **Step 6: Add Escape key handler and ConfirmDialog render**
 
 Add to an existing `useEffect` or create a new one:
 
@@ -632,7 +632,7 @@ Add `ConfirmDialog` in the JSX (at the root of the component return, alongside `
 )}
 ```
 
-- [ ] **Step 7: Verify compilation**
+- [x] **Step 7: Verify compilation**
 
 ```bash
 cd Faragopedia-Sales/frontend
@@ -640,7 +640,7 @@ npx tsc --noEmit
 ```
 Expected: No errors.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add Faragopedia-Sales/frontend/src/components/SourcesView.tsx
@@ -654,7 +654,7 @@ git commit -m "feat: add bulk selection UI and bulk ingest/archive to SourcesVie
 **Files:**
 - Modify: `Faragopedia-Sales/frontend/src/components/WikiView.tsx`
 
-- [ ] **Step 1: Add selection state**
+- [x] **Step 1: Add selection state**
 
 Inside `WikiView`, add:
 
@@ -671,7 +671,7 @@ import ConfirmDialog from './ConfirmDialog';
 // Add Checkbox icon or use <input type="checkbox"> directly
 ```
 
-- [ ] **Step 2: Add toggle helpers**
+- [x] **Step 2: Add toggle helpers**
 
 ```tsx
 const togglePageSelection = (path: string) => {
@@ -690,7 +690,7 @@ const selectAllPages = () => {
 const clearPageSelection = () => setSelectedPages(new Set());
 ```
 
-- [ ] **Step 3: Add checkboxes to page leaf nodes in the wiki tree**
+- [x] **Step 3: Add checkboxes to page leaf nodes in the wiki tree**
 
 Find where each page leaf is rendered inside the tree (the `<div>` or `<button>` that renders an individual page inside a section). Wrap it similarly to Task 5 Step 3:
 
@@ -721,7 +721,7 @@ Find where each page leaf is rendered inside the tree (the `<div>` or `<button>`
 
 Do **not** add checkboxes to folder/entity-type headers — only to page leaf items.
 
-- [ ] **Step 4: Add bulk action toolbar to wiki sidebar**
+- [x] **Step 4: Add bulk action toolbar to wiki sidebar**
 
 At the bottom of the wiki sidebar list panel:
 
@@ -745,7 +745,7 @@ At the bottom of the wiki sidebar list panel:
 )}
 ```
 
-- [ ] **Step 5: Add bulk archive handler**
+- [x] **Step 5: Add bulk archive handler**
 
 ```tsx
 const handleBulkArchivePages = async () => {
@@ -773,7 +773,7 @@ const handleBulkArchivePages = async () => {
 };
 ```
 
-- [ ] **Step 6: Add Escape key handler and ConfirmDialog render**
+- [x] **Step 6: Add Escape key handler and ConfirmDialog render**
 
 ```tsx
 useEffect(() => {
@@ -796,7 +796,7 @@ useEffect(() => {
 )}
 ```
 
-- [ ] **Step 7: Verify compilation**
+- [x] **Step 7: Verify compilation**
 
 ```bash
 cd Faragopedia-Sales/frontend
@@ -804,7 +804,7 @@ npx tsc --noEmit
 ```
 Expected: No errors.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add Faragopedia-Sales/frontend/src/components/WikiView.tsx
@@ -815,21 +815,21 @@ git commit -m "feat: add bulk selection UI and bulk archive to WikiView"
 
 ## Task 7: Manual smoke test
 
-- [ ] **Step 1: Start the backend**
+- [x] **Step 1: Start the backend**
 
 ```bash
 cd Faragopedia-Sales/backend
 uvicorn main:app --reload
 ```
 
-- [ ] **Step 2: Start the frontend**
+- [x] **Step 2: Start the frontend**
 
 ```bash
 cd Faragopedia-Sales/frontend
 npm run dev
 ```
 
-- [ ] **Step 3: Test bulk ingest**
+- [x] **Step 3: Test bulk ingest**
   1. Upload 2-3 source files without ingesting them
   2. Hover over a source — checkbox should appear
   3. Check 2 sources — both checkboxes stay visible, toolbar appears at bottom
@@ -838,7 +838,7 @@ npm run dev
   6. Verify the sources show "Pending" and eventually "Ingested" (within ~15 seconds)
   7. Verify a toast fires for each source as it finishes
 
-- [ ] **Step 4: Test bulk archive sources**
+- [x] **Step 4: Test bulk archive sources**
   1. Check 2 sources
   2. Click "Archive selected"
   3. Confirm dialog should appear with correct count
@@ -846,7 +846,7 @@ npm run dev
   5. Sources should disappear from the list
   6. Navigate to Archive view — verify they appear there
 
-- [ ] **Step 5: Test bulk archive wiki pages**
+- [x] **Step 5: Test bulk archive wiki pages**
   1. Go to Wiki view
   2. Hover over a page leaf — checkbox should appear
   3. Select 2 pages — toolbar appears
@@ -854,10 +854,10 @@ npm run dev
   5. Confirm, verify pages disappear from tree
   6. Navigate to Archive view — verify they appear
 
-- [ ] **Step 6: Test Escape key**
+- [x] **Step 6: Test Escape key**
   - Select some items, press Escape — selection should clear
 
-- [ ] **Step 7: Commit any fixes found during smoke test**
+- [x] **Step 7: Commit any fixes found during smoke test**
 
 ```bash
 git add -p
@@ -868,7 +868,7 @@ git commit -m "fix: smoke test corrections for bulk operations"
 
 ## Task 8: Run full test suite
 
-- [ ] **Step 1: Run all backend tests**
+- [x] **Step 1: Run all backend tests**
 
 ```bash
 cd Faragopedia-Sales/backend
@@ -876,7 +876,7 @@ python -m pytest tests/ -v
 ```
 Expected: All tests pass.
 
-- [ ] **Step 2: Run frontend type check**
+- [x] **Step 2: Run frontend type check**
 
 ```bash
 cd Faragopedia-Sales/frontend
@@ -884,7 +884,7 @@ npx tsc --noEmit
 ```
 Expected: No errors.
 
-- [ ] **Step 3: Commit if any final fixes were needed**
+- [x] **Step 3: Commit if any final fixes were needed**
 
 ```bash
 git add .

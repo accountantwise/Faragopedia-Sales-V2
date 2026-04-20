@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database, MoreVertical, X, Search } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database, MoreVertical, X, Search, ListChecks } from 'lucide-react';
 
 import { API_BASE } from '../config';
 import ErrorToast from './ErrorToast';
@@ -44,6 +44,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
   const [tagVocabulary, setTagVocabulary] = useState<string[]>([]);
   const [addingTag, setAddingTag] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
+  const [isBulkMode, setIsBulkMode] = useState(false);
 
   // Resizable sidebar state
   const [sidebarWidth, setSidebarWidth] = useState<number>(256);
@@ -116,7 +117,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
     setSelectedItems(new Set(visible));
   };
 
-  const clearSelection = () => setSelectedItems(new Set());
+  const clearSelection = () => { setSelectedItems(new Set()); setIsBulkMode(false); };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -293,6 +294,32 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
     }
   };
 
+  const handleBulkDownloadSources = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sources/bulk-download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filenames: Array.from(selectedItems) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(err.detail ?? 'Failed to download sources');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sources-export.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Failed to download selected sources');
+    }
+  };
+
   const searchResults: SourceEntry[] | null = (() => {
     if (!searchQuery.trim()) return null;
     const q = searchQuery.toLowerCase();
@@ -381,19 +408,70 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
       <div className="flex flex-1 min-h-0 relative">
       {/* Sidebar - Source List */}
       <div 
-        className={`border-r bg-white overflow-y-auto p-4 flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
+        className={`border-r bg-white flex flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
         style={isDesktop ? { width: sidebarWidth } : undefined}
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Sources</h2>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-            title="Add Source"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+        <div className="p-4 border-b border-gray-50 flex-shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Sources</h2>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+              title="Add Source"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+        
+        {/* Bulk Action Toolbar - Now Sticky at Top */}
+        {(selectedItems.size > 0 || isBulkMode) && (
+          <div className="bg-white border border-gray-200 text-gray-900 rounded-xl p-3 mb-2 shadow-sm animate-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedItems.size} Selected</span>
+              <button 
+                onClick={clearSelection} 
+                className="text-gray-400 hover:text-gray-900 transition-colors p-1 hover:bg-gray-100 rounded-full"
+                title="Clear selection"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={selectAll}
+                className="w-full text-[10px] py-1 bg-gray-50 border border-gray-200 text-gray-600 rounded hover:bg-gray-100 transition-all font-medium uppercase tracking-tight"
+              >
+                Select {searchResults ? 'matching' : 'all'}
+              </button>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={handleBulkIngest}
+                  className="flex items-center justify-center gap-2 text-xs py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 shadow-sm transition-all font-bold"
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  Ingest
+                </button>
+                <button
+                  onClick={handleBulkDownloadSources}
+                  className="flex items-center justify-center gap-2 text-xs py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 shadow-sm transition-all font-bold"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </button>
+                <button
+                  onClick={() => setShowConfirm(true)}
+                  className="flex items-center justify-center gap-2 text-xs py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 shadow-sm transition-all font-bold"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Archive
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto px-0 mt-2">
         {searchResults !== null ? (
           <div className="flex flex-col h-full overflow-hidden">
             {resultTags.length > 0 && (
@@ -425,7 +503,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                     onMouseEnter={() => setHoveredItem(entry.filename)}
                     onMouseLeave={() => setHoveredItem(null)}
                   >
-                    {(hoveredItem === entry.filename || selectedItems.size > 0) && (
+                    {(hoveredItem === entry.filename || selectedItems.size > 0 || isBulkMode) && (
                       <input
                         type="checkbox"
                         checked={selectedItems.has(entry.filename)}
@@ -437,7 +515,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                     <button
                       onClick={() => { fetchSourceContent(entry.filename); setSearchQuery(''); setTagFilter([]); }}
                       className={`w-full text-left py-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
-                        (hoveredItem === entry.filename || selectedItems.size > 0) ? 'pl-9 pr-3' : 'px-3'
+                        (hoveredItem === entry.filename || selectedItems.size > 0 || isBulkMode) ? 'pl-9 pr-3' : 'px-3'
                       }`}
                     >
                       <div className="text-sm font-medium text-gray-900 mb-1">{entry.filename}</div>
@@ -456,9 +534,9 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
           </div>
         ) : (
           sources.length === 0 ? (
-            <p className="text-gray-500 text-sm">No source files found. Upload some data!</p>
+            <p className="text-gray-500 text-sm p-4">No source files found. Upload some data!</p>
           ) : (
-            <ul className="space-y-1">
+            <ul className="space-y-1 pb-4">
               {sources.map((source) => (
                 <li 
                   key={source}
@@ -466,7 +544,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                   onMouseEnter={() => setHoveredItem(source)}
                   onMouseLeave={() => setHoveredItem(null)}
                 >
-                  {(hoveredItem === source || selectedItems.size > 0) && (
+                  {(hoveredItem === source || selectedItems.size > 0 || isBulkMode) && (
                     <input
                       type="checkbox"
                       checked={selectedItems.has(source)}
@@ -478,7 +556,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                   <button
                     onClick={() => fetchSourceContent(source)}
                     className={`w-full text-left py-2 rounded-lg text-sm transition-all flex items-center justify-between ${
-                      (hoveredItem === source || selectedItems.size > 0) ? 'pl-9 pr-3' : 'px-3'
+                      (hoveredItem === source || selectedItems.size > 0 || isBulkMode) ? 'pl-9 pr-3' : 'px-3'
                     } ${
                       selectedSource === source
                         ? 'bg-blue-50 text-blue-700 font-bold'
@@ -497,43 +575,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
           )
         )}
         
-        {/* Bulk Action Toolbar */}
-        {selectedItems.size > 0 && (
-          <div className="mt-auto border-t border-gray-100/50 bg-gray-50/50 pt-3 pb-1 -mx-4 px-4 backdrop-blur-sm animate-in slide-in-from-bottom-4 duration-300">
-            <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedItems.size} Selected</span>
-              <button 
-                onClick={clearSelection} 
-                className="text-gray-400 hover:text-gray-900 transition-colors p-1 hover:bg-gray-200 rounded-full"
-                title="Clear selection"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 pb-2">
-              <button
-                onClick={selectAll}
-                className="col-span-2 text-xs py-1.5 border border-gray-200 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition-all font-medium mb-1"
-              >
-                Select {searchResults ? 'matching' : 'all'}
-              </button>
-              <button
-                onClick={handleBulkIngest}
-                className="flex items-center justify-center gap-2 text-xs py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm hover:shadow-md transition-all font-bold"
-              >
-                <Database className="w-3.5 h-3.5" />
-                Ingest
-              </button>
-              <button
-                onClick={() => setShowConfirm(true)}
-                className="flex items-center justify-center gap-2 text-xs py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-sm hover:shadow-md transition-all font-bold"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Archive
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Drag Handle Gutter */}
@@ -591,35 +633,44 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
           
           {selectedSource && (
             <div className="flex items-center space-x-2">
-              {!sourcesMetadata[selectedSource]?.ingested && (
-                <button
-                  onClick={handleIngest}
-                  disabled={!!ingesting}
-                  className="flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400"
-                >
-                  {ingesting === selectedSource ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
-                  ) : (
-                    <Database className="w-4 h-4 mr-1.5" />
+              {selectedItems.size === 0 && (
+                <>
+                  {!sourcesMetadata[selectedSource]?.ingested && (
+                    <button
+                      onClick={handleIngest}
+                      disabled={!!ingesting}
+                      className="flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400"
+                    >
+                      {ingesting === selectedSource ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                      ) : (
+                        <Database className="w-4 h-4 mr-1.5" />
+                      )}
+                      {ingesting === selectedSource ? 'Ingesting...' : 'Ingest'}
+                    </button>
                   )}
-                  {ingesting === selectedSource ? 'Ingesting...' : 'Ingest'}
-                </button>
+                  <button
+                    onClick={handleDownload}
+                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                    title="Download Source"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                    title="Move to Archive"
+                  >
+                    {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                  </button>
+                </>
               )}
-              <button
-                onClick={handleDownload}
-                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
-                title="Download Source"
-              >
-                <Download className="w-5 h-5" />
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
-                title="Move to Archive"
-              >
-                {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-              </button>
+              {selectedItems.size > 0 && (
+                <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-100">
+                  Bulk mode active
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -722,41 +773,79 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
         </button>
       )}
 
+      {/* Floating Mobile Bulk Mode Button */}
+      {!isDesktop && showMobileList && selectedItems.size === 0 && !isBulkMode && (
+        <button
+          onClick={() => setIsBulkMode(true)}
+          className="fixed bottom-6 right-6 p-4 bg-gray-900 text-white rounded-full shadow-xl hover:bg-black hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center transform"
+          title="Enter Bulk Mode"
+        >
+          <ListChecks className="w-6 h-6" />
+        </button>
+      )}
+
       {/* Floating Mobile Action Menu */}
       {!isDesktop && !showMobileList && selectedSource && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center">
           {showActionMenu && (
             <div className="flex flex-col items-stretch space-y-3 mb-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
-              {!sourcesMetadata[selectedSource]?.ingested && (
-                <button
-                  onClick={() => { handleIngest(); setShowActionMenu(false); }}
-                  disabled={!!ingesting}
-                  className="flex justify-start items-center px-5 py-2 bg-blue-600 text-white rounded-full shadow-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400"
-                >
-                  {ingesting === selectedSource ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-3" />
-                  ) : (
-                    <Database className="w-4 h-4 mr-3" />
+              {selectedItems.size === 0 && (
+                <>
+                  {!sourcesMetadata[selectedSource]?.ingested && (
+                    <button
+                      onClick={() => { handleIngest(); setShowActionMenu(false); }}
+                      disabled={!!ingesting}
+                      className="flex justify-start items-center px-5 py-2 bg-blue-600 text-white rounded-full shadow-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400"
+                    >
+                      {ingesting === selectedSource ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-3" />
+                      ) : (
+                        <Database className="w-4 h-4 mr-3" />
+                      )}
+                      {ingesting === selectedSource ? 'Ingesting...' : 'Ingest'}
+                    </button>
                   )}
-                  {ingesting === selectedSource ? 'Ingesting...' : 'Ingest'}
-                </button>
+                  
+                  <button
+                    onClick={() => { handleDownload(); setShowActionMenu(false); }}
+                    className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    <Download className="w-4 h-4 mr-3" />
+                    Download
+                  </button>
+                  <button
+                    onClick={() => { handleDelete(); setShowActionMenu(false); }}
+                    disabled={isDeleting}
+                    className="flex justify-start items-center px-5 py-2 bg-red-50 text-red-600 rounded-full shadow-md text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+                  >
+                    {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Trash2 className="w-4 h-4 mr-3" />}
+                    Archive
+                  </button>
+                </>
               )}
-              
-              <button
-                onClick={() => { handleDownload(); setShowActionMenu(false); }}
-                className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                <Download className="w-4 h-4 mr-3" />
-                Download
-              </button>
-              <button
-                onClick={() => { handleDelete(); setShowActionMenu(false); }}
-                disabled={isDeleting}
-                className="flex justify-start items-center px-5 py-2 bg-red-50 text-red-600 rounded-full shadow-md text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
-              >
-                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Trash2 className="w-4 h-4 mr-3" />}
-                Archive
-              </button>
+              {selectedItems.size > 0 && (
+                <div className="bg-gray-900/90 backdrop-blur-md p-4 rounded-3xl shadow-2xl border border-white/10 space-y-3">
+                  <div className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-1">{selectedItems.size} Selected</div>
+                  <button
+                    onClick={() => { handleBulkIngest(); setShowActionMenu(false); }}
+                    className="w-full flex justify-center items-center py-3 bg-blue-600 text-white rounded-2xl font-bold"
+                  >
+                    Bulk Ingest
+                  </button>
+                  <button
+                    onClick={() => { handleBulkDownloadSources(); setShowActionMenu(false); }}
+                    className="w-full flex justify-center items-center py-3 bg-gray-600 text-white rounded-2xl font-bold"
+                  >
+                    Bulk Download
+                  </button>
+                  <button
+                    onClick={() => { setShowConfirm(true); setShowActionMenu(false); }}
+                    className="w-full flex justify-center items-center py-3 bg-red-600 text-white rounded-2xl font-bold"
+                  >
+                    Bulk Archive
+                  </button>
+                </div>
+              )}
             </div>
           )}
           

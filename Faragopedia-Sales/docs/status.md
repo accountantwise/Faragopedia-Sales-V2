@@ -16,6 +16,7 @@
 
 | Date       | Agent/Person | Summary                                       |
 | ---------- | ------------ | --------------------------------------------- |
+| 2026-04-19 | Claude | **Bulk Move & Bulk Download — fully implemented** (branch: `bulk-actions`). All 7 tasks complete. Backend: `POST /pages/bulk-move` (renames pages between entity subdirs, rewrites all `[[wikilinks]]` across the wiki via `rewrite_wikilinks`), `POST /pages/bulk-download` (ZIP stream of selected pages), `POST /sources/bulk-download` (ZIP stream of selected sources). Frontend: new `MoveDialog.tsx` component (radio-button destination picker), bulk Move + Download buttons added to `WikiView` and `SourcesView` desktop toolbars and mobile floating action menus. 12 backend tests passing, 3 smoke test sections added. Branch pushed to GitHub. |
 | 2026-04-19 | Claude | **Search & Tags — fully implemented** (branch: `search-and-tags`). All 8 tasks complete. Backend: `_parse_frontmatter`, `_render_frontmatter`, `_strip_markdown`, `_rebuild_search_index` added to `WikiManager`; index rebuilt on every write; `update_page_tags`, `update_source_tags` added; `_suggest_tags` via LLM; 5 new API endpoints (`GET /search/index`, `GET /tags`, `PATCH /pages/{path}/tags`, `PATCH /sources/{filename}/tags`, `POST /search/rebuild`). Frontend: `WikiView.tsx` — full-width search bar, client-side results panel with tag filter row, tag chips below page title with add/remove/AI-suggestion UI; `SourcesView.tsx` — same search + tag chips pattern. 111 backend tests passing. |
 | 2026-04-18 | Claude | **Search & Tags — designed and planned** (branch: `search-and-tags`, off `dynamic-folders`). Per-view keyword search (client-side JSON index), shared free-form tag system (pages + sources), AI tag suggestion. Design spec saved to `docs/superpowers/specs/2026-04-18-search-and-tags-design.md`. Full 8-task TDD implementation plan saved to `docs/superpowers/plans/2026-04-18-search-and-tags.md`. No code changes yet. |
 | 2026-04-18 | Claude | **Dynamic Folders — all 7 tasks complete** (branch: `dynamic-folders`). Seeded `_type.yaml` for 5 entity folders; built `schema_builder.py` (TDD, 6 tests); added folder CRUD + page move + wikilink rewriting to `WikiManager` (TDD, 10 tests); added 5 new API endpoints (TDD, 17 API tests); updated `WikiView.tsx` with dynamic sidebar, New Folder dialog, Move Page dialog; regenerated `SCHEMA.md`; e2e integration test. 87 tests passing. |
@@ -67,6 +68,24 @@
 - [x] Sources Navigation (Back/Forward) ✅ (2026-04-14)
 - [x] Dynamic Folders (user-managed wiki folders, page move, wikilink rewriting, auto-generated SCHEMA.md) ✅ (2026-04-18) — branch: `dynamic-folders`
 - [x] Search & Tags (per-view keyword search, shared tag vocabulary, AI tag suggestion) ✅ (2026-04-19) — branch: `search-and-tags`
+- [x] Bulk Move (wiki pages between entity types, automatic wikilink rewriting) ✅ (2026-04-19) — branch: `bulk-actions`
+- [x] Bulk Download (pages + sources as ZIP archive) ✅ (2026-04-19) — branch: `bulk-actions`
+
+---
+
+## Bulk Actions Progress (branch: `bulk-actions`)
+
+| Task | Status | Description |
+| ---- | ------ | ----------- |
+| 1 | ✅ Done | `POST /pages/bulk-move` — moves pages between entity subdirs, rewrites all wikilinks via `rewrite_wikilinks` helper |
+| 2 | ✅ Done | `POST /pages/bulk-download` — streams selected wiki pages as `pages-export.zip` |
+| 3 | ✅ Done | `POST /sources/bulk-download` — streams selected source files as `sources-export.zip` |
+| 4 | ✅ Done | `MoveDialog.tsx` — radio-button destination picker modal |
+| 5 | ✅ Done | `WikiView.tsx` — bulk Move + Download buttons (desktop toolbar + mobile floating menu) |
+| 6 | ✅ Done | `SourcesView.tsx` — bulk Download button (desktop toolbar + mobile floating menu) |
+| 7 | ✅ Done | Smoke tests — sections 9–11 for move dialog, wiki download, sources download |
+
+**Current test state:** 12 backend tests passing, 0 failed.
 
 ---
 
@@ -127,8 +146,9 @@
 1. **Merge `big-refactor` to `main`**
 2. **Merge `dynamic-folders` to `main`** (branch pushed to GitHub 2026-04-18)
 3. **Merge `search-and-tags` to `main`** (branch complete 2026-04-19)
-4. Add Graph View (post-integration)
-5. Refine AI maintenance logic (post-integration)
+4. **Merge `bulk-actions` to `main`** (branch pushed to GitHub 2026-04-19)
+5. Add Graph View (post-integration)
+6. Refine AI maintenance logic (post-integration)
 
 ---
 

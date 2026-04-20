@@ -1,14 +1,16 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks
 from datetime import datetime
-from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from pydantic import BaseModel, validator
 import os
 import json
 import shutil
 import re
+import zipfile
+import io
 import asyncio
 from typing import Dict, List
-from agent.wiki_manager import WikiManager
+from agent.wiki_manager import WikiManager, LintFinding, FixReport, Snapshot
 
 router = APIRouter()
 
@@ -21,6 +23,19 @@ class BulkFilenames(BaseModel):
 class BulkPaths(BaseModel):
     paths: List[str]
 
+class BulkMove(BaseModel):
+    paths: List[str]
+    destination: str
+
+class LintFixRequest(BaseModel):
+    findings: List[LintFinding]
+
+    @validator('findings')
+    def findings_not_empty(cls, v):
+        if not v:
+            raise ValueError('findings must not be empty')
+        return v
+
 # The 'sources/' directory is at '../sources' from 'backend/' if running inside the container,
 # or './sources' from the root.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -32,17 +47,55 @@ if os.path.basename(BASE_DIR) == "backend":
 SOURCES_DIR = os.path.join(BASE_DIR, "sources")
 WIKI_DIR = os.path.join(BASE_DIR, "wiki")
 ARCHIVE_DIR = os.path.join(BASE_DIR, "archive")
+SNAPSHOTS_DIR = os.path.join(BASE_DIR, "snapshots")
 
 # Instantiate WikiManager
 wiki_manager = WikiManager(
     sources_dir=SOURCES_DIR,
     wiki_dir=WIKI_DIR,
-    archive_dir=ARCHIVE_DIR
+    archive_dir=ARCHIVE_DIR,
+    snapshots_dir=SNAPSHOTS_DIR
 )
 
 def get_valid_entity_subdirs() -> set:
     """Get valid entity subdirectories dynamically from wiki_manager."""
     return set(wiki_manager.get_entity_types().keys())
+
+def rewrite_wikilinks(path_map: dict) -> dict:
+    """Scan all .md files in WIKI_DIR and rewrite wikilinks for moved pages.
+
+    path_map: {old_path: new_path} e.g. {"prospects/acme.md": "clients/acme.md"}
+    Returns: {file_path: count_of_rewrites}
+    """
+    links_rewritten = {}
+    for root, dirs, files in os.walk(WIKI_DIR):
+        for fname in files:
+            if not fname.endswith(".md"):
+                continue
+            full = os.path.join(root, fname)
+            try:
+                with open(full, "r", encoding="utf-8") as f:
+                    original = f.read()
+            except OSError:
+                continue
+            updated = original
+            count = 0
+            for old_path, new_path in path_map.items():
+                # Strip .md for wikilink format: [[subdir/page-name]]
+                old_link = old_path[:-3] if old_path.endswith(".md") else old_path
+                new_link = new_path[:-3] if new_path.endswith(".md") else new_path
+                pattern = r'\[\[' + re.escape(old_link) + r'\]\]'
+                replacement = f'[[{new_link}]]'
+                new_text, n = re.subn(pattern, replacement, updated)
+                updated = new_text
+                count += n
+            if count > 0 and updated != original:
+                with open(full, "w", encoding="utf-8") as f:
+                    f.write(updated)
+                # Use relative path from WIKI_DIR for the key
+                rel = os.path.relpath(full, WIKI_DIR).replace("\\", "/")
+                links_rewritten[rel] = count
+    return links_rewritten
 
 def secure_filename(filename: str) -> str:
     """
@@ -358,6 +411,46 @@ async def run_lint():
         raise HTTPException(status_code=500, detail=f"Error running lint: {str(e)}")
 
 
+@router.post("/lint/fix")
+async def fix_lint_findings(request: LintFixRequest):
+    try:
+        report = await wiki_manager.fix_lint_findings(request.findings)
+        return report.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error applying lint fixes: {str(e)}")
+
+
+@router.get("/snapshots")
+async def list_snapshots():
+    try:
+        snapshots = wiki_manager.list_snapshots()
+        return [s.model_dump() for s in snapshots]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing snapshots: {str(e)}")
+
+
+@router.post("/snapshots/{snapshot_id}/restore")
+async def restore_snapshot(snapshot_id: str):
+    try:
+        wiki_manager.restore_snapshot(snapshot_id)
+        return {"success": True, "message": f"Snapshot {snapshot_id} restored successfully"}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Snapshot {snapshot_id} not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error restoring snapshot: {str(e)}")
+
+
+@router.delete("/snapshots/{snapshot_id}")
+async def delete_snapshot(snapshot_id: str):
+    try:
+        wiki_manager.delete_snapshot(snapshot_id)
+        return {"success": True}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Snapshot {snapshot_id} not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting snapshot: {str(e)}")
+
+
 @router.delete("/sources/bulk")
 async def bulk_archive_sources(payload: BulkFilenames):
     archived = []
@@ -384,6 +477,93 @@ async def bulk_archive_pages(payload: BulkPaths):
         except Exception:
             errors.append(path)
     return {"archived": archived, "errors": errors}
+
+
+@router.post("/pages/bulk-move")
+async def bulk_move_pages(payload: BulkMove):
+    valid_destinations = get_valid_entity_subdirs()
+    if payload.destination not in valid_destinations:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid destination '{payload.destination}'. Must be one of: {sorted(valid_destinations)}"
+        )
+    moved = []
+    errors = []
+    path_map = {}
+    for path in payload.paths:
+        try:
+            safe_path = safe_wiki_filename(path)
+        except ValueError as e:
+            errors.append({"path": path, "error": str(e)})
+            continue
+        filename = safe_path.split("/")[1]  # e.g. "acme.md"
+        new_path = f"{payload.destination}/{filename}"
+        src = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
+        dst = os.path.join(WIKI_DIR, new_path.replace("/", os.sep))
+        if os.path.exists(dst):
+            errors.append({"path": path, "error": "destination already exists"})
+            continue
+        try:
+            os.rename(src, dst)
+            moved.append(f"{safe_path} → {new_path}")
+            path_map[safe_path] = new_path
+        except OSError as e:
+            errors.append({"path": path, "error": str(e)})
+    links_rewritten = rewrite_wikilinks(path_map) if path_map else {}
+    return {"moved": moved, "errors": errors, "links_rewritten": links_rewritten}
+
+
+@router.post("/pages/bulk-download")
+async def bulk_download_pages(payload: BulkPaths):
+    # Validate and resolve all paths first (fail fast)
+    resolved = []
+    for path in payload.paths:
+        try:
+            safe_path = safe_wiki_filename(path)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        full_path = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"Page not found: {path}")
+        resolved.append((safe_path, full_path))
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for safe_path, full_path in resolved:
+            with open(full_path, "rb") as f:
+                zf.writestr(safe_path, f.read())
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="pages-export.zip"'}
+    )
+
+
+@router.post("/sources/bulk-download")
+async def bulk_download_sources(payload: BulkFilenames):
+    # Validate and resolve all filenames first (fail fast)
+    resolved = []
+    for filename in payload.filenames:
+        safe_name = os.path.basename(filename)
+        full_path = os.path.join(SOURCES_DIR, safe_name)
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"Source not found: {filename}")
+        resolved.append((safe_name, full_path))
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for safe_name, full_path in resolved:
+            with open(full_path, "rb") as f:
+                zf.writestr(safe_name, f.read())
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="sources-export.zip"'}
+    )
 
 
 @router.delete("/pages/{path:path}")

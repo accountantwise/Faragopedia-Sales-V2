@@ -5,8 +5,9 @@ import re
 import json
 import shutil
 import yaml
+import zipfile
 from pydantic import BaseModel, Field
-from typing import List, Dict
+from typing import List, Dict, Literal
 from agent.schema_builder import discover_entity_types, build_schema_md, bootstrap_type_yamls
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -59,10 +60,29 @@ class LintFinding(BaseModel):
     severity: str = Field(description="'error', 'warning', or 'suggestion'")
     page: str = Field(description="Affected page path (e.g. 'clients/louis-vuitton.md') or 'global'")
     description: str = Field(description="Description of the issue or suggestion")
+    fix_confidence: Literal["full", "stub", "needs_source"] = Field(default="stub", description="'full' (LLM can resolve from existing context), 'stub' (LLM creates a starting-point), or 'needs_source' (requires ingesting new source material first)")
+    fix_description: str = Field(default="", description="Plain-English sentence describing what applying the fix will do")
 
 class LintReport(BaseModel):
     findings: List[LintFinding] = Field(description="All findings from the lint operation")
     summary: str = Field(description="One-line summary of findings count by severity")
+
+class LintFixPlan(BaseModel):
+    pages: List[WikiPage] = Field(description="Pages to create or update to resolve the selected findings")
+    skipped: List[str] = Field(description="Descriptions of findings that could not be actioned")
+    summary: str = Field(description="One-line summary, e.g. 'Fixed 3 findings: updated 2 pages, created 1 stub'")
+
+class FixReport(BaseModel):
+    files_changed: List[str] = Field(description="Relative paths of wiki pages that were created or modified")
+    skipped: List[str] = Field(description="Descriptions of findings that could not be actioned")
+    summary: str = Field(description="One-line summary of what was changed")
+    snapshot_id: str = Field(description="ID of the pre-fix snapshot created before any edits")
+
+class Snapshot(BaseModel):
+    id: str = Field(description="Timestamp-based ID, e.g. '20260420-143201'")
+    label: str = Field(description="Human-readable label, e.g. 'pre-lint 2026-04-20 14:32'")
+    created_at: str = Field(description="ISO timestamp of when snapshot was created")
+    file_count: int = Field(description="Number of wiki files captured in the snapshot")
 
 
 INGEST_HUMAN_TEMPLATE = """You are ingesting a new source document into the Farago Projects wiki.
@@ -121,16 +141,42 @@ Instructions (per SCHEMA.md lint operation):
 Return findings grouped by severity: 'error' (structural problems), 'warning' (data quality), 'suggestion' (gaps to fill).
 Use page='global' for findings that are not specific to one page.
 
+For each finding also set:
+- fix_confidence: 'full' if the fix can be applied entirely from existing wiki context; 'stub' if a useful starting-point page or edit can be created but the user will need to complete it; 'needs_source' if fixing requires ingesting new external source material first.
+- fix_description: A short plain-English sentence describing what will happen when the fix is applied (e.g. "Replace all raw/ paths with source/ across 14 files", "Create a stub concepts/e-sign.md page", "Add [[wikilink]] references from index.md to photographers/jane-doe.md").
+
+{format_instructions}"""
+
+FIX_HUMAN_TEMPLATE = """You are applying selected lint fixes to the Farago Projects wiki.
+
+All current wiki pages:
+{wiki_content}
+
+Selected findings to fix (each entry shows: index. [CONFIDENCE] description (page: path) / Fix: fix_description):
+{findings_text}
+
+Instructions:
+1. For each finding, produce the full updated or new page content that resolves the issue.
+2. Use existing wiki context to produce accurate, realistic content.
+3. For 'full' confidence findings: fully resolve the issue.
+4. For 'stub' confidence findings: create a well-structured page with clearly marked placeholder sections (e.g. "<!-- TODO: add content -->").
+5. For 'needs_source' findings: skip them and add a brief explanation to the skipped list.
+6. Always use [[subdir/page-name]] wikilink syntax for cross-references.
+7. Use action='create' for new pages, action='update' for modified existing pages.
+8. Only include pages that genuinely need to change — do not regenerate unchanged pages.
+9. Write a one-line summary (e.g. "Fixed 3 findings: updated 2 pages, created 1 stub").
+
 {format_instructions}"""
 
 
 class WikiManager:
-    def __init__(self, sources_dir="sources", wiki_dir="wiki", archive_dir="archive", llm=None, schema_dir=None):
+    def __init__(self, sources_dir="sources", wiki_dir="wiki", archive_dir="archive", snapshots_dir="snapshots", llm=None, schema_dir=None):
         self.sources_dir = sources_dir
         self.wiki_dir = wiki_dir
         self.archive_dir = archive_dir
         self.archive_wiki_dir = os.path.join(archive_dir, "wiki")
         self.archive_sources_dir = os.path.join(archive_dir, "sources")
+        self.snapshots_dir = snapshots_dir
         self.metadata_path = os.path.join(sources_dir, ".metadata.json")
         self.schema_dir = schema_dir or os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "..", "schema"
@@ -140,7 +186,7 @@ class WikiManager:
         self._write_lock = asyncio.Lock()
 
         for d in [self.sources_dir, self.wiki_dir, self.archive_dir,
-                  self.archive_wiki_dir, self.archive_sources_dir]:
+                  self.archive_wiki_dir, self.archive_sources_dir, self.snapshots_dir]:
             if not os.path.exists(d):
                 os.makedirs(d, exist_ok=True)
 
@@ -637,6 +683,126 @@ class WikiManager:
         report = await self._run_lint_llm(wiki_content)
         self._append_to_log("lint", report.summary)
         return report
+
+    def create_snapshot(self, label: str = None) -> Snapshot:
+        now = datetime.datetime.now()
+        snapshot_id = now.strftime("%Y%m%d-%H%M%S-%f")
+        created_at = now.isoformat()
+        if label is None:
+            label = f"pre-lint {now.strftime('%Y-%m-%d %H:%M')}"
+
+        zip_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.zip")
+        file_count = 0
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for root, _dirs, files in os.walk(self.wiki_dir):
+                for filename in files:
+                    filepath = os.path.join(root, filename)
+                    arcname = os.path.relpath(filepath, self.wiki_dir)
+                    zf.write(filepath, arcname)
+                    file_count += 1
+
+        snapshot = Snapshot(
+            id=snapshot_id,
+            label=label,
+            created_at=created_at,
+            file_count=file_count,
+        )
+        meta_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.meta.json")
+        with open(meta_path, "w", encoding="utf-8") as f:
+            f.write(snapshot.model_dump_json())
+
+        return snapshot
+
+    def list_snapshots(self) -> List[Snapshot]:
+        snapshots = []
+        for filename in os.listdir(self.snapshots_dir):
+            if filename.endswith(".meta.json"):
+                meta_path = os.path.join(self.snapshots_dir, filename)
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                snapshots.append(Snapshot(**data))
+        return sorted(snapshots, key=lambda s: s.created_at, reverse=True)
+
+    def restore_snapshot(self, snapshot_id: str):
+        zip_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.zip")
+        if not os.path.exists(zip_path):
+            raise FileNotFoundError(f"Snapshot {snapshot_id} not found")
+
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            bad = zf.testzip()
+            if bad is not None:
+                raise zipfile.BadZipFile(f"Corrupt entry in snapshot: {bad}")
+
+            for item in os.listdir(self.wiki_dir):
+                item_path = os.path.join(self.wiki_dir, item)
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                else:
+                    os.remove(item_path)
+
+            zf.extractall(self.wiki_dir)
+
+        self.update_index()
+        self._rebuild_search_index()
+
+    def delete_snapshot(self, snapshot_id: str):
+        zip_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.zip")
+        meta_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.meta.json")
+        if not os.path.exists(zip_path):
+            raise FileNotFoundError(f"Snapshot {snapshot_id} not found")
+        os.remove(zip_path)
+        if os.path.exists(meta_path):
+            os.remove(meta_path)
+
+    async def _run_fix_llm(self, findings: List[LintFinding], wiki_content: str) -> LintFixPlan:
+        findings_text = "\n".join([
+            f"{i+1}. [{f.fix_confidence.upper()}] {f.description} (page: {f.page})\n   Fix: {f.fix_description}"
+            for i, f in enumerate(findings)
+        ])
+        parser = PydanticOutputParser(pydantic_object=LintFixPlan)
+        prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template("{system_prompt}"),
+            HumanMessagePromptTemplate.from_template(FIX_HUMAN_TEMPLATE),
+        ])
+        chain = prompt | self.llm | parser
+        return await chain.ainvoke({
+            "system_prompt": self.system_prompt,
+            "wiki_content": wiki_content,
+            "findings_text": findings_text,
+            "format_instructions": parser.get_format_instructions(),
+        })
+
+    async def fix_lint_findings(self, findings: List[LintFinding]) -> FixReport:
+        wiki_content = ""
+        for rel_path in self.list_pages():
+            full_path = os.path.join(self.wiki_dir, rel_path.replace("/", os.sep))
+            if os.path.exists(full_path):
+                with open(full_path, "r", encoding="utf-8") as f:
+                    wiki_content += f"\n=== {rel_path} ===\n{f.read()}\n"
+
+        snapshot = self.create_snapshot()
+        fix_plan = await self._run_fix_llm(findings, wiki_content)
+
+        async with self._write_lock:
+            files_changed = []
+            for page in fix_plan.pages:
+                page_full_path = os.path.join(self.wiki_dir, page.path.replace("/", os.sep))
+                os.makedirs(os.path.dirname(page_full_path), exist_ok=True)
+                with open(page_full_path, "w", encoding="utf-8") as f:
+                    f.write(page.content)
+                files_changed.append(page.path)
+
+            self.update_index()
+            self._append_to_log("lint-fix", fix_plan.summary)
+
+        self._rebuild_search_index()
+
+        return FixReport(
+            files_changed=files_changed,
+            skipped=fix_plan.skipped,
+            summary=fix_plan.summary,
+            snapshot_id=snapshot.id,
+        )
 
     async def create_new_page(self, entity_type: str = "clients") -> str:
         """Create a new Untitled page in the given entity subdirectory.
