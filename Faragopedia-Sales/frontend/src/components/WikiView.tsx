@@ -794,7 +794,7 @@ const WikiView: React.FC = () => {
                         prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
                       )
                     }
-                    className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                       tagFilter.includes(tag)
                         ? 'bg-blue-600 border-blue-500 text-white'
                         : 'bg-gray-100 border-gray-200 text-gray-500 hover:border-gray-300'
@@ -839,9 +839,9 @@ const WikiView: React.FC = () => {
                         <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ml-2 shrink-0">{entry.entity_type}</span>
                       </div>
                       {entry.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-1.5">
+                        <div className="flex flex-wrap gap-1.5 mb-1.5">
                           {entry.tags.map(t => (
-                            <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 font-medium">
+                            <span key={t} className="text-[10px] px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100 font-medium whitespace-nowrap">
                               {t}
                             </span>
                           ))}
@@ -870,7 +870,7 @@ const WikiView: React.FC = () => {
                   <div className="flex items-center group">
                     <button
                       onClick={() => toggleSection(section)}
-                      className="flex-1 text-left px-2 py-1.5 flex items-center justify-between text-xs font-semibold text-gray-400 uppercase tracking-wider hover:bg-gray-50 rounded-md transition-colors"
+                      className="flex-1 text-left px-2 py-2 flex items-center justify-between text-xs font-semibold text-gray-400 uppercase tracking-wider hover:bg-gray-50 rounded-md transition-colors"
                     >
                       <span>{typeData.name || section}</span>
                       <ChevronRight className={`w-3 h-3 transition-transform duration-150 ${expandedSections[section] ? 'rotate-90' : ''}`} />
@@ -931,7 +931,7 @@ const WikiView: React.FC = () => {
                           )}
                           <button
                             onClick={() => fetchPageContent(pagePath)}
-                            className={`w-full text-left py-1.5 rounded-lg text-sm transition-all flex items-center ${
+                            className={`w-full text-left py-2 rounded-lg text-sm transition-all flex items-center ${
                               (hoveredPage === pagePath || selectedPages.size > 0 || isBulkMode) ? 'pl-8 pr-2' : 'px-2'
                             } ${
                               selectedPage === pagePath
@@ -970,7 +970,7 @@ const WikiView: React.FC = () => {
       {/* Main Content - Markdown View */}
       <div className={`flex-grow overflow-y-auto bg-white flex-col relative ${!isDesktop && (showMobileList || showChat) ? 'hidden' : 'flex'}`}>
         {/* Navigation Header */}
-        <div className="hidden lg:flex border-b px-8 py-3 items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
+        <div className="hidden lg:flex border-b px-8 py-4 items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-2">
             <button
               onClick={handleBack}
@@ -1089,10 +1089,10 @@ const WikiView: React.FC = () => {
               <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-100 bg-gray-50/30 -mx-8 mb-4">
                 {pageTags.map(tag => (
                   <span key={tag}
-                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800">
+                        className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800 shadow-sm">
                     {tag}
                     <button onClick={() => handleRemoveTag(tag)}
-                            className="text-blue-400 hover:text-blue-200 leading-none">×</button>
+                            className="text-blue-400 hover:text-blue-200 ml-1 leading-none">×</button>
                   </span>
                 ))}
                 {addingTag ? (
@@ -1123,7 +1123,7 @@ const WikiView: React.FC = () => {
                 )}
                 {/* AI suggestion chips */}
                 {suggestedTags.map(tag => (
-                  <span key={tag} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-900/30 text-green-400 border border-green-800">
+                  <span key={tag} className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-900/30 text-green-400 border border-green-800 shadow-sm">
                     ✦ {tag}
                     <button onClick={() => handleAcceptSuggestedTag(tag)}
                             className="text-green-400 hover:text-green-200 font-medium">Accept</button>
@@ -1133,7 +1133,7 @@ const WikiView: React.FC = () => {
                 ))}
               </div>
             )}
-            <div className="prose prose-slate max-w-none break-words">
+            <div className="prose prose-slate max-w-4xl mx-auto break-words">
               {(() => {
                  const { tags, content: cleanContent } = parseFrontmatter(content);
                  return (

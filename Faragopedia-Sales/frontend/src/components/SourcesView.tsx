@@ -482,7 +482,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                           onClick={() => setTagFilter(prev =>
                             prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
                           )}
-                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                          className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                             tagFilter.includes(tag)
                               ? 'bg-blue-600 border-blue-500 text-white'
                               : 'bg-gray-100 border-gray-200 text-gray-500 hover:border-gray-300'
@@ -522,7 +522,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                       {entry.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {entry.tags.map(t => (
-                            <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium uppercase tracking-tight">{t}</span>
+                            <span key={t} className="text-[10px] px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 font-medium uppercase tracking-tight whitespace-nowrap">{t}</span>
                           ))}
                         </div>
                       )}
@@ -555,7 +555,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                   )}
                   <button
                     onClick={() => fetchSourceContent(source)}
-                    className={`w-full text-left py-2 rounded-lg text-sm transition-all flex items-center justify-between ${
+                    className={`w-full text-left py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${
                       (hoveredItem === source || selectedItems.size > 0 || isBulkMode) ? 'pl-9 pr-3' : 'px-3'
                     } ${
                       selectedSource === source
@@ -589,7 +589,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
       {/* Main Content - Source View */}
       <div className={`flex-grow overflow-y-auto bg-white flex-col ${!isDesktop && showMobileList ? 'hidden' : 'flex'}`}>
         {/* Navigation Header */}
-        <div className="hidden lg:flex border-b px-8 py-3 items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
+        <div className="hidden lg:flex border-b px-8 py-4 items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-2">
             <button
               onClick={handleBack}
@@ -679,7 +679,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
           <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-100 bg-gray-50/30">
             {sourceTags.map(tag => (
               <span key={tag}
-                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800">
+                    className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800 shadow-sm">
                 {tag}
                 <button onClick={() => handleRemoveSourceTag(tag)} className="text-blue-400 hover:text-blue-200">×</button>
               </span>
@@ -712,7 +712,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
             </div>
           ) : content ? (
             selectedSource?.endsWith('.md') ? (
-              <div className="prose prose-slate max-w-none break-words">
+              <div className="prose prose-slate max-w-4xl mx-auto break-words">
                 {(() => {
                    const { tags, content: cleanContent } = parseFrontmatter(content);
                    return (

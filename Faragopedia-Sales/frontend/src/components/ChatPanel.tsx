@@ -63,7 +63,7 @@ const ChatPanel: React.FC<Props> = ({ className = '', onLinkClick }) => {
         ) : (
           chatHistory.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[90%] px-3 py-2 rounded-2xl ${
+              <div className={`max-w-[90%] px-5 py-3 rounded-2xl ${
                 msg.role === 'user'
                   ? 'bg-blue-600 text-white rounded-tr-none'
                   : 'bg-gray-100 text-gray-800 rounded-tl-none prose prose-sm prose-slate max-w-none'
@@ -109,7 +109,7 @@ const ChatPanel: React.FC<Props> = ({ className = '', onLinkClick }) => {
         )}
         {chatLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 px-3 py-2 rounded-2xl rounded-tl-none flex items-center space-x-2">
+            <div className="bg-gray-100 px-5 py-3 rounded-2xl rounded-tl-none flex items-center space-x-2">
               <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
             </div>
           </div>
@@ -132,7 +132,7 @@ const ChatPanel: React.FC<Props> = ({ className = '', onLinkClick }) => {
             disabled={chatLoading || !chatQuery.trim()}
             className="absolute right-1.5 top-1.5 bg-blue-600 text-white p-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-5 h-5" />
           </button>
         </div>
       </div>

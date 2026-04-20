@@ -110,7 +110,7 @@ const App: React.FC = () => {
 
                     return (
                       <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${
+                        <div className={`max-w-[80%] px-5 py-3 rounded-2xl ${
                           msg.role === 'user'
                             ? 'bg-blue-600 text-white rounded-tr-none'
                             : 'bg-gray-100 text-gray-800 rounded-tl-none prose prose-sm prose-slate max-w-none'
@@ -154,7 +154,7 @@ const App: React.FC = () => {
                 )}
                 {chatLoading && (
                   <div className="flex justify-start">
-                    <div className="bg-gray-100 px-4 py-3 rounded-2xl rounded-tl-none flex items-center space-x-2">
+                    <div className="bg-gray-100 px-5 py-3 rounded-2xl rounded-tl-none flex items-center space-x-2">
                       <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
                       <span className="text-sm text-gray-500">AI is thinking...</span>
                     </div>
@@ -224,7 +224,7 @@ const App: React.FC = () => {
 
       <main className="flex-grow flex flex-col overflow-hidden relative w-full">
         {/* Universal header area with hamburger toggle */}
-        <div className="bg-white border-b px-4 py-3 flex items-center shrink-0 z-30 relative shadow-sm">
+        <div className="bg-white border-b px-4 py-4 flex items-center shrink-0 z-30 relative shadow-sm">
           <button 
             onClick={() => {
               if (window.innerWidth < 768) {
