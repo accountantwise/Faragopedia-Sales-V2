@@ -2,6 +2,7 @@ volumes:
   node_modules:
   wiki_data:
   sources_data:
+  snapshots_data:
 
 services:
   backend:
@@ -9,6 +10,7 @@ services:
     volumes:
       - wiki_data:/app/wiki
       - sources_data:/app/sources
+      - snapshots_data:/app/snapshots
     ports:
       - "8300:8300"
     environment:

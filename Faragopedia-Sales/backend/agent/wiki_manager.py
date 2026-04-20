@@ -5,6 +5,7 @@ import re
 import json
 import shutil
 import yaml
+import zipfile
 from pydantic import BaseModel, Field
 from typing import List, Dict, Literal
 from agent.schema_builder import discover_entity_types, build_schema_md, bootstrap_type_yamls
@@ -169,12 +170,13 @@ Instructions:
 
 
 class WikiManager:
-    def __init__(self, sources_dir="sources", wiki_dir="wiki", archive_dir="archive", llm=None, schema_dir=None):
+    def __init__(self, sources_dir="sources", wiki_dir="wiki", archive_dir="archive", snapshots_dir="snapshots", llm=None, schema_dir=None):
         self.sources_dir = sources_dir
         self.wiki_dir = wiki_dir
         self.archive_dir = archive_dir
         self.archive_wiki_dir = os.path.join(archive_dir, "wiki")
         self.archive_sources_dir = os.path.join(archive_dir, "sources")
+        self.snapshots_dir = snapshots_dir
         self.metadata_path = os.path.join(sources_dir, ".metadata.json")
         self.schema_dir = schema_dir or os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "..", "schema"
@@ -184,7 +186,7 @@ class WikiManager:
         self._write_lock = asyncio.Lock()
 
         for d in [self.sources_dir, self.wiki_dir, self.archive_dir,
-                  self.archive_wiki_dir, self.archive_sources_dir]:
+                  self.archive_wiki_dir, self.archive_sources_dir, self.snapshots_dir]:
             if not os.path.exists(d):
                 os.makedirs(d, exist_ok=True)
 
@@ -681,6 +683,71 @@ class WikiManager:
         report = await self._run_lint_llm(wiki_content)
         self._append_to_log("lint", report.summary)
         return report
+
+    def create_snapshot(self, label: str = None) -> Snapshot:
+        snapshot_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        created_at = datetime.datetime.now().isoformat()
+        if label is None:
+            label = f"pre-lint {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+        zip_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.zip")
+        file_count = 0
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for root, _dirs, files in os.walk(self.wiki_dir):
+                for filename in files:
+                    filepath = os.path.join(root, filename)
+                    arcname = os.path.relpath(filepath, self.wiki_dir)
+                    zf.write(filepath, arcname)
+                    file_count += 1
+
+        snapshot = Snapshot(
+            id=snapshot_id,
+            label=label,
+            created_at=created_at,
+            file_count=file_count,
+        )
+        meta_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.meta.json")
+        with open(meta_path, "w", encoding="utf-8") as f:
+            f.write(snapshot.model_dump_json())
+
+        return snapshot
+
+    def list_snapshots(self) -> List[Snapshot]:
+        snapshots = []
+        for filename in os.listdir(self.snapshots_dir):
+            if filename.endswith(".meta.json"):
+                meta_path = os.path.join(self.snapshots_dir, filename)
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                snapshots.append(Snapshot(**data))
+        return sorted(snapshots, key=lambda s: s.created_at, reverse=True)
+
+    def restore_snapshot(self, snapshot_id: str):
+        zip_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.zip")
+        if not os.path.exists(zip_path):
+            raise FileNotFoundError(f"Snapshot {snapshot_id} not found")
+
+        for item in os.listdir(self.wiki_dir):
+            item_path = os.path.join(self.wiki_dir, item)
+            if os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+            else:
+                os.remove(item_path)
+
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            zf.extractall(self.wiki_dir)
+
+        self.update_index()
+        self._rebuild_search_index()
+
+    def delete_snapshot(self, snapshot_id: str):
+        zip_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.zip")
+        meta_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.meta.json")
+        if not os.path.exists(zip_path):
+            raise FileNotFoundError(f"Snapshot {snapshot_id} not found")
+        os.remove(zip_path)
+        if os.path.exists(meta_path):
+            os.remove(meta_path)
 
     async def create_new_page(self, entity_type: str = "clients") -> str:
         """Create a new Untitled page in the given entity subdirectory.

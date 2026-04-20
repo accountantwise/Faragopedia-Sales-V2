@@ -772,3 +772,125 @@ async def test_create_new_page_rejects_invalid_type(tmp_path):
 
     with pytest.raises(ValueError, match="Invalid entity type"):
         await manager.create_new_page(entity_type="invoices")
+
+
+def test_create_snapshot(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "acme.md").write_text("# Acme\n")
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    snap = manager.create_snapshot()
+    assert snap.file_count >= 1
+    assert (snapshots / f"{snap.id}.zip").exists()
+    assert (snapshots / f"{snap.id}.meta.json").exists()
+
+
+def test_list_snapshots(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    manager.create_snapshot(label="snap-1")
+    manager.create_snapshot(label="snap-2")
+    snaps = manager.list_snapshots()
+    assert len(snaps) == 2
+    labels = {s.label for s in snaps}
+    assert "snap-1" in labels
+    assert "snap-2" in labels
+
+
+def test_restore_snapshot(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    original_file = wiki / "clients" / "acme.md"
+    original_file.write_text("# Original\n")
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    snap = manager.create_snapshot()
+    # Modify the file after snapshot
+    original_file.write_text("# Modified\n")
+    assert original_file.read_text() == "# Modified\n"
+
+    manager.restore_snapshot(snap.id)
+    assert original_file.read_text() == "# Original\n"
+
+
+def test_restore_snapshot_not_found(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(tmp_path / "wiki"),
+            snapshots_dir=str(tmp_path / "snapshots"),
+            schema_dir=str(schema_dir),
+        )
+
+    with pytest.raises(FileNotFoundError):
+        manager.restore_snapshot("nonexistent-id")
+
+
+def test_delete_snapshot(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    snapshots = tmp_path / "snapshots"
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            snapshots_dir=str(snapshots),
+            schema_dir=str(schema_dir),
+        )
+
+    snap = manager.create_snapshot()
+    assert (snapshots / f"{snap.id}.zip").exists()
+    manager.delete_snapshot(snap.id)
+    assert not (snapshots / f"{snap.id}.zip").exists()
+    assert not (snapshots / f"{snap.id}.meta.json").exists()
