@@ -8,7 +8,7 @@
 
 ## Current Phase: 🟡 MVP Development / Prototype Functional
 
-**Last updated:** 2026-04-19
+**Last updated:** 2026-04-20
 
 ---
 
@@ -16,6 +16,7 @@
 
 | Date       | Agent/Person | Summary                                       |
 | ---------- | ------------ | --------------------------------------------- |
+| 2026-04-20 | Claude | **Actionable Lint — Tasks 1–3 complete** (branch: `bulk-actions`). Backend fully implemented: `LintFinding` updated with `fix_confidence` (Literal type, default `"stub"`) and `fix_description`; new models `LintFixPlan`, `FixReport`, `Snapshot`; `FIX_HUMAN_TEMPLATE` added; snapshot methods `create_snapshot`, `list_snapshots`, `restore_snapshot` (validates zip before clearing), `delete_snapshot` added to `WikiManager`; `fix_lint_findings` + `_run_fix_llm` added; `snapshots_data` Docker volume added. 42 backend tests passing. Tasks 4–7 (API endpoints, LintView, SnapshotsPanel, wiring) remain. |
 | 2026-04-19 | Claude | **Bulk Move & Bulk Download — fully implemented** (branch: `bulk-actions`). All 7 tasks complete. Backend: `POST /pages/bulk-move` (renames pages between entity subdirs, rewrites all `[[wikilinks]]` across the wiki via `rewrite_wikilinks`), `POST /pages/bulk-download` (ZIP stream of selected pages), `POST /sources/bulk-download` (ZIP stream of selected sources). Frontend: new `MoveDialog.tsx` component (radio-button destination picker), bulk Move + Download buttons added to `WikiView` and `SourcesView` desktop toolbars and mobile floating action menus. 12 backend tests passing, 3 smoke test sections added. Branch pushed to GitHub. |
 | 2026-04-19 | Claude | **Search & Tags — fully implemented** (branch: `search-and-tags`). All 8 tasks complete. Backend: `_parse_frontmatter`, `_render_frontmatter`, `_strip_markdown`, `_rebuild_search_index` added to `WikiManager`; index rebuilt on every write; `update_page_tags`, `update_source_tags` added; `_suggest_tags` via LLM; 5 new API endpoints (`GET /search/index`, `GET /tags`, `PATCH /pages/{path}/tags`, `PATCH /sources/{filename}/tags`, `POST /search/rebuild`). Frontend: `WikiView.tsx` — full-width search bar, client-side results panel with tag filter row, tag chips below page title with add/remove/AI-suggestion UI; `SourcesView.tsx` — same search + tag chips pattern. 111 backend tests passing. |
 | 2026-04-18 | Claude | **Search & Tags — designed and planned** (branch: `search-and-tags`, off `dynamic-folders`). Per-view keyword search (client-side JSON index), shared free-form tag system (pages + sources), AI tag suggestion. Design spec saved to `docs/superpowers/specs/2026-04-18-search-and-tags-design.md`. Full 8-task TDD implementation plan saved to `docs/superpowers/plans/2026-04-18-search-and-tags.md`. No code changes yet. |
@@ -70,6 +71,23 @@
 - [x] Search & Tags (per-view keyword search, shared tag vocabulary, AI tag suggestion) ✅ (2026-04-19) — branch: `search-and-tags`
 - [x] Bulk Move (wiki pages between entity types, automatic wikilink rewriting) ✅ (2026-04-19) — branch: `bulk-actions`
 - [x] Bulk Download (pages + sources as ZIP archive) ✅ (2026-04-19) — branch: `bulk-actions`
+- [ ] Actionable Lint (checkbox findings, Apply Selected, snapshot rollback) 🟡 In progress — branch: `bulk-actions`
+
+---
+
+## Actionable Lint Progress (branch: `bulk-actions`)
+
+| Task | Status | Description |
+| ---- | ------ | ----------- |
+| 1 | ✅ Done | Updated `LintFinding` (`fix_confidence`, `fix_description`); added `LintFixPlan`, `FixReport`, `Snapshot` models; updated `LINT_HUMAN_TEMPLATE`; added `FIX_HUMAN_TEMPLATE` |
+| 2 | ✅ Done | Snapshot methods (`create_snapshot`, `list_snapshots`, `restore_snapshot`, `delete_snapshot`) + `snapshots_data` Docker volume |
+| 3 | ✅ Done | `fix_lint_findings` + `_run_fix_llm` on WikiManager |
+| 4 | 🔲 Pending | API endpoints: `POST /lint/fix`, `GET /snapshots`, `POST /snapshots/{id}/restore`, `DELETE /snapshots/{id}` |
+| 5 | 🔲 Pending | `LintView.tsx` — checkboxes, fix-confidence badges, Select All, Apply Selected button, inline FixReport panel |
+| 6 | 🔲 Pending | `SnapshotsPanel.tsx` — collapsible snapshot list with Restore (+ confirmation) and Delete |
+| 7 | 🔲 Pending | Wire `SNAPSHOTS_DIR` into `WikiManager` instantiation in `routes.py` |
+
+**Current test state:** 42 passed, 0 failed.
 
 ---
 
@@ -143,12 +161,13 @@
 
 ## Immediate Next Steps
 
-1. **Merge `big-refactor` to `main`**
-2. **Merge `dynamic-folders` to `main`** (branch pushed to GitHub 2026-04-18)
-3. **Merge `search-and-tags` to `main`** (branch complete 2026-04-19)
-4. **Merge `bulk-actions` to `main`** (branch pushed to GitHub 2026-04-19)
-5. Add Graph View (post-integration)
-6. Refine AI maintenance logic (post-integration)
+1. **Complete Actionable Lint Tasks 4–7** (branch: `bulk-actions`) — API endpoints, LintView, SnapshotsPanel, wiring
+2. **Merge `big-refactor` to `main`**
+3. **Merge `dynamic-folders` to `main`**
+4. **Merge `search-and-tags` to `main`**
+5. **Merge `bulk-actions` to `main`** (after Actionable Lint complete)
+6. Add Graph View (post-integration)
+7. Refine AI maintenance logic (post-integration)
 
 ---
 

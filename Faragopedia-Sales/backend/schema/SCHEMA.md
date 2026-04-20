@@ -33,16 +33,7 @@ Wiki/
 ├── log.md                 # Append-only chronological log
 ├── company_profile.md     # Farago Projects profile (IMMUTABLE — never modify)
 │
-├── clients/               # Active client entity pages
-│   └── [brand-name].md
-├── prospects/             # Pipeline / potential clients & partners
-│   └── [brand-name].md
-├── contacts/              # Individual people (across all orgs)
-│   └── [person-name].md
-├── photographers/         # Photographer roster pages
-│   └── [name].md
-├── productions/           # Individual shoot/project pages
-│   └── [YYYY-MM-client-description].md
+
 └── sources/               # Immutable raw source documents (human drops here — never modify)
     └── assets/            # Downloaded images
 ```
@@ -61,97 +52,7 @@ NEVER modify these files under any circumstances:
 
 All wiki pages use YAML frontmatter for Obsidian Dataview compatibility. Use wikilink syntax (`[[page-name]]`) for all cross-references.
 
-### clients/[brand-name].md
 
-```yaml
----
-type: client
-name:
-industry:
-tier: A | B | C          # A = active/high value, B = occasional, C = cold
-status: active | inactive
-hq:
-relationship_since:
-last_contact:
-source_count:
----
-```
-
-Sections: `## Overview` · `## Key Contacts` · `## Production History` · `## Relationship Notes` · `## Open Opportunities` · `## Sources`
-
----
-
-### prospects/[brand-name].md
-
-```yaml
----
-type: prospect
-name:
-industry:
-tier: A | B | C          # A = high priority, B = medium, C = low/watch
-status: prospect | target
-hq:
-last_contact:
-source_count:
----
-```
-
-Sections: `## Overview` · `## Key Contacts` · `## Why Farago` · `## Outreach History` · `## Open Opportunities` · `## Sources`
-
----
-
-### contacts/[person-name].md
-
-```yaml
----
-type: contact
-name:
-role:
-org:
-linked_orgs: []
-last_contact:
----
-```
-
-Sections: `## Bio` · `## Role & Responsibilities` · `## Relationship History` · `## Productions Involved` · `## Notes`
-
----
-
-### photographers/[name].md
-
-```yaml
----
-type: photographer
-name:
-tier: A | B | C          # A = frequent collaborator, B = occasional, C = one-off/prospect
-representation:
-based:
-speciality: []
----
-```
-
-Sections: `## Bio` · `## Style Notes` · `## Productions` · `## Client Relationships` · `## Availability Notes` · `## Sources`
-
----
-
-### productions/[YYYY-MM-client-description].md
-
-```yaml
----
-entity_type: production
-date:
-client:
-publication:
-photographer:
-location:
-work_type: editorial | advertising | lookbook | show | event
-status: complete | in-progress | pitched
----
-```
-
-Sections: `## Brief` · `## Team` · `## Outcome & Notes` · `## Sources`
-
----
 
 ## Operations
 
@@ -160,7 +61,7 @@ Sections: `## Brief` · `## Team` · `## Outcome & Notes` · `## Sources`
 
 1. Read the source file from `sources/`
 2. Discuss key takeaways with the user
-3. Create or update all touched entity pages (clients, prospects, contacts, photographers, productions)
+3. Create or update all touched entity pages — check the Directory Structure above for available folders
 4. Update `index.md` — add any new pages, update summaries of changed pages
 5. Append to `log.md`: `## [YYYY-MM-DD] ingest | [source title]` followed by a 2–3 line summary of what was updated
 
@@ -169,7 +70,7 @@ A single source may touch 5–15 wiki pages. Update all of them.
 ---
 
 ### Query
-**Trigger:** Any question about clients, prospects, contacts, photographers, productions, or relationships
+**Trigger:** Any question about any entity in the wiki
 
 1. Read `index.md` to identify the most relevant pages
 2. Read those pages in full
