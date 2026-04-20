@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from agent.wiki_manager import (
@@ -817,12 +818,14 @@ def test_list_snapshots(tmp_path):
         )
 
     manager.create_snapshot(label="snap-1")
+    time.sleep(0.01)  # ensure distinct timestamps
     manager.create_snapshot(label="snap-2")
     snaps = manager.list_snapshots()
     assert len(snaps) == 2
     labels = {s.label for s in snaps}
     assert "snap-1" in labels
     assert "snap-2" in labels
+    assert snaps[0].label == "snap-2"  # newest first
 
 
 def test_restore_snapshot(tmp_path):
@@ -850,8 +853,13 @@ def test_restore_snapshot(tmp_path):
     original_file.write_text("# Modified\n")
     assert original_file.read_text() == "# Modified\n"
 
-    manager.restore_snapshot(snap.id)
+    with patch.object(manager, 'update_index') as mock_idx, \
+         patch.object(manager, '_rebuild_search_index') as mock_search:
+        manager.restore_snapshot(snap.id)
+
     assert original_file.read_text() == "# Original\n"
+    mock_idx.assert_called_once()
+    mock_search.assert_called_once()
 
 
 def test_restore_snapshot_not_found(tmp_path):

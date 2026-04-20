@@ -685,10 +685,11 @@ class WikiManager:
         return report
 
     def create_snapshot(self, label: str = None) -> Snapshot:
-        snapshot_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-        created_at = datetime.datetime.now().isoformat()
+        now = datetime.datetime.now()
+        snapshot_id = now.strftime("%Y%m%d-%H%M%S-%f")
+        created_at = now.isoformat()
         if label is None:
-            label = f"pre-lint {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            label = f"pre-lint {now.strftime('%Y-%m-%d %H:%M')}"
 
         zip_path = os.path.join(self.snapshots_dir, f"{snapshot_id}.zip")
         file_count = 0
@@ -727,14 +728,18 @@ class WikiManager:
         if not os.path.exists(zip_path):
             raise FileNotFoundError(f"Snapshot {snapshot_id} not found")
 
-        for item in os.listdir(self.wiki_dir):
-            item_path = os.path.join(self.wiki_dir, item)
-            if os.path.isdir(item_path):
-                shutil.rmtree(item_path)
-            else:
-                os.remove(item_path)
-
         with zipfile.ZipFile(zip_path, 'r') as zf:
+            bad = zf.testzip()
+            if bad is not None:
+                raise zipfile.BadZipFile(f"Corrupt entry in snapshot: {bad}")
+
+            for item in os.listdir(self.wiki_dir):
+                item_path = os.path.join(self.wiki_dir, item)
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                else:
+                    os.remove(item_path)
+
             zf.extractall(self.wiki_dir)
 
         self.update_index()
