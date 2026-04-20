@@ -813,28 +813,30 @@ const WikiView: React.FC = () => {
                 searchResults.map(entry => (
                   <div 
                     key={entry.path}
-                    className="relative group flex items-center"
+                    className="group flex items-center px-4 hover:bg-gray-50 transition-colors border-b border-gray-50"
                     onMouseEnter={() => setHoveredPage(entry.path)}
                     onMouseLeave={() => setHoveredPage(null)}
                   >
-                    {(hoveredPage === entry.path || selectedPages.size > 0 || isBulkMode) && (
-                      <input
-                        type="checkbox"
-                        checked={selectedPages.has(entry.path)}
-                        onChange={() => togglePageSelection(entry.path)}
-                        onClick={e => e.stopPropagation()}
-                        className="absolute left-3 z-10 w-4 h-4 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
-                      />
-                    )}
+                    <div className="w-6 shrink-0 flex justify-start items-start pt-3">
+                      {(hoveredPage === entry.path || selectedPages.size > 0 || isBulkMode) && (
+                        <input
+                          type="checkbox"
+                          checked={selectedPages.has(entry.path)}
+                          onChange={() => togglePageSelection(entry.path)}
+                          onClick={e => e.stopPropagation()}
+                          className="w-4 h-4 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
+                        />
+                      )}
+                    </div>
                     <button
                       onClick={() => { fetchPageContent(entry.path); setSearchQuery(''); setTagFilter([]); }}
-                      className="w-full text-left py-2.5 pl-10 pr-4 hover:bg-gray-50 transition-colors"
+                      className="flex-1 text-left py-3 min-w-0 pr-2"
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-bold text-gray-900 leading-tight">
+                        <span className="text-sm font-bold text-gray-900 leading-tight truncate mr-2">
                           {highlightMatch(entry.title, searchQuery)}
                         </span>
-                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ml-2 shrink-0">{entry.entity_type}</span>
+                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider shrink-0">{entry.entity_type}</span>
                       </div>
                       {entry.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mb-1.5">

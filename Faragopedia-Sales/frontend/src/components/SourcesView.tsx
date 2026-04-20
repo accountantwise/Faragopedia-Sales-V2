@@ -499,24 +499,26 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                 searchResults.map(entry => (
                   <div 
                     key={entry.filename}
-                    className="relative group flex items-center"
+                    className="group flex items-center px-4 hover:bg-gray-50 transition-colors border-b border-gray-50"
                     onMouseEnter={() => setHoveredItem(entry.filename)}
                     onMouseLeave={() => setHoveredItem(null)}
                   >
-                    {(hoveredItem === entry.filename || selectedItems.size > 0 || isBulkMode) && (
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.has(entry.filename)}
-                        onChange={() => toggleSelection(entry.filename)}
-                        onClick={e => e.stopPropagation()}
-                        className="absolute left-3 z-10 w-4 h-4 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
-                      />
-                    )}
+                    <div className="w-6 shrink-0 flex justify-start items-start pt-3">
+                      {(hoveredItem === entry.filename || selectedItems.size > 0 || isBulkMode) && (
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.has(entry.filename)}
+                          onChange={() => toggleSelection(entry.filename)}
+                          onClick={e => e.stopPropagation()}
+                          className="w-4 h-4 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
+                        />
+                      )}
+                    </div>
                     <button
                       onClick={() => { fetchSourceContent(entry.filename); setSearchQuery(''); setTagFilter([]); }}
-                      className="w-full text-left py-2.5 pl-10 pr-4 hover:bg-gray-50 transition-colors"
+                      className="flex-1 text-left py-3 min-w-0 pr-2"
                     >
-                      <div className="text-sm font-medium text-gray-900 mb-1">{entry.filename}</div>
+                      <div className="text-sm font-medium text-gray-900 mb-1 truncate">{entry.filename}</div>
                       {entry.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {entry.tags.map(t => (
