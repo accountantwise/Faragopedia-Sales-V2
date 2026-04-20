@@ -514,9 +514,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                     )}
                     <button
                       onClick={() => { fetchSourceContent(entry.filename); setSearchQuery(''); setTagFilter([]); }}
-                      className={`w-full text-left py-2.5 hover:bg-gray-50 transition-all ${
-                        (hoveredItem === entry.filename || selectedItems.size > 0 || isBulkMode) ? 'pl-10 pr-4' : 'px-4'
-                      }`}
+                      className="w-full text-left py-2.5 pl-10 pr-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="text-sm font-medium text-gray-900 mb-1">{entry.filename}</div>
                       {entry.tags.length > 0 && (
@@ -555,9 +553,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                   )}
                   <button
                     onClick={() => fetchSourceContent(source)}
-                    className={`w-full text-left py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${
-                      (hoveredItem === source || selectedItems.size > 0 || isBulkMode) ? 'pl-9 pr-3' : 'px-3'
-                    } ${
+                    className={`w-full text-left py-2.5 pl-9 pr-3 rounded-lg text-sm transition-colors flex items-center justify-between ${
                       selectedSource === source
                         ? 'bg-blue-50 text-blue-700 font-bold'
                         : 'hover:bg-gray-50 text-gray-700'
