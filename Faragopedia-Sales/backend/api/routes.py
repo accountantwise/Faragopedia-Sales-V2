@@ -47,12 +47,14 @@ if os.path.basename(BASE_DIR) == "backend":
 SOURCES_DIR = os.path.join(BASE_DIR, "sources")
 WIKI_DIR = os.path.join(BASE_DIR, "wiki")
 ARCHIVE_DIR = os.path.join(BASE_DIR, "archive")
+SNAPSHOTS_DIR = os.path.join(BASE_DIR, "snapshots")
 
 # Instantiate WikiManager
 wiki_manager = WikiManager(
     sources_dir=SOURCES_DIR,
     wiki_dir=WIKI_DIR,
-    archive_dir=ARCHIVE_DIR
+    archive_dir=ARCHIVE_DIR,
+    snapshots_dir=SNAPSHOTS_DIR
 )
 
 def get_valid_entity_subdirs() -> set:
