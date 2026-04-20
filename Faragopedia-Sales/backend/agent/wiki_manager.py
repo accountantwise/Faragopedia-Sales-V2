@@ -46,7 +46,7 @@ Source document content:
 {source_content}
 
 Instructions:
-1. Identify all entities in the source that match the Farago schema: clients, prospects, contacts, photographers, productions.
+1. Identify all entities in the source that match the Farago schema. Available entity folders: {entity_types}.
 2. For each entity, produce a complete wiki page with valid YAML frontmatter matching the schema for that entity type.
 3. Use the exact file path format: "clients/brand-name.md", "photographers/first-last.md", "productions/YYYY-MM-client-description.md", etc.
 4. File names must be lowercase and hyphen-separated.
@@ -113,6 +113,7 @@ class WikiManager:
                 os.makedirs(d, exist_ok=True)
 
         bootstrap_type_yamls(self.wiki_dir)
+        self.rebuild_schema()
 
     def _load_system_prompt(self) -> str:
         schema_path = os.path.join(self.schema_dir, "SCHEMA.md")
@@ -247,6 +248,8 @@ class WikiManager:
         self, filename: str, source_content: str, index_content: str, existing_pages: str
     ) -> FaragoIngestionResult:
         """Run the LLM ingest call. Extracted for testability."""
+        entity_types = self.get_entity_types()
+        entity_types_str = ", ".join(entity_types.keys()) if entity_types else "clients, prospects, contacts, photographers, productions"
         parser = PydanticOutputParser(pydantic_object=FaragoIngestionResult)
         prompt = ChatPromptTemplate.from_messages([
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
@@ -259,6 +262,7 @@ class WikiManager:
             "existing_pages": existing_pages,
             "filename": filename,
             "source_content": source_content,
+            "entity_types": entity_types_str,
             "format_instructions": parser.get_format_instructions(),
         })
 
