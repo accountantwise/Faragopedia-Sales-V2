@@ -201,10 +201,8 @@ class WikiManager:
     def _load_system_prompt(self) -> str:
         schema_path = os.path.join(self.schema_dir, "SCHEMA.md")
         profile_path = os.path.join(self.schema_dir, "company_profile.md")
-        if not os.path.exists(schema_path):
-            raise FileNotFoundError(f"SCHEMA.md not found at {schema_path}")
-        if not os.path.exists(profile_path):
-            raise FileNotFoundError(f"company_profile.md not found at {profile_path}")
+        if not os.path.exists(schema_path) or not os.path.exists(profile_path):
+            return "Wiki not yet configured. Setup required."
         with open(schema_path, "r", encoding="utf-8", errors="replace") as f:
             schema = f.read()
         with open(profile_path, "r", encoding="utf-8") as f:
