@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks, Depends
 from datetime import datetime
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, validator
@@ -9,7 +9,7 @@ import re
 import zipfile
 import io
 import asyncio
-from typing import Dict, List
+from typing import Annotated, Dict, List
 from agent.wiki_manager import WikiManager, LintFinding, FixReport, Snapshot
 
 router = APIRouter()
@@ -49,17 +49,25 @@ WIKI_DIR = os.path.join(BASE_DIR, "wiki")
 ARCHIVE_DIR = os.path.join(BASE_DIR, "archive")
 SNAPSHOTS_DIR = os.path.join(BASE_DIR, "snapshots")
 
-# Instantiate WikiManager
-wiki_manager = WikiManager(
-    sources_dir=SOURCES_DIR,
-    wiki_dir=WIKI_DIR,
-    archive_dir=ARCHIVE_DIR,
-    snapshots_dir=SNAPSHOTS_DIR
-)
+# ── Dependency injection ──────────────────────────────────────────────────────
 
-def get_valid_entity_subdirs() -> set:
-    """Get valid entity subdirectories dynamically from wiki_manager."""
-    return set(wiki_manager.get_entity_types().keys())
+_wiki_manager: WikiManager | None = None
+
+def get_wiki_manager() -> WikiManager:
+    if _wiki_manager is None:
+        raise HTTPException(status_code=503, detail="Wiki setup not complete")
+    return _wiki_manager
+
+def set_wiki_manager(wm: "WikiManager | None") -> None:
+    global _wiki_manager
+    _wiki_manager = wm
+
+WM = Annotated[WikiManager, Depends(get_wiki_manager)]
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_valid_entity_subdirs(wm: WikiManager) -> set:
+    return set(wm.get_entity_types().keys())
 
 def rewrite_wikilinks(path_map: dict) -> dict:
     """Scan all .md files in WIKI_DIR and rewrite wikilinks for moved pages.
@@ -106,7 +114,7 @@ def secure_filename(filename: str) -> str:
     filename = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
     return filename
 
-def safe_wiki_filename(path: str) -> str:
+def safe_wiki_filename(path: str, wm: WikiManager) -> str:
     """Validate a wiki page path of the form 'subdir/page-name.md'.
     Accepts exactly one level of subdirectory from VALID_ENTITY_SUBDIRS.
     Rejects path traversal, unknown subdirectories, and non-.md files.
@@ -127,7 +135,7 @@ def safe_wiki_filename(path: str) -> str:
     subdir, filename = parts
 
     # Subdir must be a known entity type
-    if subdir not in get_valid_entity_subdirs():
+    if subdir not in get_valid_entity_subdirs(wm):
         raise ValueError(f"Invalid entity subdirectory '{subdir}' in path: {path!r}")
 
     # No path traversal components
@@ -148,7 +156,7 @@ def safe_wiki_filename(path: str) -> str:
     return normalized
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...), ingest: bool = Query(True)):
+async def upload_file(wm: WM, file: UploadFile = File(...), ingest: bool = Query(True)):
     if not os.path.exists(SOURCES_DIR):
         try:
             os.makedirs(SOURCES_DIR, exist_ok=True)
@@ -158,8 +166,8 @@ async def upload_file(file: UploadFile = File(...), ingest: bool = Query(True)):
     if not os.access(SOURCES_DIR, os.W_OK):
         raise HTTPException(status_code=500, detail="Sources directory is not writeable")
 
-    safe_filename = secure_filename(file.filename)
-    file_path = os.path.join(SOURCES_DIR, safe_filename)
+    safe_name = secure_filename(file.filename)
+    file_path = os.path.join(SOURCES_DIR, safe_name)
 
     try:
         with open(file_path, "wb") as buffer:
@@ -168,12 +176,12 @@ async def upload_file(file: UploadFile = File(...), ingest: bool = Query(True)):
         raise HTTPException(status_code=500, detail=f"Could not save file: {str(e)}")
 
     if ingest:
-        asyncio.create_task(wiki_manager.ingest_source(safe_filename))
+        asyncio.create_task(wm.ingest_source(safe_name))
         message = "File uploaded and ingestion started"
     else:
         message = "File uploaded successfully (ingestion skipped)"
 
-    return {"filename": safe_filename, "message": message}
+    return {"filename": safe_name, "message": message}
 
 @router.post("/paste")
 async def paste_source(payload: dict):
@@ -199,22 +207,21 @@ async def paste_source(payload: dict):
 
 
 @router.post("/chat")
-async def chat(query: str):
+async def chat(wm: WM, query: str):
     if not query or not query.strip():
         raise HTTPException(status_code=422, detail="Query parameter is required")
-    
     try:
-        response = await wiki_manager.query(query)
+        response = await wm.query(query)
         return {"response": response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
 
 @router.get("/pages")
-async def list_pages():
+async def list_pages(wm: WM):
     """Return wiki pages grouped by entity subdirectory."""
     try:
-        all_pages = wiki_manager.list_pages()
-        valid_subdirs = get_valid_entity_subdirs()
+        all_pages = wm.list_pages()
+        valid_subdirs = get_valid_entity_subdirs(wm)
         grouped: Dict[str, List[str]] = {sub: [] for sub in valid_subdirs}
         for page_path in all_pages:
             parts = page_path.split("/")
@@ -225,29 +232,26 @@ async def list_pages():
         raise HTTPException(status_code=500, detail=f"Error listing pages: {str(e)}")
 
 @router.get("/sources")
-async def list_sources():
+async def list_sources(wm: WM):
     try:
-        return wiki_manager.list_sources()
+        return wm.list_sources()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing sources: {str(e)}")
 
 @router.get("/sources/metadata")
-async def get_sources_metadata():
+async def get_sources_metadata(wm: WM):
     try:
-        return wiki_manager.get_sources_metadata()
+        return wm.get_sources_metadata()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching source metadata: {str(e)}")
 
 @router.post("/sources/{filename}/ingest")
-async def ingest_source(filename: str):
+async def ingest_source(wm: WM, filename: str):
     try:
-        # We use secure_filename to avoid traversal
         safe_name = os.path.basename(filename)
-        # Check if file exists in sources
         if not os.path.exists(os.path.join(SOURCES_DIR, safe_name)):
             raise FileNotFoundError("Source file not found")
-            
-        asyncio.create_task(wiki_manager.ingest_source(safe_name))
+        asyncio.create_task(wm.ingest_source(safe_name))
         return {"message": f"Ingestion started for {safe_name}"}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Source file not found")
@@ -255,34 +259,34 @@ async def ingest_source(filename: str):
         raise HTTPException(status_code=500, detail=f"Error starting ingestion: {str(e)}")
 
 @router.post("/sources/bulk-ingest")
-async def bulk_ingest_sources(payload: BulkFilenames):
+async def bulk_ingest_sources(wm: WM, payload: BulkFilenames):
     queued = []
     skipped = []
     for filename in payload.filenames:
         safe_name = os.path.basename(filename)
         if os.path.exists(os.path.join(SOURCES_DIR, safe_name)):
-            asyncio.create_task(wiki_manager.ingest_source(safe_name))
+            asyncio.create_task(wm.ingest_source(safe_name))
             queued.append(safe_name)
         else:
             skipped.append(safe_name)
     return JSONResponse(status_code=202, content={"queued": queued, "skipped": skipped})
 
 @router.get("/pages/{path:path}/backlinks")
-async def get_backlinks(path: str):
+async def get_backlinks(wm: WM, path: str):
     try:
-        safe_path = safe_wiki_filename(path)
+        safe_path = safe_wiki_filename(path, wm)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     try:
-        return wiki_manager.get_backlinks(safe_path)
+        return wm.get_backlinks(safe_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching backlinks: {str(e)}")
 
 
 @router.get("/pages/{path:path}/download")
-async def download_page(path: str):
+async def download_page(wm: WM, path: str):
     try:
-        safe_path = safe_wiki_filename(path)
+        safe_path = safe_wiki_filename(path, wm)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     full_path = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
@@ -293,13 +297,13 @@ async def download_page(path: str):
 
 
 @router.get("/pages/{path:path}")
-async def get_page(path: str):
+async def get_page(wm: WM, path: str):
     try:
-        safe_path = safe_wiki_filename(path)
+        safe_path = safe_wiki_filename(path, wm)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     try:
-        return {"content": wiki_manager.get_page_content(safe_path)}
+        return {"content": wm.get_page_content(safe_path)}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Page not found")
     except Exception as e:
@@ -307,11 +311,10 @@ async def get_page(path: str):
 
 
 @router.get("/sources/{filename}")
-async def get_source(filename: str):
+async def get_source(wm: WM, filename: str):
     try:
-        # We use secure_filename to avoid traversal but still let the user browse the source files
         safe_name = os.path.basename(filename)
-        return {"content": await wiki_manager.get_source_content(safe_name)}
+        return {"content": await wm.get_source_content(safe_name)}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Source not found")
     except Exception as e:
@@ -319,26 +322,26 @@ async def get_source(filename: str):
 
 
 @router.post("/pages")
-async def create_page(entity_type: str = Query("clients")):
-    if entity_type not in get_valid_entity_subdirs():
+async def create_page(wm: WM, entity_type: str = Query("clients")):
+    if entity_type not in get_valid_entity_subdirs(wm):
         raise HTTPException(status_code=400, detail=f"Invalid entity type: {entity_type}")
     try:
-        filename = await wiki_manager.create_new_page(entity_type=entity_type)
+        filename = await wm.create_new_page(entity_type=entity_type)
         return {"filename": filename, "message": "New page created"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating page: {str(e)}")
 
 
 @router.get("/entity-types")
-async def get_entity_types():
+async def get_entity_types(wm: WM):
     try:
-        return wiki_manager.get_entity_types()
+        return wm.get_entity_types()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing entity types: {str(e)}")
 
 
 @router.post("/folders")
-async def create_folder(payload: dict):
+async def create_folder(wm: WM, payload: dict):
     name = payload.get("name", "").strip()
     display_name = payload.get("display_name", "").strip()
     description = payload.get("description", "").strip()
@@ -347,7 +350,7 @@ async def create_folder(payload: dict):
     if not re.match(r"^[a-z][a-z0-9-]*$", name):
         raise HTTPException(status_code=400, detail="Folder name must be lowercase alphanumeric with hyphens")
     try:
-        await wiki_manager.create_folder(name, display_name, description)
+        await wm.create_folder(name, display_name, description)
         return {"message": f"Folder '{name}' created", "folder": name}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -356,9 +359,9 @@ async def create_folder(payload: dict):
 
 
 @router.delete("/folders/{folder_name}")
-async def delete_folder(folder_name: str):
+async def delete_folder(wm: WM, folder_name: str):
     try:
-        await wiki_manager.delete_folder(folder_name)
+        await wm.delete_folder(folder_name)
         return {"message": f"Folder '{folder_name}' deleted"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -367,14 +370,14 @@ async def delete_folder(folder_name: str):
 
 
 @router.put("/folders/{folder_name}")
-async def rename_folder(folder_name: str, payload: dict):
+async def rename_folder(wm: WM, folder_name: str, payload: dict):
     new_name = payload.get("new_name", "").strip()
     if not new_name:
         raise HTTPException(status_code=422, detail="new_name is required")
     if not re.match(r"^[a-z][a-z0-9-]*$", new_name):
         raise HTTPException(status_code=400, detail="Folder name must be lowercase alphanumeric with hyphens")
     try:
-        await wiki_manager.rename_folder(folder_name, new_name)
+        await wm.rename_folder(folder_name, new_name)
         return {"message": f"Folder renamed: {folder_name} → {new_name}"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -383,16 +386,16 @@ async def rename_folder(folder_name: str, payload: dict):
 
 
 @router.post("/pages/{path:path}/move")
-async def move_page(path: str, payload: dict):
+async def move_page(wm: WM, path: str, payload: dict):
     try:
-        safe_path = safe_wiki_filename(path)
+        safe_path = safe_wiki_filename(path, wm)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     target_folder = payload.get("target_folder", "").strip()
     if not target_folder:
         raise HTTPException(status_code=422, detail="target_folder is required")
     try:
-        new_path = await wiki_manager.move_page(safe_path, target_folder)
+        new_path = await wm.move_page(safe_path, target_folder)
         return {"message": f"Page moved to {new_path}", "new_path": new_path}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -403,36 +406,36 @@ async def move_page(path: str, payload: dict):
 
 
 @router.post("/lint")
-async def run_lint():
+async def run_lint(wm: WM):
     try:
-        report = await wiki_manager.lint()
+        report = await wm.lint()
         return report.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error running lint: {str(e)}")
 
 
 @router.post("/lint/fix")
-async def fix_lint_findings(request: LintFixRequest):
+async def fix_lint_findings(wm: WM, request: LintFixRequest):
     try:
-        report = await wiki_manager.fix_lint_findings(request.findings)
+        report = await wm.fix_lint_findings(request.findings)
         return report.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error applying lint fixes: {str(e)}")
 
 
 @router.get("/snapshots")
-async def list_snapshots():
+async def list_snapshots(wm: WM):
     try:
-        snapshots = wiki_manager.list_snapshots()
+        snapshots = wm.list_snapshots()
         return [s.model_dump() for s in snapshots]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing snapshots: {str(e)}")
 
 
 @router.post("/snapshots/{snapshot_id}/restore")
-async def restore_snapshot(snapshot_id: str):
+async def restore_snapshot(wm: WM, snapshot_id: str):
     try:
-        wiki_manager.restore_snapshot(snapshot_id)
+        wm.restore_snapshot(snapshot_id)
         return {"success": True, "message": f"Snapshot {snapshot_id} restored successfully"}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Snapshot {snapshot_id} not found")
@@ -441,9 +444,9 @@ async def restore_snapshot(snapshot_id: str):
 
 
 @router.delete("/snapshots/{snapshot_id}")
-async def delete_snapshot(snapshot_id: str):
+async def delete_snapshot(wm: WM, snapshot_id: str):
     try:
-        wiki_manager.delete_snapshot(snapshot_id)
+        wm.delete_snapshot(snapshot_id)
         return {"success": True}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Snapshot {snapshot_id} not found")
@@ -452,13 +455,13 @@ async def delete_snapshot(snapshot_id: str):
 
 
 @router.delete("/sources/bulk")
-async def bulk_archive_sources(payload: BulkFilenames):
+async def bulk_archive_sources(wm: WM, payload: BulkFilenames):
     archived = []
     errors = []
     for filename in payload.filenames:
         safe_name = os.path.basename(filename)
         try:
-            await wiki_manager.archive_source(safe_name)
+            await wm.archive_source(safe_name)
             archived.append(safe_name)
         except Exception:
             errors.append(safe_name)
@@ -466,13 +469,13 @@ async def bulk_archive_sources(payload: BulkFilenames):
 
 
 @router.delete("/pages/bulk")
-async def bulk_archive_pages(payload: BulkPaths):
+async def bulk_archive_pages(wm: WM, payload: BulkPaths):
     archived = []
     errors = []
     for path in payload.paths:
         try:
-            safe_path = safe_wiki_filename(path)
-            await wiki_manager.archive_page(safe_path)
+            safe_path = safe_wiki_filename(path, wm)
+            await wm.archive_page(safe_path)
             archived.append(path)
         except Exception:
             errors.append(path)
@@ -480,8 +483,8 @@ async def bulk_archive_pages(payload: BulkPaths):
 
 
 @router.post("/pages/bulk-move")
-async def bulk_move_pages(payload: BulkMove):
-    valid_destinations = get_valid_entity_subdirs()
+async def bulk_move_pages(wm: WM, payload: BulkMove):
+    valid_destinations = get_valid_entity_subdirs(wm)
     if payload.destination not in valid_destinations:
         raise HTTPException(
             status_code=400,
@@ -492,7 +495,7 @@ async def bulk_move_pages(payload: BulkMove):
     path_map = {}
     for path in payload.paths:
         try:
-            safe_path = safe_wiki_filename(path)
+            safe_path = safe_wiki_filename(path, wm)
         except ValueError as e:
             errors.append({"path": path, "error": str(e)})
             continue
@@ -514,12 +517,11 @@ async def bulk_move_pages(payload: BulkMove):
 
 
 @router.post("/pages/bulk-download")
-async def bulk_download_pages(payload: BulkPaths):
-    # Validate and resolve all paths first (fail fast)
+async def bulk_download_pages(wm: WM, payload: BulkPaths):
     resolved = []
     for path in payload.paths:
         try:
-            safe_path = safe_wiki_filename(path)
+            safe_path = safe_wiki_filename(path, wm)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         full_path = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
@@ -543,7 +545,6 @@ async def bulk_download_pages(payload: BulkPaths):
 
 @router.post("/sources/bulk-download")
 async def bulk_download_sources(payload: BulkFilenames):
-    # Validate and resolve all filenames first (fail fast)
     resolved = []
     for filename in payload.filenames:
         safe_name = os.path.basename(filename)
@@ -567,13 +568,13 @@ async def bulk_download_sources(payload: BulkFilenames):
 
 
 @router.delete("/pages/{path:path}")
-async def delete_page(path: str):
+async def delete_page(wm: WM, path: str):
     try:
-        safe_path = safe_wiki_filename(path)
+        safe_path = safe_wiki_filename(path, wm)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     try:
-        await wiki_manager.archive_page(safe_path)
+        await wm.archive_page(safe_path)
         return {"message": "Page moved to archive"}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Page not found")
@@ -581,10 +582,10 @@ async def delete_page(path: str):
         raise HTTPException(status_code=500, detail=f"Error archiving page: {str(e)}")
 
 @router.delete("/sources/{filename}")
-async def delete_source(filename: str):
+async def delete_source(wm: WM, filename: str):
     try:
         safe_name = os.path.basename(filename)
-        await wiki_manager.archive_source(safe_name)
+        await wm.archive_source(safe_name)
         return {"message": "Source moved to archive"}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Source not found")
@@ -592,24 +593,24 @@ async def delete_source(filename: str):
         raise HTTPException(status_code=500, detail=f"Error archiving source: {str(e)}")
 
 @router.get("/archive/pages")
-async def list_archived_pages():
+async def list_archived_pages(wm: WM):
     try:
-        return wiki_manager.list_archived_pages()
+        return wm.list_archived_pages()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing archived pages: {str(e)}")
 
 @router.get("/archive/sources")
-async def list_archived_sources():
+async def list_archived_sources(wm: WM):
     try:
-        return wiki_manager.list_archived_sources()
+        return wm.list_archived_sources()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing archived sources: {str(e)}")
 
 @router.post("/archive/pages/{filename:path}/restore")
-async def restore_page(filename: str):
+async def restore_page(wm: WM, filename: str):
     try:
-        safe_name = safe_wiki_filename(filename)
-        await wiki_manager.restore_page(safe_name)
+        safe_name = safe_wiki_filename(filename, wm)
+        await wm.restore_page(safe_name)
         return {"message": "Page restored from archive"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -619,10 +620,10 @@ async def restore_page(filename: str):
         raise HTTPException(status_code=500, detail=f"Error restoring page: {str(e)}")
 
 @router.post("/archive/sources/{filename}/restore")
-async def restore_source(filename: str):
+async def restore_source(wm: WM, filename: str):
     try:
         safe_name = os.path.basename(filename)
-        await wiki_manager.restore_source(safe_name)
+        await wm.restore_source(safe_name)
         return {"message": "Source restored from archive"}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Archived source not found")
@@ -630,10 +631,10 @@ async def restore_source(filename: str):
         raise HTTPException(status_code=500, detail=f"Error restoring source: {str(e)}")
 
 @router.delete("/archive/pages/{filename:path}/permanent")
-async def delete_archived_page_permanent(filename: str):
+async def delete_archived_page_permanent(wm: WM, filename: str):
     try:
-        safe_name = safe_wiki_filename(filename)
-        await wiki_manager.delete_archived_page(safe_name)
+        safe_name = safe_wiki_filename(filename, wm)
+        await wm.delete_archived_page(safe_name)
         return {"message": "Page permanently deleted from archive"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -688,10 +689,10 @@ async def scrape_urls(payload: dict, background_tasks: BackgroundTasks):
 
 
 @router.delete("/archive/sources/{filename}/permanent")
-async def delete_archived_source_permanent(filename: str):
+async def delete_archived_source_permanent(wm: WM, filename: str):
     try:
         safe_name = os.path.basename(filename)
-        await wiki_manager.delete_archived_source(safe_name)
+        await wm.delete_archived_source(safe_name)
         return {"message": "Source permanently deleted from archive"}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Archived source not found")
@@ -707,10 +708,10 @@ async def download_source(filename: str):
     return FileResponse(path, filename=safe_name)
 
 @router.get("/search/index")
-async def get_search_index():
+async def get_search_index(wm: WM):
     index_path = os.path.join(WIKI_DIR, "search-index.json")
     if not os.path.exists(index_path):
-        wiki_manager._rebuild_search_index()
+        wm._rebuild_search_index()
     try:
         with open(index_path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -719,10 +720,10 @@ async def get_search_index():
 
 
 @router.get("/tags")
-async def get_tags():
+async def get_tags(wm: WM):
     index_path = os.path.join(WIKI_DIR, "search-index.json")
     if not os.path.exists(index_path):
-        wiki_manager._rebuild_search_index()
+        wm._rebuild_search_index()
     try:
         with open(index_path, "r", encoding="utf-8") as f:
             index = json.load(f)
@@ -739,13 +740,13 @@ async def get_tags():
 
 
 @router.patch("/pages/{path:path}/tags")
-async def update_page_tags(path: str, body: TagsUpdate):
+async def update_page_tags(wm: WM, path: str, body: TagsUpdate):
     try:
-        safe_path = safe_wiki_filename(path)
+        safe_path = safe_wiki_filename(path, wm)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     try:
-        await wiki_manager.update_page_tags(safe_path, body.tags)
+        await wm.update_page_tags(safe_path, body.tags)
         return {"tags": body.tags}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Page not found")
@@ -754,38 +755,38 @@ async def update_page_tags(path: str, body: TagsUpdate):
 
 
 @router.patch("/sources/{filename}/tags")
-async def update_source_tags(filename: str, body: TagsUpdate):
+async def update_source_tags(wm: WM, filename: str, body: TagsUpdate):
     safe_name = os.path.basename(filename)
     src_path = os.path.join(SOURCES_DIR, safe_name)
     if not os.path.exists(src_path):
         raise HTTPException(status_code=404, detail="Source not found")
     try:
-        wiki_manager.update_source_tags(safe_name, body.tags)
+        wm.update_source_tags(safe_name, body.tags)
         return {"tags": body.tags}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating source tags: {str(e)}")
 
 
 @router.post("/search/rebuild")
-async def rebuild_search_index():
+async def rebuild_search_index(wm: WM):
     try:
-        wiki_manager._rebuild_search_index()
+        wm._rebuild_search_index()
         return {"message": "Search index rebuilt"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error rebuilding index: {str(e)}")
 
 
 @router.put("/pages/{path:path}")
-async def update_page(path: str, payload: dict):
+async def update_page(wm: WM, path: str, payload: dict):
     try:
-        safe_path = safe_wiki_filename(path)
+        safe_path = safe_wiki_filename(path, wm)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     content = payload.get("content")
     if content is None:
         raise HTTPException(status_code=422, detail="Content is required")
     try:
-        suggested_tags = await wiki_manager.save_page_content(safe_path, content)
+        suggested_tags = await wm.save_page_content(safe_path, content)
         return {"message": "Page updated successfully", "suggested_tags": suggested_tags}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating page: {str(e)}")

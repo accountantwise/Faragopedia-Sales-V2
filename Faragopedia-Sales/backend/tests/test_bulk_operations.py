@@ -9,7 +9,7 @@ from main import app
 
 @pytest.mark.asyncio
 async def test_bulk_ingest_returns_202():
-    with patch("api.routes.wiki_manager") as mock_wm, \
+    with patch("api.routes._wiki_manager") as mock_wm, \
          patch("api.routes.asyncio.create_task") as mock_task, \
          patch("api.routes.os.path.exists", return_value=True):
         mock_wm.ingest_source = AsyncMock()
@@ -24,7 +24,7 @@ async def test_bulk_ingest_skips_missing_files():
     def exists_side_effect(path):
         return "a.pdf" in path
 
-    with patch("api.routes.wiki_manager") as mock_wm, \
+    with patch("api.routes._wiki_manager") as mock_wm, \
          patch("api.routes.asyncio.create_task"), \
          patch("api.routes.os.path.exists", side_effect=exists_side_effect), \
          patch("api.routes.os.path.join", side_effect=lambda *a: "/".join(a)):
@@ -39,7 +39,7 @@ async def test_bulk_ingest_skips_missing_files():
 
 @pytest.mark.asyncio
 async def test_bulk_archive_sources():
-    with patch("api.routes.wiki_manager") as mock_wm:
+    with patch("api.routes._wiki_manager") as mock_wm:
         mock_wm.archive_source = AsyncMock()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
             resp = await ac.request(
@@ -58,7 +58,7 @@ async def test_bulk_archive_sources_partial_failure():
         if name == "bad.pdf":
             raise FileNotFoundError("not found")
 
-    with patch("api.routes.wiki_manager") as mock_wm:
+    with patch("api.routes._wiki_manager") as mock_wm:
         mock_wm.archive_source = AsyncMock(side_effect=archive_side_effect)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
             resp = await ac.request(
@@ -73,8 +73,8 @@ async def test_bulk_archive_sources_partial_failure():
 
 @pytest.mark.asyncio
 async def test_bulk_archive_pages():
-    with patch("api.routes.wiki_manager") as mock_wm, \
-         patch("api.routes.safe_wiki_filename", side_effect=lambda p: p):
+    with patch("api.routes._wiki_manager") as mock_wm, \
+         patch("api.routes.safe_wiki_filename", side_effect=lambda p, wm: p):
         mock_wm.archive_page = AsyncMock()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
             resp = await ac.request(
@@ -99,8 +99,8 @@ async def test_bulk_move_pages_success():
         # Source exists, destination doesn't
         return "prospects/acme.md" in path
 
-    with patch("api.routes.wiki_manager") as mock_wm, \
-         patch("api.routes.safe_wiki_filename", side_effect=lambda p: p), \
+    with patch("api.routes._wiki_manager") as mock_wm, \
+         patch("api.routes.safe_wiki_filename", side_effect=lambda p, wm: p), \
          patch("api.routes.os.path.exists", side_effect=exists_side_effect), \
          patch("api.routes.os.rename", side_effect=rename_side_effect), \
          patch("api.routes.rewrite_wikilinks", return_value={"contacts/john.md": 1}):
@@ -119,7 +119,7 @@ async def test_bulk_move_pages_success():
 
 @pytest.mark.asyncio
 async def test_bulk_move_pages_invalid_destination():
-    with patch("api.routes.wiki_manager") as mock_wm:
+    with patch("api.routes._wiki_manager") as mock_wm:
         mock_wm.get_entity_types.return_value = {"clients": {}, "prospects": {}, "contacts": {}, "photographers": {}, "productions": {}}
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
             resp = await ac.post(
@@ -135,8 +135,8 @@ async def test_bulk_move_pages_destination_exists():
     def exists_side_effect(path):
         return "clients/acme.md" in path  # destination file already exists
 
-    with patch("api.routes.wiki_manager") as mock_wm, \
-         patch("api.routes.safe_wiki_filename", side_effect=lambda p: p), \
+    with patch("api.routes._wiki_manager") as mock_wm, \
+         patch("api.routes.safe_wiki_filename", side_effect=lambda p, wm: p), \
          patch("api.routes.os.path.exists", side_effect=exists_side_effect), \
          patch("api.routes.rewrite_wikilinks", return_value={}):
         mock_wm.get_entity_types.return_value = {"clients": {}, "prospects": {}, "contacts": {}}
@@ -159,9 +159,11 @@ async def test_bulk_download_pages_success():
 
     fake_content = b"# Acme\nSome content"
 
-    with patch("api.routes.safe_wiki_filename", side_effect=lambda p: p), \
+    with patch("api.routes._wiki_manager") as mock_wm, \
+         patch("api.routes.safe_wiki_filename", side_effect=lambda p, wm: p), \
          patch("api.routes.os.path.exists", return_value=True), \
          patch("builtins.open", mock_open(read_data=fake_content)):
+        mock_wm.get_entity_types.return_value = {}
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
             resp = await ac.post(
                 "/pages/bulk-download",
@@ -179,8 +181,10 @@ async def test_bulk_download_pages_success():
 @pytest.mark.asyncio
 async def test_bulk_download_pages_missing_file():
     """Returns 404 if any requested page doesn't exist."""
-    with patch("api.routes.safe_wiki_filename", side_effect=lambda p: p), \
+    with patch("api.routes._wiki_manager") as mock_wm, \
+         patch("api.routes.safe_wiki_filename", side_effect=lambda p, wm: p), \
          patch("api.routes.os.path.exists", return_value=False):
+        mock_wm.get_entity_types.return_value = {}
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test/api") as ac:
             resp = await ac.post(
                 "/pages/bulk-download",

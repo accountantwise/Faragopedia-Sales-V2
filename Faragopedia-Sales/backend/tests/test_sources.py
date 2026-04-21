@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 import sys
 import os
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 
 # Add the project root and backend directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -13,29 +13,38 @@ os.environ["OPENAI_API_KEY"] = "sk-dummy"
 os.environ["AI_PROVIDER"] = "openai"
 os.environ["AI_MODEL"] = "gpt-4o-mini"
 
-from backend.main import app
+from main import app
+from api.routes import set_wiki_manager
 
 client = TestClient(app)
 
-@patch("api.routes.wiki_manager.list_sources")
-def test_list_sources(mock_list):
-    mock_list.return_value = ["source1.txt", "source2.pdf"]
+
+def test_list_sources():
+    mock_wm = MagicMock()
+    mock_wm.list_sources.return_value = ["source1.txt", "source2.pdf"]
+    set_wiki_manager(mock_wm)
     response = client.get("/api/sources")
+    set_wiki_manager(None)
     assert response.status_code == 200
     assert response.json() == ["source1.txt", "source2.pdf"]
 
-@patch("api.routes.wiki_manager.get_source_content", new_callable=AsyncMock)
-def test_get_source(mock_get):
-    mock_get.return_value = "Source Content"
+
+def test_get_source():
+    mock_wm = MagicMock()
+    mock_wm.get_source_content = AsyncMock(return_value="Source Content")
+    set_wiki_manager(mock_wm)
     response = client.get("/api/sources/source1.txt")
+    set_wiki_manager(None)
     assert response.status_code == 200
     assert response.json() == {"content": "Source Content"}
-    mock_get.assert_called_once_with("source1.txt")
 
-@patch("api.routes.wiki_manager.get_source_content", new_callable=AsyncMock)
-def test_get_source_not_found(mock_get):
-    mock_get.side_effect = FileNotFoundError()
+
+def test_get_source_not_found():
+    mock_wm = MagicMock()
+    mock_wm.get_source_content = AsyncMock(side_effect=FileNotFoundError())
+    set_wiki_manager(mock_wm)
     response = client.get("/api/sources/nonexistent.txt")
+    set_wiki_manager(None)
     assert response.status_code == 404
 
 

@@ -29,84 +29,76 @@ def client(tmp_path):
     for sub in ["clients", "prospects", "contacts", "photographers", "productions"]:
         (wiki_dir / sub).mkdir()
 
-    with patch('api.routes.WikiManager') as MockWM:
-        mock_wm = MagicMock()
-        mock_wm.list_pages.return_value = ["clients/test-page.md"]
-        mock_wm.get_page_content.return_value = "# Test Page"
-        mock_wm.get_backlinks.return_value = []
-        mock_wm.save_page_content = AsyncMock()
-        mock_wm.archive_page = AsyncMock()
-        mock_wm.create_new_page = AsyncMock(return_value="clients/Untitled.md")
-        mock_wm.lint = AsyncMock(return_value=MagicMock(model_dump=lambda: {"findings": [], "summary": "Clean."}))
-        mock_wm.get_entity_types.return_value = {
-            "clients": {"name": "Clients", "singular": "client"},
-            "prospects": {"name": "Prospects", "singular": "prospect"},
-            "contacts": {"name": "Contacts", "singular": "contact"},
-            "photographers": {"name": "Photographers", "singular": "photographer"},
-            "productions": {"name": "Productions", "singular": "production"},
-        }
-        mock_wm.create_folder = AsyncMock()
-        mock_wm.delete_folder = AsyncMock()
-        mock_wm.rename_folder = AsyncMock()
-        mock_wm.move_page = AsyncMock(return_value="prospects/test-page.md")
-        
-        from agent.wiki_manager import FixReport, Snapshot
-        mock_wm.fix_lint_findings = AsyncMock(return_value=FixReport(
-            files_changed=["concepts/e-sign.md"],
-            skipped=[],
-            summary="Fixed 1 finding.",
-            snapshot_id="20260420-143201",
-        ))
-        mock_wm.list_snapshots.return_value = [
-            Snapshot(id="20260420-143201", label="pre-lint 2026-04-20 14:32", created_at="2026-04-20T14:32:01", file_count=5)
-        ]
-        mock_wm.restore_snapshot = MagicMock()
-        mock_wm.delete_snapshot = MagicMock()
+    from agent.wiki_manager import FixReport, Snapshot
+    from api.routes import set_wiki_manager
 
-        MockWM.return_value = mock_wm
+    mock_wm = MagicMock()
+    mock_wm.list_pages.return_value = ["clients/test-page.md"]
+    mock_wm.get_page_content.return_value = "# Test Page"
+    mock_wm.get_backlinks.return_value = []
+    mock_wm.save_page_content = AsyncMock(return_value=[])
+    mock_wm.archive_page = AsyncMock()
+    mock_wm.create_new_page = AsyncMock(return_value="clients/Untitled.md")
+    mock_wm.lint = AsyncMock(return_value=MagicMock(model_dump=lambda: {"findings": [], "summary": "Clean."}))
+    mock_wm.get_entity_types.return_value = {
+        "clients": {"name": "Clients", "singular": "client"},
+        "prospects": {"name": "Prospects", "singular": "prospect"},
+        "contacts": {"name": "Contacts", "singular": "contact"},
+        "photographers": {"name": "Photographers", "singular": "photographer"},
+        "productions": {"name": "Productions", "singular": "production"},
+    }
+    mock_wm.create_folder = AsyncMock()
+    mock_wm.delete_folder = AsyncMock()
+    mock_wm.rename_folder = AsyncMock()
+    mock_wm.move_page = AsyncMock(return_value="prospects/test-page.md")
+    mock_wm.fix_lint_findings = AsyncMock(return_value=FixReport(
+        files_changed=["concepts/e-sign.md"],
+        skipped=[],
+        summary="Fixed 1 finding.",
+        snapshot_id="20260420-143201",
+    ))
+    mock_wm.list_snapshots.return_value = [
+        Snapshot(id="20260420-143201", label="pre-lint 2026-04-20 14:32", created_at="2026-04-20T14:32:01", file_count=5)
+    ]
+    mock_wm.restore_snapshot = MagicMock()
+    mock_wm.delete_snapshot = MagicMock()
 
-        from main import app
-        with TestClient(app) as c:
-            yield c
+    set_wiki_manager(mock_wm)
+
+    from main import app
+    with TestClient(app) as c:
+        yield c
+
+    set_wiki_manager(None)
 
 
 def test_get_pages_returns_grouped(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.list_pages.return_value = ["clients/test-page.md", "prospects/another.md"]
-        response = client.get("/api/pages")
+    response = client.get("/api/pages")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, dict)
 
 
 def test_get_page(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.get_page_content.return_value = "# Test Page"
-        response = client.get("/api/pages/clients/test-page.md")
+    response = client.get("/api/pages/clients/test-page.md")
     assert response.status_code in (200, 400, 404)
 
 
 def test_update_page(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.save_page_content = AsyncMock()
-        response = client.put(
-            "/api/pages/clients/test-page.md",
-            json={"content": "# Updated"}
-        )
+    response = client.put(
+        "/api/pages/clients/test-page.md",
+        json={"content": "# Updated"}
+    )
     assert response.status_code in (200, 400, 404, 422)
 
 
 def test_delete_page(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.archive_page = AsyncMock()
-        response = client.delete("/api/pages/clients/test-page.md")
+    response = client.delete("/api/pages/clients/test-page.md")
     assert response.status_code in (200, 400, 404)
 
 
 def test_create_page_with_entity_type(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.create_new_page = AsyncMock(return_value="clients/Untitled.md")
-        response = client.post("/api/pages?entity_type=clients")
+    response = client.post("/api/pages?entity_type=clients")
     assert response.status_code in (200, 400, 500)
 
 
@@ -121,11 +113,7 @@ def test_health_endpoint_gone(client):
 
 
 def test_lint_endpoint_exists(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.lint = AsyncMock(return_value=MagicMock(
-            model_dump=lambda: {"findings": [], "summary": "Clean."}
-        ))
-        response = client.post("/api/lint")
+    response = client.post("/api/lint")
     assert response.status_code in (200, 500)
 
 
@@ -138,79 +126,53 @@ def test_safe_wiki_filename_invalid_rejected(client):
 
 
 def test_get_entity_types_endpoint(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.get_entity_types.return_value = {
-            "clients": {"name": "Clients", "singular": "client"},
-            "prospects": {"name": "Prospects", "singular": "prospect"},
-        }
-        response = client.get("/api/entity-types")
+    response = client.get("/api/entity-types")
     assert response.status_code == 200
     data = response.json()
     assert "clients" in data
 
 
 def test_create_folder_endpoint(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.create_folder = AsyncMock()
-        response = client.post("/api/folders", json={
-            "name": "stylists",
-            "display_name": "Stylists",
-            "description": "Hair and makeup",
-        })
+    response = client.post("/api/folders", json={
+        "name": "stylists",
+        "display_name": "Stylists",
+        "description": "Hair and makeup",
+    })
     assert response.status_code in (200, 201)
 
 
 def test_create_folder_missing_fields(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.create_folder = AsyncMock()
-        response = client.post("/api/folders", json={"name": "stylists"})
+    response = client.post("/api/folders", json={"name": "stylists"})
     assert response.status_code == 422
 
 
 def test_create_folder_invalid_name(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.create_folder = AsyncMock()
-        response = client.post("/api/folders", json={
-            "name": "Stylists With Spaces",
-            "display_name": "Stylists",
-        })
+    response = client.post("/api/folders", json={
+        "name": "Stylists With Spaces",
+        "display_name": "Stylists",
+    })
     assert response.status_code == 400
 
 
 def test_delete_folder_endpoint(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.delete_folder = AsyncMock()
-        response = client.delete("/api/folders/stylists")
+    response = client.delete("/api/folders/stylists")
     assert response.status_code in (200, 400)
 
 
 def test_rename_folder_endpoint(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.rename_folder = AsyncMock()
-        response = client.put("/api/folders/clients", json={"new_name": "brands"})
+    response = client.put("/api/folders/clients", json={"new_name": "brands"})
     assert response.status_code in (200, 400)
 
 
 def test_move_page_endpoint(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.move_page = AsyncMock(return_value="prospects/test-page.md")
-        mock_wm.get_entity_types.return_value = {
-            "clients": {"name": "Clients"}, "prospects": {"name": "Prospects"},
-        }
-        response = client.post("/api/pages/clients/test-page.md/move", json={
-            "target_folder": "prospects",
-        })
+    response = client.post("/api/pages/clients/test-page.md/move", json={
+        "target_folder": "prospects",
+    })
     assert response.status_code in (200, 400)
 
 
 def test_create_page_dynamic_entity_type(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.get_entity_types.return_value = {
-            "clients": {"name": "Clients"},
-            "stylists": {"name": "Stylists"},
-        }
-        mock_wm.create_new_page = AsyncMock(return_value="stylists/Untitled.md")
-        response = client.post("/api/pages?entity_type=stylists")
+    response = client.post("/api/pages?entity_type=stylists")
     assert response.status_code in (200, 400, 500)
 
 
@@ -226,15 +188,7 @@ def test_lint_fix_endpoint(client):
             }
         ]
     }
-    with patch('api.routes.wiki_manager') as mock_wm:
-        from agent.wiki_manager import FixReport, Snapshot
-        mock_wm.fix_lint_findings = AsyncMock(return_value=FixReport(
-            files_changed=["concepts/e-sign.md"],
-            skipped=[],
-            summary="Fixed 1 finding.",
-            snapshot_id="20260420-143201",
-        ))
-        response = client.post("/api/lint/fix", json=payload)
+    response = client.post("/api/lint/fix", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert "files_changed" in data
@@ -248,12 +202,7 @@ def test_lint_fix_empty_findings(client):
 
 
 def test_list_snapshots_endpoint(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        from agent.wiki_manager import Snapshot
-        mock_wm.list_snapshots.return_value = [
-            Snapshot(id="20260420-143201", label="pre-lint 2026-04-20 14:32", created_at="2026-04-20T14:32:01", file_count=5)
-        ]
-        response = client.get("/api/snapshots")
+    response = client.get("/api/snapshots")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
@@ -261,18 +210,14 @@ def test_list_snapshots_endpoint(client):
 
 
 def test_restore_snapshot_endpoint(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.restore_snapshot = MagicMock()
-        response = client.post("/api/snapshots/20260420-143201/restore")
+    response = client.post("/api/snapshots/20260420-143201/restore")
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
 
 
 def test_delete_snapshot_endpoint(client):
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.delete_snapshot = MagicMock()
-        response = client.delete("/api/snapshots/20260420-143201")
+    response = client.delete("/api/snapshots/20260420-143201")
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True

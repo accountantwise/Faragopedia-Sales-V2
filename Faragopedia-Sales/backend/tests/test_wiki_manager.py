@@ -321,11 +321,10 @@ def test_system_prompt_loaded_from_schema_dir(tmp_path):
     assert "PROFILE CONTENT" in manager.system_prompt
 
 
-def test_system_prompt_raises_if_schema_missing(tmp_path):
+def test_system_prompt_returns_stub_if_schema_missing(tmp_path):
     schema_dir = tmp_path / "schema"
     schema_dir.mkdir()
-    # Only create SCHEMA.md, not company_profile.md
-    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    # Only create SCHEMA.md, not company_profile.md — should return stub, not raise
 
     sources = tmp_path / "sources"
     wiki = tmp_path / "wiki"
@@ -333,12 +332,12 @@ def test_system_prompt_raises_if_schema_missing(tmp_path):
     wiki.mkdir()
 
     with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
-        with pytest.raises(FileNotFoundError):
-            WikiManager(
-                sources_dir=str(sources),
-                wiki_dir=str(wiki),
-                schema_dir=str(schema_dir)
-            )
+        wm = WikiManager(
+            sources_dir=str(sources),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+    assert "Setup required" in wm.system_prompt
 
 
 def test_list_pages_returns_subdirectory_paths(tmp_path):
@@ -448,35 +447,48 @@ from api.routes import safe_wiki_filename
 
 
 def test_safe_wiki_filename_allows_known_subdirs():
+    from unittest.mock import MagicMock
     known = {"clients", "prospects", "contacts", "photographers", "productions"}
     entity_types = {sub: {"name": sub.capitalize()} for sub in known}
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.get_entity_types.return_value = entity_types
-        for sub in known:
-            result = safe_wiki_filename(f"{sub}/some-page.md")
-            assert result == f"{sub}/some-page.md"
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = entity_types
+    for sub in known:
+        result = safe_wiki_filename(f"{sub}/some-page.md", mock_wm)
+        assert result == f"{sub}/some-page.md"
 
 
 def test_safe_wiki_filename_rejects_unknown_subdir():
+    from unittest.mock import MagicMock
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = {}
     with pytest.raises(ValueError, match="Invalid entity subdirectory"):
-        safe_wiki_filename("evil/foo.md")
+        safe_wiki_filename("evil/foo.md", mock_wm)
 
 
 def test_safe_wiki_filename_rejects_flat_path():
+    from unittest.mock import MagicMock
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = {}
     with pytest.raises(ValueError, match="Invalid entity subdirectory"):
-        safe_wiki_filename("louis-vuitton.md")
+        safe_wiki_filename("louis-vuitton.md", mock_wm)
 
 
 def test_safe_wiki_filename_rejects_traversal():
+    from unittest.mock import MagicMock
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = {}
     with pytest.raises(ValueError):
-        safe_wiki_filename("../etc/passwd.md")
+        safe_wiki_filename("../etc/passwd.md", mock_wm)
     with pytest.raises(ValueError):
-        safe_wiki_filename("clients/../secrets.md")
+        safe_wiki_filename("clients/../secrets.md", mock_wm)
 
 
 def test_safe_wiki_filename_rejects_non_md():
+    from unittest.mock import MagicMock
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = {"clients": {}}
     with pytest.raises(ValueError, match=".md"):
-        safe_wiki_filename("clients/foo.txt")
+        safe_wiki_filename("clients/foo.txt", mock_wm)
 
 
 @pytest.mark.asyncio
