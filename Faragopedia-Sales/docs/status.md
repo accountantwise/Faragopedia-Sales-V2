@@ -8,7 +8,7 @@
 
 ## Current Phase: 🟡 MVP Development / Prototype Functional
 
-**Last updated:** 2026-04-20
+**Last updated:** 2026-04-21
 
 ---
 
@@ -16,6 +16,7 @@
 
 | Date       | Agent/Person | Summary                                       |
 | ---------- | ------------ | --------------------------------------------- |
+| 2026-04-21 | Claude | **Setup Wizard — Tasks 1–2 complete** (branch: `setup-wizard`). Task 1: `WikiManager._load_system_prompt()` now returns a stub string instead of raising `FileNotFoundError` when schema files are absent. Task 2: Replaced module-level `WikiManager` singleton in `routes.py` with FastAPI DI (`get_wiki_manager`, `set_wiki_manager`, `WM = Annotated[WikiManager, Depends(...)]`); `safe_wiki_filename` now takes explicit `wm` param; all 139 tests updated and passing. Tasks 3–10 remain. |
 | 2026-04-20 | Claude | **Desktop UI/UX Polish**: Standardized list and search item padding, adjusted chat bubble spacing, constrained Wiki width for readability, and fixed search results layout bugs (nested scrollbars, overlap). Changed New Page icon. |
 | 2026-04-20 | Claude | **Branch Merges**: Merged all feature branches (`big-refactor`, `dynamic-folders`, `search-and-tags`, `bulk-actions`, `linting-system`) into `main` and pruned local/remote branches. |
 | 2026-04-20 | Claude | **Actionable Lint — Tasks 4–7 complete** (branch: `bulk-actions` / `linting-system`). API endpoints for lint fix & snapshot management added. Frontend: implemented `LintView.tsx` with bulk apply and `SnapshotsPanel.tsx` for rollbacks. Wired up successfully. |
@@ -74,7 +75,8 @@
 - [x] Search & Tags (per-view keyword search, shared tag vocabulary, AI tag suggestion) ✅ (2026-04-19) — branch: `search-and-tags`
 - [x] Bulk Move (wiki pages between entity types, automatic wikilink rewriting) ✅ (2026-04-19) — branch: `bulk-actions`
 - [x] Bulk Download (pages + sources as ZIP archive) ✅ (2026-04-19) — branch: `bulk-actions`
-- [ ] Actionable Lint (checkbox findings, Apply Selected, snapshot rollback) 🟡 In progress — branch: `bulk-actions`
+- [x] Actionable Lint (checkbox findings, Apply Selected, snapshot rollback) ✅ (2026-04-20) — branch: `bulk-actions`
+- [ ] Setup Wizard (first-run identity + LLM schema generation, company-agnostic config) 🟡 In progress — branch: `setup-wizard`
 
 ---
 
@@ -162,12 +164,28 @@
 
 **Current test state:** 52 passed, 0 failed (all backend tests clean).
 
+## Setup Wizard Progress (branch: `setup-wizard`)
+
+| Task | Status | Description |
+| ---- | ------ | ----------- |
+| 1 | ✅ Done | `WikiManager._load_system_prompt()` returns stub when schema files absent (no crash) |
+| 2 | ✅ Done | FastAPI DI refactor: `get_wiki_manager`/`set_wiki_manager`/`WM` type alias; `safe_wiki_filename` takes explicit `wm`; 139 tests passing |
+| 3 | ⬜ Todo | `setup_wizard.py` — Pydantic models + core functions (`is_setup_complete`, `get_wiki_config`, `migrate_existing`, `clear_setup`) + `BASE_SCHEMA_TEMPLATE` |
+| 4 | ⬜ Todo | `setup_wizard.py` — `complete_setup()` orchestrator |
+| 5 | ⬜ Todo | `setup_routes.py` — 5 setup API endpoints + `suggest_schema_llm()` |
+| 6 | ⬜ Todo | `main.py` — startup migration + `WikiManager` init; register `setup_router` |
+| 7 | ⬜ Todo | `Sidebar.tsx` — `wikiName` prop + Reconfigure button |
+| 8 | ⬜ Todo | `App.tsx` — setup state gating + reconfigure flow |
+| 9 | ⬜ Todo | `SetupWizard.tsx` — full 3-step wizard (identity → schema review → confirm/launch) |
+| 10 | ⬜ Todo | End-to-end verification |
+
+---
+
 ## Immediate Next Steps
 
-1. Add "estimated time remaining" to the Lint View for better user feedback during LLM-intensive operations.
-2. Monitor snapshot storage usage as the wiki grows, and potentially add auto-pruning.
-3. Add Graph View (post-integration)
-4. Refine AI maintenance logic (post-integration)
+1. Continue `setup-wizard` branch — resume at Task 3 (`setup_wizard.py` core functions).
+2. Add Graph View (post-setup-wizard)
+3. Monitor snapshot storage usage and add auto-pruning if needed.
 
 ---
 
