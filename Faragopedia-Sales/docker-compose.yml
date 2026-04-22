@@ -1,16 +1,14 @@
-volumes:
-  node_modules:
-  wiki_data:
-  sources_data:
-  snapshots_data:
-
 services:
   backend:
     build: ./backend
+    # Run as the host user defined in environment variables
+    user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
-      - wiki_data:/app/wiki
-      - sources_data:/app/sources
-      - snapshots_data:/app/snapshots
+      - ${DATA_DIR:-./}/wiki:/app/wiki
+      - ${DATA_DIR:-./}/sources:/app/sources
+      - ${DATA_DIR:-./}/snapshots:/app/snapshots
+      - ${DATA_DIR:-./}/archive:/app/archive
+      - ${DATA_DIR:-./}/schema:/app/schema
     ports:
       - "8300:8300"
     environment:
@@ -26,6 +24,7 @@ services:
 
   frontend:
     build: ./frontend
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "5173:5173"
     environment:
