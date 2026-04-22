@@ -221,7 +221,7 @@ const EntityCard: React.FC<{
 // ── Main SetupWizard component ────────────────────────────────────────────────
 
 const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfigureMode = false, existingFolders = [] }) => {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(reconfigureMode ? 1 : 0);
   const [wikiName, setWikiName] = useState('');
   const [orgName, setOrgName] = useState('');
   const [orgDescription, setOrgDescription] = useState('');
@@ -231,6 +231,14 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
   const [llmFailed, setLlmFailed] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importedConfig, setImportedConfig] = useState<{
+    wiki_name: string;
+    org_name: string;
+    org_description: string;
+    entity_types: EntityType[];
+  } | null>(null);
 
   // Prefill in reconfigure mode
   useEffect(() => {
@@ -297,6 +305,103 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
       setLaunching(false);
     }
   };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportError('');
+    setImportLoading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`${API_BASE}/export/import`, { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
+        setImportError(err.detail ?? 'Upload failed');
+        return;
+      }
+      const data = await res.json();
+      setImportedConfig(data);
+      setWikiName(data.wiki_name);
+      setOrgName(data.org_name);
+      setOrgDescription(data.org_description);
+      setEntityTypes(data.entity_types ?? []);
+      setStep(3);
+    } catch {
+      setImportError('Failed to read zip file.');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (importedConfig) {
+      // Import flow — call finalize
+      setLaunching(true);
+      try {
+        const res = await fetch(`${API_BASE}/export/import/finalize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wiki_name: wikiName,
+            org_name: orgName,
+            org_description: orgDescription,
+            entity_types: entityTypes,
+          }),
+        });
+        if (!res.ok) throw new Error('Finalize failed');
+        onComplete();
+      } catch (err) {
+        setError('Failed to finalize import.');
+      } finally {
+        setLaunching(false);
+      }
+    } else {
+      // Normal flow
+      handleLaunch();
+    }
+  };
+
+  // ── Step 0: Getting Started ───────────────────────────────────────────────
+
+  if (step === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-full max-w-md border border-gray-200 dark:border-gray-800">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Get Started</h1>
+          <p className="text-gray-500 dark:text-gray-400 mb-8">Set up your wiki from scratch or restore from a backup.</p>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => setStep(1)}
+              className="w-full flex flex-col items-start gap-1 px-5 py-4 rounded-xl border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+            >
+              <span className="font-semibold text-blue-700 dark:text-blue-400">Start fresh</span>
+              <span className="text-sm text-blue-500 dark:text-blue-500">Design your wiki schema from scratch or use a preset.</span>
+            </button>
+
+            <label className="w-full flex flex-col items-start gap-1 px-5 py-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+              <span className="font-semibold text-gray-700 dark:text-gray-300">
+                {importLoading ? 'Importing…' : 'Import from backup'}
+              </span>
+              <span className="text-sm text-gray-400">Restore schema and settings from a wiki-bundle.zip file.</span>
+              <input
+                type="file"
+                accept=".zip"
+                className="hidden"
+                onChange={handleImportFile}
+                disabled={importLoading}
+              />
+            </label>
+          </div>
+
+          {importError && (
+            <p className="mt-4 text-sm text-red-600 dark:text-red-400">{importError}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // ── Step 1: Identity ──────────────────────────────────────────────────────
 
@@ -461,11 +566,11 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
         <div className="flex gap-3">
           <button onClick={() => setStep(2)} className="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50">← Back</button>
           <button
-            onClick={handleLaunch}
+            onClick={handleConfirm}
             disabled={launching}
             className="flex-1 bg-blue-600 text-white rounded-lg py-2.5 font-medium hover:bg-blue-700 disabled:bg-gray-300 flex items-center justify-center gap-2"
           >
-            {launching ? <><Loader2 className="w-4 h-4 animate-spin" /> Launching...</> : 'Launch Wiki'}
+            {launching ? <><Loader2 className="w-4 h-4 animate-spin" /> {importedConfig ? 'Importing...' : 'Launching...'}</> : (importedConfig ? 'Complete Import' : 'Launch Wiki')}
           </button>
         </div>
       </div>
