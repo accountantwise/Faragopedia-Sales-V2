@@ -27,27 +27,27 @@ const SEVERITY_CONFIG = {
   error: {
     label: 'Errors',
     icon: <AlertCircle className="w-4 h-4 text-red-500" />,
-    cardClass: 'bg-red-50 border-red-200',
-    badgeClass: 'bg-red-100 text-red-700',
+    cardClass: 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30',
+    badgeClass: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
   },
   warning: {
     label: 'Warnings',
     icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
-    cardClass: 'bg-amber-50 border-amber-200',
-    badgeClass: 'bg-amber-100 text-amber-700',
+    cardClass: 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-900/30',
+    badgeClass: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
   },
   suggestion: {
     label: 'Suggestions',
     icon: <Lightbulb className="w-4 h-4 text-blue-500" />,
-    cardClass: 'bg-blue-50 border-blue-200',
-    badgeClass: 'bg-blue-100 text-blue-700',
+    cardClass: 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900/30',
+    badgeClass: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
   },
 };
 
 const FIX_CONFIDENCE_CONFIG = {
-  full: { label: 'Full fix', className: 'bg-green-100 text-green-700' },
-  stub: { label: 'Stub', className: 'bg-amber-100 text-amber-700' },
-  needs_source: { label: 'Needs source', className: 'bg-gray-100 text-gray-500' },
+  full: { label: 'Full fix', className: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' },
+  stub: { label: 'Stub', className: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
+  needs_source: { label: 'Needs source', className: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' },
 };
 
 const LintView: React.FC = () => {
@@ -120,8 +120,8 @@ const LintView: React.FC = () => {
   return (
     <div className="h-full w-full overflow-y-auto">
       <div className="p-8 md:p-12 max-w-4xl mx-auto pb-24">
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">Wiki Lint</h1>
-        <p className="text-xl text-gray-500 mb-8 leading-relaxed">
+        <h1 className="text-4xl font-extrabold text-gray-900 dark:text-gray-100 mb-6 tracking-tight">Wiki Lint</h1>
+        <p className="text-xl text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
           Deep AI analysis — orphan pages, contradictions, missing entities, and data gaps.
         </p>
 
@@ -141,25 +141,25 @@ const LintView: React.FC = () => {
           <div className="space-y-4 max-w-xl animate-pulse mt-8">
             <div className="flex items-center space-x-3 mb-6">
               <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-              <span className="text-blue-500 font-medium tracking-wide">Deep AI Analysis in Progress...</span>
+              <span className="text-blue-500 dark:text-blue-400 font-medium tracking-wide">Deep AI Analysis in Progress...</span>
             </div>
-            <div className="h-4 bg-gray-200 rounded-full w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded-full w-full"></div>
-            <div className="h-4 bg-gray-200 rounded-full w-5/6"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-3/4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-full"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-5/6"></div>
           </div>
         )}
 
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mb-4">
+          <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded-xl text-red-700 dark:text-red-400 text-sm mb-4">
             {error}
           </div>
         )}
 
         {fixReport && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-xl mb-6">
-            <p className="text-green-800 font-semibold mb-2">{fixReport.summary}</p>
+          <div className="p-4 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30 rounded-xl mb-6">
+            <p className="text-green-800 dark:text-green-300 font-semibold mb-2">{fixReport.summary}</p>
             {fixReport.files_changed.length > 0 && (
-              <ul className="text-sm text-green-700 space-y-1">
+              <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
                 {fixReport.files_changed.map(f => (
                   <li key={f} className="font-mono">{f}</li>
                 ))}
@@ -167,8 +167,8 @@ const LintView: React.FC = () => {
             )}
             {fixReport.skipped.length > 0 && (
               <div className="mt-3">
-                <p className="text-sm font-medium text-amber-700">Skipped:</p>
-                <ul className="text-sm text-amber-600 space-y-1 mt-1">
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Skipped:</p>
+                <ul className="text-sm text-amber-600 dark:text-amber-500 space-y-1 mt-1">
                   {fixReport.skipped.map((s, i) => <li key={i}>{s}</li>)}
                 </ul>
               </div>
@@ -179,11 +179,11 @@ const LintView: React.FC = () => {
         {report && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <p className="text-gray-600 font-medium">{report.summary}</p>
+              <p className="text-gray-600 dark:text-gray-400 font-medium">{report.summary}</p>
               {report.findings.length > 0 && (
                 <button
                   onClick={allSelected ? deselectAll : selectAll}
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                 >
                   {allSelected ? 'Deselect all' : 'Select all'}
                 </button>
@@ -198,7 +198,7 @@ const LintView: React.FC = () => {
               const config = SEVERITY_CONFIG[severity];
               return (
                 <div key={severity}>
-                  <h3 className="flex items-center space-x-2 text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
+                  <h3 className="flex items-center space-x-2 text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3">
                     {config.icon}
                     <span>{config.label} ({findings.length})</span>
                   </h3>
@@ -215,8 +215,8 @@ const LintView: React.FC = () => {
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 flex-shrink-0">
                               {isChecked
-                                ? <CheckSquare className="w-5 h-5 text-blue-600" />
-                                : <Square className="w-5 h-5 text-gray-400" />
+                                ? <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                : <Square className="w-5 h-5 text-gray-400 dark:text-gray-600" />
                               }
                             </div>
                             <div className="flex-1 min-w-0">
@@ -228,9 +228,9 @@ const LintView: React.FC = () => {
                                   {confidenceConfig.label}
                                 </span>
                               </div>
-                              <p className="text-sm text-gray-700">{finding.description}</p>
+                              <p className="text-sm text-gray-700 dark:text-gray-300">{finding.description}</p>
                               {finding.fix_description && (
-                                <p className="text-xs text-gray-500 mt-1 italic">{finding.fix_description}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">{finding.fix_description}</p>
                               )}
                             </div>
                           </div>
