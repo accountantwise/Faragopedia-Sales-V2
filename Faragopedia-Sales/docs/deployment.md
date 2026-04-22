@@ -24,6 +24,8 @@ These variables are critical for ensuring files created by the AI are accessible
 | `DATA_DIR` | Absolute path on your host to store the wiki and sources. | `/home/user/docker/faragopedia` |
 | `PUID` | The User ID of your host user (run `id -u` to find it). | `1000` |
 | `PGID` | The Group ID of your host user (run `id -g` to find it). | `1000` |
+| `BACKEND_PORT` | The host port for the FastAPI backend. | `8300` |
+| `FRONTEND_PORT` | The host port for the React frontend. | `5173` |
 
 ### Web & Networking
 | Variable | Description | Default |

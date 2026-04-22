@@ -1,7 +1,6 @@
 services:
   backend:
     build: ./backend
-    # Run as the host user defined in environment variables
     user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
       - ${DATA_DIR:-./}/wiki:/app/wiki
@@ -10,7 +9,7 @@ services:
       - ${DATA_DIR:-./}/archive:/app/archive
       - ${DATA_DIR:-./}/schema:/app/schema
     ports:
-      - "8300:8300"
+      - "${BACKEND_PORT:-8300}:8300"
     environment:
       - AI_PROVIDER=${AI_PROVIDER:-openai}
       - AI_MODEL=${AI_MODEL:-gpt-4o-mini}
@@ -26,7 +25,7 @@ services:
     build: ./frontend
     user: "${PUID:-1000}:${PGID:-1000}"
     ports:
-      - "5173:5173"
+      - "${FRONTEND_PORT:-5173}:5173"
     environment:
       - VITE_ALLOWED_HOST=${VITE_ALLOWED_HOST}
       - VITE_API_BASE_URL=${VITE_API_BASE_URL}
