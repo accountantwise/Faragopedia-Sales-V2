@@ -267,12 +267,17 @@ class WikiManager:
                 tags = fm.get("tags", [])
                 if not isinstance(tags, list):
                     tags = []
+                def _json_safe(v):
+                    if isinstance(v, (datetime.date, datetime.datetime)):
+                        return v.isoformat()
+                    return v
+
                 pages.append({
                     "path": rel_path,
                     "title": str(title),
                     "entity_type": entity_type,
                     "tags": [str(t) for t in tags],
-                    "frontmatter": {k: v for k, v in fm.items() if k != "tags"},
+                    "frontmatter": {k: _json_safe(v) for k, v in fm.items() if k != "tags"},
                     "content_preview": self._strip_markdown(body)[:500],
                 })
             except Exception:
