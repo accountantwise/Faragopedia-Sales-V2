@@ -665,14 +665,14 @@ const WikiView: React.FC = () => {
   return (
     <div className="flex flex-col h-full relative">
       {/* Search bar — full width above sidebar+content */}
-      <div className="border-b border-gray-100 bg-white px-4 py-2 flex items-center gap-3">
+      <div className="border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 flex items-center gap-3">
         <Search className="w-4 h-4 text-gray-400 shrink-0" />
         <input
           type="text"
           value={searchQuery}
           onChange={e => { setSearchQuery(e.target.value); setTagFilter([]); }}
           placeholder="Search wiki pages…"
-          className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
+          className="flex-1 bg-transparent text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 outline-none"
         />
         {searchQuery && (
           <button onClick={() => { setSearchQuery(''); setTagFilter([]); }}
@@ -690,16 +690,16 @@ const WikiView: React.FC = () => {
       <div className="flex flex-1 min-h-0 relative">
       {/* Sidebar - Page List */}
       <div 
-        className={`border-r bg-white flex flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
+        className={`border-r dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col flex-shrink-0 ${!isDesktop && !showMobileList ? 'hidden' : 'flex'} ${!isDesktop ? 'w-full' : ''}`}
         style={isDesktop ? { width: sidebarWidth } : undefined}
       >
-        <div className="p-4 border-b border-gray-50 flex-shrink-0">
+        <div className="p-4 border-b border-gray-50 dark:border-gray-800 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Pages</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pages</h2>
             <div className="flex items-center space-x-1">
               <button
                 onClick={() => setShowNewFolderDialog(true)}
-                className="p-1.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-1.5 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 title="New Folder"
               >
                 <FolderPlus className="w-4 h-4" />
@@ -708,18 +708,18 @@ const WikiView: React.FC = () => {
                 <button
                   onClick={() => setShowNewPageMenu(prev => !prev)}
                   disabled={isCreating}
-                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
                   title="New Page"
                 >
                   {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FilePlus className="w-4 h-4" />}
                 </button>
                 {showNewPageMenu && (
-                  <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-100 z-20 overflow-hidden">
+                  <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-100 dark:border-gray-700 z-20 overflow-hidden">
                     {Object.entries(entityTypes).map(([type, data]) => (
                       <button
                         key={type}
                         onClick={() => handleNewPage(type)}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                       >
                         {data.name || type}
                       </button>
@@ -733,12 +733,12 @@ const WikiView: React.FC = () => {
 
         {/* Bulk Action Toolbar - Now Sticky at Top */}
         {(selectedPages.size > 0 || isBulkMode) && (
-          <div className="bg-white border border-gray-200 text-gray-900 rounded-xl p-3 mb-2 shadow-sm animate-in slide-in-from-top-2 duration-300">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl p-3 mb-2 shadow-sm animate-in slide-in-from-top-2 duration-300 mx-4">
             <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedPages.size} Selected</span>
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">{selectedPages.size} Selected</span>
               <button 
                 onClick={clearPageSelection} 
-                className="text-gray-400 hover:text-gray-900 transition-colors p-1 hover:bg-gray-100 rounded-full"
+                className="text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
                 title="Clear selection"
               >
                 <X className="w-4 h-4" />
@@ -747,7 +747,7 @@ const WikiView: React.FC = () => {
             <div className="flex flex-col gap-2">
               <button
                 onClick={selectAllPages}
-                className="w-full text-[10px] py-1 bg-gray-50 border border-gray-200 text-gray-600 rounded hover:bg-gray-100 transition-all font-medium uppercase tracking-tight"
+                className="w-full text-[10px] py-1 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-all font-medium uppercase tracking-tight"
               >
                 Select {searchResults ? 'matching' : 'all'}
               </button>
@@ -784,8 +784,8 @@ const WikiView: React.FC = () => {
           <div className="flex flex-col">
             {/* Tag filter row */}
             {resultTags.length > 0 && (
-              <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-gray-100 bg-gray-50/50">
-                <span className="text-xs text-gray-500 self-center mr-1">Filter:</span>
+              <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+                <span className="text-xs text-gray-500 dark:text-gray-400 self-center mr-1">Filter:</span>
                 {resultTags.map(tag => (
                   <button
                     key={tag}
@@ -797,7 +797,7 @@ const WikiView: React.FC = () => {
                     className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                       tagFilter.includes(tag)
                         ? 'bg-blue-600 border-blue-500 text-white'
-                        : 'bg-gray-100 border-gray-200 text-gray-500 hover:border-gray-300'
+                        : 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
                     }`}
                   >
                     {tagFilter.includes(tag) ? `${tag} ×` : tag}
@@ -806,14 +806,14 @@ const WikiView: React.FC = () => {
               </div>
             )}
             {/* Results list */}
-            <div className="divide-y divide-gray-50/50">
+            <div className="divide-y divide-gray-50/50 dark:divide-gray-800/50">
               {searchResults.length === 0 ? (
-                <p className="text-sm text-gray-500 p-4">No pages match.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 p-4">No pages match.</p>
               ) : (
                 searchResults.map(entry => (
                   <div 
                     key={entry.path}
-                    className="group flex items-center px-4 hover:bg-gray-50 transition-colors border-b border-gray-50"
+                    className="group flex items-center px-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-50 dark:border-gray-800"
                     onMouseEnter={() => setHoveredPage(entry.path)}
                     onMouseLeave={() => setHoveredPage(null)}
                   >
@@ -833,21 +833,21 @@ const WikiView: React.FC = () => {
                       className="flex-1 text-left py-3 min-w-0 pr-2"
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-bold text-gray-900 leading-tight truncate mr-2">
+                        <span className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight truncate mr-2">
                           {highlightMatch(entry.title, searchQuery)}
                         </span>
-                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider shrink-0">{entry.entity_type}</span>
+                        <span className="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider shrink-0">{entry.entity_type}</span>
                       </div>
                       {entry.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mb-1.5">
                           {entry.tags.map(t => (
-                            <span key={t} className="text-[10px] px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100 font-medium whitespace-nowrap">
+                            <span key={t} className="text-[10px] px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800 font-medium whitespace-nowrap">
                               {t}
                             </span>
                           ))}
                         </div>
                       )}
-                      <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-gray-400 dark:text-gray-500 line-clamp-2 leading-relaxed">
                         {highlightMatch(entry.content_preview, searchQuery)}
                       </p>
                     </button>
@@ -870,7 +870,7 @@ const WikiView: React.FC = () => {
                   <div className="flex items-center group">
                     <button
                       onClick={() => toggleSection(section)}
-                      className="flex-1 text-left px-2 py-2 flex items-center justify-between text-xs font-semibold text-gray-400 uppercase tracking-wider hover:bg-gray-50 rounded-md transition-colors"
+                      className="flex-1 text-left px-2 py-2 flex items-center justify-between text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
                     >
                       <span>{typeData.name || section}</span>
                       <ChevronRight className={`w-3 h-3 transition-transform duration-150 ${expandedSections[section] ? 'rotate-90' : ''}`} />
@@ -904,7 +904,7 @@ const WikiView: React.FC = () => {
                           if (e.key === 'Enter') handleRenameFolder(section);
                           if (e.key === 'Escape') setRenamingFolder(null);
                         }}
-                        className="flex-1 text-xs border rounded px-2 py-1"
+                        className="flex-1 text-xs border dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded px-2 py-1"
                       />
                       <button onClick={() => handleRenameFolder(section)} className="text-xs text-blue-600">Save</button>
                       <button onClick={() => setRenamingFolder(null)} className="text-xs text-gray-400">Cancel</button>
@@ -933,8 +933,8 @@ const WikiView: React.FC = () => {
                             onClick={() => fetchPageContent(pagePath)}
                             className={`w-full text-left py-2 pl-8 pr-2 rounded-lg text-sm transition-colors flex items-center ${
                               selectedPage === pagePath
-                                ? 'bg-blue-50 text-blue-700 font-bold'
-                                : 'hover:bg-gray-50 text-gray-700'
+                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold'
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
                             }`}
                           >
                             <FileText className="w-4 h-4 mr-2 flex-shrink-0 opacity-40" />
@@ -966,15 +966,15 @@ const WikiView: React.FC = () => {
       )}
 
       {/* Main Content - Markdown View */}
-      <div className={`flex-grow overflow-y-auto bg-white flex-col relative ${!isDesktop && (showMobileList || showChat) ? 'hidden' : 'flex'}`}>
+      <div className={`flex-grow overflow-y-auto bg-white dark:bg-gray-900 flex-col relative ${!isDesktop && (showMobileList || showChat) ? 'hidden' : 'flex'}`}>
         {/* Navigation Header */}
-        <div className="hidden lg:flex border-b px-8 py-4 items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
+        <div className="hidden lg:flex border-b dark:border-gray-800 px-8 py-4 items-center justify-between sticky top-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-2">
             <button
               onClick={handleBack}
               disabled={historyStack.length === 0 || isEditing}
               className={`p-1.5 rounded-md transition-colors ${
-                historyStack.length === 0 || isEditing ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'
+                historyStack.length === 0 || isEditing ? 'text-gray-300 dark:text-gray-700 cursor-not-allowed' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
               title="Back"
             >
@@ -984,14 +984,14 @@ const WikiView: React.FC = () => {
               onClick={handleForward}
               disabled={forwardStack.length === 0 || isEditing}
               className={`p-1.5 rounded-md transition-colors ${
-                forwardStack.length === 0 || isEditing ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'
+                forwardStack.length === 0 || isEditing ? 'text-gray-300 dark:text-gray-700 cursor-not-allowed' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
               title="Forward"
             >
               <ArrowRight className="w-5 h-5" />
             </button>
             {selectedPage && (
-              <span className="ml-4 text-sm font-medium text-gray-500 truncate max-w-[160px] sm:max-w-xs">
+              <span className="ml-4 text-sm font-medium text-gray-500 dark:text-gray-400 truncate max-w-[160px] sm:max-w-xs">
                 {selectedPage.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
               </span>
             )}
@@ -1017,7 +1017,7 @@ const WikiView: React.FC = () => {
                           setEditedContent(content || '');
                         }}
                         disabled={isSaving}
-                        className="flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors"
+                        className="flex items-center px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       >
                         <X className="w-4 h-4 mr-1.5" />
                         Cancel
@@ -1026,7 +1026,7 @@ const WikiView: React.FC = () => {
                   ) : (
                     <button
                       onClick={() => setIsEditing(true)}
-                      className="flex items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                      className="flex items-center px-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                     >
                       <Edit3 className="w-4 h-4 mr-1.5" />
                       Edit
@@ -1035,14 +1035,14 @@ const WikiView: React.FC = () => {
                   
                   <button
                     onClick={handleDownload}
-                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                    className="p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                     title="Download Page"
                   >
                     <Download className="w-5 h-5" />
                   </button>
                   <button
                     onClick={() => setShowMoveDialog(true)}
-                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                    className="p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                     title="Move to folder..."
                   >
                     <ArrowRight className="w-5 h-5" />
@@ -1050,7 +1050,7 @@ const WikiView: React.FC = () => {
                   <button
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                    className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors disabled:opacity-50"
                     title="Move to Archive"
                   >
                     {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
@@ -1072,7 +1072,7 @@ const WikiView: React.FC = () => {
               <Loader2 className="animate-spin mr-2" /> Loading content...
             </div>
           ) : isEditing ? (
-            <div data-color-mode="light" className="w-full h-full min-h-[500px]">
+            <div data-color-mode="light" className="w-full h-full min-h-[500px] dark:invert dark:hue-rotate-180">
               <MDEditor
                 value={editedContent}
                 onChange={(val) => setEditedContent(val || '')}
@@ -1084,7 +1084,7 @@ const WikiView: React.FC = () => {
           ) : content ? (
             <>
             {selectedPage && !isEditing && (
-              <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-100 bg-gray-50/30 -mx-8 mb-4">
+              <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-800/30 -mx-8 mb-4">
                 {pageTags.map(tag => (
                   <span key={tag}
                         className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800 shadow-sm">
@@ -1104,7 +1104,7 @@ const WikiView: React.FC = () => {
                         if (e.key === 'Escape') { setAddingTag(false); setNewTagInput(''); }
                       }}
                       placeholder="tag name"
-                      className="text-xs bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-900 outline-none w-28"
+                      className="text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-2 py-0.5 text-gray-900 dark:text-gray-100 outline-none w-28"
                       list="tag-vocab"
                     />
                     <datalist id="tag-vocab">
@@ -1131,17 +1131,17 @@ const WikiView: React.FC = () => {
                 ))}
               </div>
             )}
-            <div className="prose prose-slate max-w-4xl mx-auto break-words">
+            <div className="prose prose-slate dark:prose-invert max-w-4xl mx-auto break-words text-gray-900 dark:text-gray-100">
               {(() => {
                  const { tags, content: cleanContent } = parseFrontmatter(content);
                  return (
                    <>
                      {tags.length > 0 && (
-                       <div className="flex flex-wrap gap-2 mb-8 p-4 bg-gray-50/80 rounded-xl border border-gray-100 shadow-sm backdrop-blur-sm">
+                       <div className="flex flex-wrap gap-2 mb-8 p-4 bg-gray-50/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm backdrop-blur-sm">
                          {tags.map((t, idx) => (
-                           <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-sm uppercase tracking-wider">
-                             <span className="text-gray-400 mr-2 text-[10px]">{t.key}:</span>
-                             <span className="text-blue-600 font-bold">{t.value}</span>
+                           <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 shadow-sm uppercase tracking-wider">
+                             <span className="text-gray-400 dark:text-gray-500 mr-2 text-[10px]">{t.key}:</span>
+                             <span className="text-blue-600 dark:text-blue-400 font-bold">{t.value}</span>
                            </span>
                          ))}
                        </div>
@@ -1185,8 +1185,8 @@ const WikiView: React.FC = () => {
 
               {/* Backlinks Section */}
               {backlinks.length > 0 && (
-                <div className="mt-12 pt-8 border-t border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-800">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center">
                     <FileText className="w-5 h-5 mr-2 opacity-50" />
                     Linked Mentions
                   </h3>
@@ -1195,12 +1195,12 @@ const WikiView: React.FC = () => {
                       <button
                         key={link}
                         onClick={() => fetchPageContent(link)}
-                        className="text-left p-4 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group"
+                        className="text-left p-4 rounded-lg border border-gray-100 dark:border-gray-800 hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all group"
                       >
-                        <div className="text-sm font-medium text-blue-600 group-hover:text-blue-700 truncate">
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 truncate">
                           {link.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
                         </div>
-                        <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider">
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 uppercase tracking-wider">
                           Page Reference
                         </div>
                       </button>
@@ -1211,7 +1211,7 @@ const WikiView: React.FC = () => {
             </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-600">
               <FileText className="w-16 h-16 mb-4 opacity-20" />
               <p>Select a page from the list to view its content.</p>
             </div>
@@ -1241,7 +1241,7 @@ const WikiView: React.FC = () => {
       {/* Right Sidebar - Chat Panel */}
       {showChat && (
         <div 
-          className={`border-l bg-white flex-col flex-shrink-0 relative ${!isDesktop ? 'fixed inset-0 w-full z-50 flex shadow-2xl animate-in slide-in-from-right duration-300' : 'flex'}`}
+          className={`border-l dark:border-gray-800 bg-white dark:bg-gray-900 flex-col flex-shrink-0 relative ${!isDesktop ? 'fixed inset-0 w-full z-50 flex shadow-2xl animate-in slide-in-from-right duration-300' : 'flex'}`}
           style={isDesktop ? { width: chatWidth } : undefined}
         >
           <ChatPanel onLinkClick={(path) => { setShowChat(false); fetchPageContent(path); }} />
@@ -1385,11 +1385,11 @@ const WikiView: React.FC = () => {
 
       {/* New Folder Dialog */}
       {showNewFolderDialog && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowNewFolderDialog(false)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold">New Folder</h3>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowNewFolderDialog(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 w-full max-w-sm space-y-4 border border-gray-100 dark:border-gray-800" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">New Folder</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Display Name</label>
               <input
                 autoFocus
                 value={newFolderDisplayName}
@@ -1397,30 +1397,30 @@ const WikiView: React.FC = () => {
                   setNewFolderDisplayName(e.target.value);
                   setNewFolderName(e.target.value.toLowerCase().replace(/\s+/g, '-'));
                 }}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
                 placeholder="e.g. Stylists"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Folder ID</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Folder ID</label>
               <input
                 value={newFolderName}
                 onChange={e => setNewFolderName(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm text-gray-500"
+                className="w-full border dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-500 dark:text-gray-400"
                 placeholder="e.g. stylists"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description (for AI context)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description (for AI context)</label>
               <input
                 value={newFolderDescription}
                 onChange={e => setNewFolderDescription(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
                 placeholder="e.g. Hair and makeup stylists we work with"
               />
             </div>
             <div className="flex justify-end space-x-2">
-              <button onClick={() => setShowNewFolderDialog(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setShowNewFolderDialog(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">Cancel</button>
               <button
                 onClick={handleCreateFolder}
                 disabled={!newFolderName.trim() || !newFolderDisplayName.trim()}
@@ -1435,10 +1435,10 @@ const WikiView: React.FC = () => {
 
       {/* Move Page Dialog */}
       {showMoveDialog && selectedPage && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowMoveDialog(false)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-xs space-y-3" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold">Move to...</h3>
-            <p className="text-sm text-gray-500">Move "{selectedPage.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}" to:</p>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowMoveDialog(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 w-full max-w-xs space-y-3 border border-gray-100 dark:border-gray-800" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Move to...</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Move "{selectedPage.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}" to:</p>
             <div className="space-y-1">
               {Object.entries(entityTypes)
                 .filter(([key]) => key !== selectedPage.split('/')[0])
@@ -1446,13 +1446,13 @@ const WikiView: React.FC = () => {
                   <button
                     key={key}
                     onClick={() => handleMovePage(key)}
-                    className="w-full text-left px-4 py-2 text-sm rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                    className="w-full text-left px-4 py-2 text-sm rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-300 text-gray-700 dark:text-gray-300 transition-colors"
                   >
                     {data.name || key}
                   </button>
                 ))}
             </div>
-            <button onClick={() => setShowMoveDialog(false)} className="w-full text-center text-sm text-gray-400 hover:text-gray-600 mt-2">Cancel</button>
+            <button onClick={() => setShowMoveDialog(false)} className="w-full text-center text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mt-2">Cancel</button>
           </div>
         </div>
       )}
