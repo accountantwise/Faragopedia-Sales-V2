@@ -13,7 +13,7 @@
 | ------------ | -------------------------------------------------------- |
 | **Name**     | Faragopedia-Sales                                        |
 | **Repo**     | `github.com/accountantwise/Faragopedia-Sales`            |
-| **Phase**    | 🟡 MVP Development / Setup Wizard in progress (branch: `setup-wizard`) |
+| **Phase**    | 🟡 MVP Development / Settings Section planned, ready to implement (branch: `setup-wizard`) |
 | **Stack**    | Python/FastAPI + React/Vite                              |
 | **Deploy**   | Docker container → Portainer on Ubuntu server            |
 
@@ -103,9 +103,11 @@ current direction.
 19. ~~Execute Bulk Actions plan (Move, Download)~~ ✅ — 7 tasks complete; 12 tests passing
 20. ~~Execute Actionable Lint system (Snapshot, Bulk Fix)~~ ✅ — 7 tasks complete; verified
 21. ~~Desktop UI/UX Polish (Consistency, Layout fixes)~~ ✅
-22. **Add "estimated time remaining" to Lint View** 👈
-23. **Monitor snapshot storage / add auto-pruning**
-24. **Implement Graph View**
+22. ~~Setup Wizard (3-step wizard, LLM schema suggestion, reconfigure flow)~~ ✅ (2026-04-21)
+23. **Execute Settings Section plan (Tasks 1–13)** 👈 — spec + plan in `docs/superpowers/`; backend → Claude, frontend → Gemini
+24. **Add "estimated time remaining" to Lint View**
+25. **Monitor snapshot storage / add auto-pruning**
+26. **Implement Graph View**
 
 
 
