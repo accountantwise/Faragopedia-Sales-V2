@@ -1,5 +1,5 @@
 import React from 'react';
-import { Book, MessageSquare, Layers, Archive, Activity } from 'lucide-react';
+import { Book, MessageSquare, Layers, Archive, Activity, Settings } from 'lucide-react';
 
 interface SidebarProps {
   currentView: string;
@@ -13,12 +13,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
     { name: 'Chat', icon: <MessageSquare className="w-5 h-5" /> },
     { name: 'Archive', icon: <Archive className="w-5 h-5" /> },
     { name: 'Lint', icon: <Activity className="w-5 h-5" /> },
+    { name: 'Settings', icon: <Settings className="w-5 h-5" /> },
   ];
 
   return (
-    <div className="flex flex-col h-screen w-64 bg-gray-800 text-white shadow-xl">
-      <div className="p-6 text-2xl font-bold border-b border-gray-700 flex items-center">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg mr-3 flex items-center justify-center text-sm">FP</div>
+    <div className="flex flex-col h-screen w-64 bg-bg-sidebar text-white shadow-xl">
+      <div className="p-6 text-2xl font-bold border-b border-white/10 flex items-center">
+        <div className="w-8 h-8 bg-primary rounded-lg mr-3 flex items-center justify-center text-sm transition-colors">FP</div>
         Faragopedia
       </div>
 
@@ -30,8 +31,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
                 onClick={() => onViewChange(item.name)}
                 className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex items-center space-x-3 ${
                   currentView === item.name
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                    : 'hover:bg-gray-700 text-gray-300 hover:text-white'
+                    ? 'bg-primary text-white shadow-lg opacity-100'
+                    : 'hover:bg-white/10 text-gray-300 hover:text-white'
                 }`}
               >
                 {item.icon}
@@ -42,7 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
         </ul>
       </nav>
 
-      <div className="p-4 text-xs text-gray-500 border-t border-gray-700 text-center uppercase tracking-wider">
+      <div className="p-4 text-xs text-gray-400 border-t border-white/10 text-center uppercase tracking-wider">
         Faragopedia v0.2.0
       </div>
     </div>

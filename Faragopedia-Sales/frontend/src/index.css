@@ -1,3 +1,45 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base Mode: Light */
+    --color-bg-base: #f9fafb; /* gray-50 */
+    --color-bg-elevated: #ffffff; /* white */
+    --color-bg-sidebar: #1f2937; /* gray-800 */
+    --color-text-base: #111827; /* gray-900 */
+    --color-text-muted: #6b7280; /* gray-500 */
+    --color-border: #e5e7eb; /* gray-200 */
+
+    /* Theme: Default (Classic Blue) */
+    --color-primary: #2563eb; /* blue-600 */
+    --color-primary-hover: #1d4ed8; /* blue-700 */
+  }
+
+  :root.dark {
+    /* Base Mode: Dark */
+    --color-bg-base: #0f172a; /* slate-900 */
+    --color-bg-elevated: #1e293b; /* slate-800 */
+    --color-bg-sidebar: #020617; /* slate-950 */
+    --color-text-base: #f8fafc; /* slate-50 */
+    --color-text-muted: #94a3b8; /* slate-400 */
+    --color-border: #334155; /* slate-700 */
+  }
+
+  /* Theme: Linear (Amethyst/Purple) */
+  :root.theme-linear {
+    --color-primary: #9333ea; /* purple-600 */
+    --color-primary-hover: #7e22ce; /* purple-700 */
+  }
+
+  /* Theme: Oceanic (Teal) */
+  :root.theme-oceanic {
+    --color-primary: #0d9488; /* teal-600 */
+    --color-primary-hover: #0f766e; /* teal-700 */
+  }
+
+  body {
+    @apply bg-bg-base text-text-base transition-colors duration-200;
+  }
+}
