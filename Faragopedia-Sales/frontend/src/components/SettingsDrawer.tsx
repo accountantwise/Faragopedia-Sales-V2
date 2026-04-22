@@ -64,9 +64,11 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
 
       {/* Drawer */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 w-80 bg-white dark:bg-gray-900 shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out ${
-          open ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className="fixed inset-y-0 right-0 z-50 w-80 bg-white dark:bg-gray-900 shadow-2xl flex flex-col"
+        style={{
+          transform: open ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s ease-in-out',
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
