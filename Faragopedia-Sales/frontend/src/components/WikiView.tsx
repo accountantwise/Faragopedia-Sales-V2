@@ -121,7 +121,7 @@ const WikiView: React.FC = () => {
       setExpandedSections(prev => {
         const next = { ...prev };
         for (const key of Object.keys(data)) {
-          if (!(key in next)) next[key] = true;
+          if (!(key in next)) next[key] = false;
         }
         return next;
       });
