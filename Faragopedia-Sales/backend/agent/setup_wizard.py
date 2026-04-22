@@ -244,6 +244,33 @@ def complete_setup(schema_dir: str, wiki_dir: str, payload) -> None:
         json.dump(config, f, indent=2)
 
 
+def finalize_import(schema_dir: str, wiki_dir: str, payload) -> None:
+    """Finalise an import: create entity folders and write wiki_config.json.
+    Does NOT touch SCHEMA.md or company_profile.md — import step already placed them.
+    """
+    for et in payload.entity_types:
+        folder_path = os.path.join(wiki_dir, et.folder_name)
+        os.makedirs(folder_path, exist_ok=True)
+        type_data = {
+            "name": et.display_name,
+            "description": et.description,
+            "singular": et.singular,
+            "fields": [_field_to_dict(f) for f in et.fields],
+            "sections": et.sections,
+        }
+        yaml_path = os.path.join(folder_path, "_type.yaml")
+        with open(yaml_path, "w", encoding="utf-8") as f:
+            yaml.dump(type_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+    config = {
+        "wiki_name": payload.wiki_name,
+        "org_name": payload.org_name,
+        "setup_complete": True,
+    }
+    with open(os.path.join(schema_dir, "wiki_config.json"), "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+
+
 def suggest_schema_llm(org_name: str, org_description: str, llm) -> SuggestedSchema:
     from langchain_core.output_parsers import PydanticOutputParser
     from langchain_core.prompts import ChatPromptTemplate
