@@ -153,14 +153,14 @@ const App: React.FC = () => {
       case 'Chat':
         return (
           <div className="p-12 max-w-4xl mx-auto h-full flex flex-col">
-            <h1 className="text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">AI Assistant</h1>
-            <p className="text-xl text-gray-500 mb-8 leading-relaxed">
+            <h1 className="text-4xl font-extrabold text-gray-900 dark:text-gray-100 mb-6 tracking-tight">AI Assistant</h1>
+            <p className="text-xl text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
               Ask questions about your data. The AI synthesises answers from wiki pages and cites sources.
             </p>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex-grow flex flex-col overflow-hidden mb-8">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex-grow flex flex-col overflow-hidden mb-8">
               <div className="flex-grow overflow-y-auto p-6 space-y-4">
                 {chatHistory.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
+                  <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 space-y-4">
                     <MessageSquare className="w-12 h-12 opacity-20" />
                     <p>Start a conversation with your Wiki</p>
                   </div>
@@ -182,7 +182,7 @@ const App: React.FC = () => {
                         <div className={`max-w-[80%] px-5 py-3 rounded-2xl ${
                           msg.role === 'user'
                             ? 'bg-blue-600 text-white rounded-tr-none'
-                            : 'bg-gray-100 text-gray-800 rounded-tl-none prose prose-sm prose-slate max-w-none'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-tl-none prose prose-sm prose-slate dark:prose-invert max-w-none'
                         }`}>
                           {msg.role === 'user' ? (
                             <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
@@ -231,7 +231,7 @@ const App: React.FC = () => {
                 )}
                 <div ref={chatBottomRef} />
               </div>
-              <div className="p-4 bg-gray-50 border-t">
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                 <div className="relative">
                   <input
                     type="text"
@@ -240,7 +240,7 @@ const App: React.FC = () => {
                     onKeyDown={(e) => e.key === 'Enter' && handleChat()}
                     placeholder="Ask a question..."
                     disabled={chatLoading}
-                    className="w-full px-6 py-4 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all pr-16"
+                    className="w-full px-6 py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all pr-16 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                   <button
                     onClick={handleChat}
@@ -283,7 +283,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans antialiased text-gray-900 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-950 font-sans antialiased text-gray-900 dark:text-gray-100 overflow-hidden">
       {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div
@@ -315,21 +315,21 @@ const App: React.FC = () => {
       </div>
 
       <main className="flex-grow flex flex-col overflow-hidden relative w-full">
-        <div className="bg-white border-b px-4 py-4 flex items-center shrink-0 z-30 relative shadow-sm">
+        <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-4 flex items-center shrink-0 z-30 relative shadow-sm">
           <button
             onClick={() => {
               if (window.innerWidth < 768) setMobileMenuOpen(true);
               else setSidebarOpen(prev => !prev);
             }}
-            className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg flex items-center justify-center transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
+            className="p-2 -ml-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg flex items-center justify-center transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
             aria-label="Toggle Navigation"
           >
             <Menu className="w-6 h-6" />
           </button>
           {!sidebarOpen && (
-            <span className="hidden md:ml-4 font-bold text-gray-800 md:inline-block">{wikiName}</span>
+            <span className="hidden md:ml-4 font-bold text-gray-800 dark:text-gray-200 md:inline-block">{wikiName}</span>
           )}
-          <span className="ml-4 font-bold text-gray-800 md:hidden">{wikiName}</span>
+          <span className="ml-4 font-bold text-gray-800 dark:text-gray-200 md:hidden">{wikiName}</span>
         </div>
         <div className="flex-grow overflow-hidden relative h-full">
           {renderContent()}
