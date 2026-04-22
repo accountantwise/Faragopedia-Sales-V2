@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
+import SetupWizard from './components/SetupWizard';
 import WikiView from './components/WikiView';
 import SourcesView from './components/SourcesView';
 import ArchiveView from './components/ArchiveView';
@@ -9,6 +10,10 @@ import ReactMarkdown from 'react-markdown';
 import { API_BASE } from './config';
 
 const App: React.FC = () => {
+  const [setupState, setSetupState] = useState<'loading' | 'required' | 'ready'>('loading');
+  const [wikiName, setWikiName] = useState('Wiki');
+  const [reconfigureMode, setReconfigureMode] = useState(false);
+  const [existingFolders, setExistingFolders] = useState<string[]>([]);
   const [currentView, setCurrentView] = useState('Wiki');
   const [chatQuery, setChatQuery] = useState('');
   const [chatHistory, setChatHistory] = useState<{ id: number, role: 'user' | 'assistant', content: string }[]>([]);
@@ -19,6 +24,21 @@ const App: React.FC = () => {
   const prevMetadataRef = useRef<Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }>>({});
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Setup status check — must be first useEffect
+  useEffect(() => {
+    fetch(`${API_BASE}/setup/status`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.setup_required) {
+          setSetupState('required');
+        } else {
+          setWikiName(data.wiki_name || 'Wiki');
+          setSetupState('ready');
+        }
+      })
+      .catch(() => setSetupState('required'));
+  }, []);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,7 +56,7 @@ const App: React.FC = () => {
         const res = await fetch(`${API_BASE}/sources/metadata`);
         if (!res.ok) return;
         const data: Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }> = await res.json();
-        
+
         // Fire toast for any source that just became ingested
         const prev = prevMetadataRef.current;
         Object.entries(data).forEach(([filename, meta]) => {
@@ -44,7 +64,7 @@ const App: React.FC = () => {
             addToast(`"${filename}" ingested successfully.`);
           }
         });
-        
+
         prevMetadataRef.current = data;
         setSourcesMetadata(data);
       } catch (err) {
@@ -56,6 +76,26 @@ const App: React.FC = () => {
     const interval = setInterval(fetchMetadata, 5000);
     return () => clearInterval(interval);
   }, [addToast]);
+
+  const handleSetupComplete = async () => {
+    const res = await fetch(`${API_BASE}/setup/config`);
+    if (res.ok) {
+      const data = await res.json();
+      setWikiName(data.wiki_name);
+    }
+    setReconfigureMode(false);
+    setSetupState('ready');
+  };
+
+  const handleReconfigure = async () => {
+    const res = await fetch(`${API_BASE}/setup/clear`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      setExistingFolders(data.existing_folders);
+    }
+    setReconfigureMode(true);
+    setSetupState('required');
+  };
 
   const handleChat = async () => {
     if (!chatQuery.trim()) return;
@@ -134,11 +174,11 @@ const App: React.FC = () => {
                                     );
                                   }
                                   return (
-                                    <a 
-                                      {...props} 
-                                      className="text-blue-600 hover:underline" 
-                                      target="_blank" 
-                                      rel="noopener noreferrer" 
+                                    <a
+                                      {...props}
+                                      className="text-blue-600 hover:underline"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
                                     />
                                   );
                                 }
@@ -194,26 +234,48 @@ const App: React.FC = () => {
     }
   };
 
+  if (setupState === 'loading') {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (setupState === 'required') {
+    return (
+      <SetupWizard
+        onComplete={handleSetupComplete}
+        reconfigureMode={reconfigureMode}
+        existingFolders={existingFolders}
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen bg-gray-50 font-sans antialiased text-gray-900 overflow-hidden">
       {/* Mobile overlay */}
       {mobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
-      
+
       {/* Sidebar container */}
-      <div 
+      <div
         className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 h-screen bg-gray-800 overflow-hidden transition-all duration-300 ease-in-out transform ${
           mobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'
         } md:relative md:translate-x-0 ${sidebarOpen ? 'md:w-64' : 'md:w-0'}`}
       >
         <div className="w-64 h-full relative">
-          <Sidebar currentView={currentView} onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }} />
-          {/* Mobile close button */}
-          <button 
+          <Sidebar
+            currentView={currentView}
+            onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }}
+            wikiName={wikiName}
+            onReconfigure={handleReconfigure}
+          />
+          <button
             className="md:hidden absolute top-4 right-4 text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/80"
             onClick={() => setMobileMenuOpen(false)}
           >
@@ -223,25 +285,21 @@ const App: React.FC = () => {
       </div>
 
       <main className="flex-grow flex flex-col overflow-hidden relative w-full">
-        {/* Universal header area with hamburger toggle */}
         <div className="bg-white border-b px-4 py-4 flex items-center shrink-0 z-30 relative shadow-sm">
-          <button 
+          <button
             onClick={() => {
-              if (window.innerWidth < 768) {
-                setMobileMenuOpen(true);
-              } else {
-                setSidebarOpen(prev => !prev);
-              }
-            }} 
+              if (window.innerWidth < 768) setMobileMenuOpen(true);
+              else setSidebarOpen(prev => !prev);
+            }}
             className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg flex items-center justify-center transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
             aria-label="Toggle Navigation"
           >
             <Menu className="w-6 h-6" />
           </button>
           {!sidebarOpen && (
-             <span className="hidden md:ml-4 font-bold text-gray-800 md:inline-block">Faragopedia</span>
+            <span className="hidden md:ml-4 font-bold text-gray-800 md:inline-block">{wikiName}</span>
           )}
-          <span className="ml-4 font-bold text-gray-800 md:hidden">Faragopedia</span>
+          <span className="ml-4 font-bold text-gray-800 md:hidden">{wikiName}</span>
         </div>
         <div className="flex-grow overflow-hidden relative h-full">
           {renderContent()}
@@ -256,8 +314,8 @@ const App: React.FC = () => {
 const ToastContainer: React.FC<{ toasts: { id: number; message: string }[] }> = ({ toasts }) => (
   <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
     {toasts.map(t => (
-      <div 
-        key={t.id} 
+      <div
+        key={t.id}
         className="bg-gray-900/95 backdrop-blur text-white text-sm px-5 py-4 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 animate-in slide-in-from-right-full fade-in duration-300"
       >
         <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.5)]" />
