@@ -8,14 +8,14 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: 'var(--color-primary)',
-        'primary-hover': 'var(--color-primary-hover)',
-        'bg-base': 'var(--color-bg-base)',
-        'bg-sidebar': 'var(--color-bg-sidebar)',
-        'bg-elevated': 'var(--color-bg-elevated)',
-        'text-base': 'var(--color-text-base)',
-        'text-muted': 'var(--color-text-muted)',
-        'border-color': 'var(--color-border)',
+        primary: 'rgb(var(--color-primary) / <alpha-value>)',
+        'primary-hover': 'rgb(var(--color-primary-hover) / <alpha-value>)',
+        'bg-base': 'rgb(var(--color-bg-base) / <alpha-value>)',
+        'bg-sidebar': 'rgb(var(--color-bg-sidebar) / <alpha-value>)',
+        'bg-elevated': 'rgb(var(--color-bg-elevated) / <alpha-value>)',
+        'text-base': 'rgb(var(--color-text-base) / <alpha-value>)',
+        'text-muted': 'rgb(var(--color-text-muted) / <alpha-value>)',
+        'border-color': 'rgb(var(--color-border) / <alpha-value>)',
       }
     },
   },
