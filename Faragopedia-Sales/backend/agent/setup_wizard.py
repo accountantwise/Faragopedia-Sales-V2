@@ -4,6 +4,7 @@ import re
 
 import yaml
 from pydantic import BaseModel, field_validator
+from agent.schema_builder import build_schema_md
 
 
 # ── Pydantic models (shared with setup_routes.py via import) ──────────────────
@@ -189,3 +190,63 @@ def clear_setup(schema_dir: str, wiki_dir: str) -> list[str]:
             if os.path.isdir(full) and os.path.exists(os.path.join(full, "_type.yaml")):
                 folders.append(entry)
     return folders
+
+
+def complete_setup(schema_dir: str, wiki_dir: str, payload) -> None:
+    """Write all config files from a validated SetupPayload. Returns None; caller builds WikiManager."""
+    # 1. Write company_profile.md
+    profile_path = os.path.join(schema_dir, "company_profile.md")
+    with open(profile_path, "w", encoding="utf-8") as f:
+        f.write(f"# {payload.org_name}\n\n{payload.org_description}\n")
+
+    # 2. Write SCHEMA_TEMPLATE.md from BASE_SCHEMA_TEMPLATE
+    template_content = (
+        BASE_SCHEMA_TEMPLATE
+        .replace("{{ORG_NAME}}", payload.org_name)
+        .replace("{{ORG_DESCRIPTION}}", payload.org_description)
+    )
+    template_path = os.path.join(schema_dir, "SCHEMA_TEMPLATE.md")
+    with open(template_path, "w", encoding="utf-8") as f:
+        f.write(template_content)
+
+    # 3. Create entity folders and write _type.yaml per entity type
+    for et in payload.entity_types:
+        folder_path = os.path.join(wiki_dir, et.folder_name)
+        os.makedirs(folder_path, exist_ok=True)
+        type_data = {
+            "name": et.display_name,
+            "description": et.description,
+            "singular": et.singular,
+            "fields": [_field_to_dict(f) for f in et.fields],
+            "sections": et.sections,
+        }
+        yaml_path = os.path.join(folder_path, "_type.yaml")
+        with open(yaml_path, "w", encoding="utf-8") as f:
+            yaml.dump(type_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+    # 4. Build SCHEMA.md
+    schema_md = build_schema_md(wiki_dir, template_path)
+    with open(os.path.join(schema_dir, "SCHEMA.md"), "w", encoding="utf-8") as f:
+        f.write(schema_md)
+
+    # 5. Write wiki_config.json
+    config = {
+        "wiki_name": payload.wiki_name,
+        "org_name": payload.org_name,
+        "setup_complete": True,
+    }
+    with open(os.path.join(schema_dir, "wiki_config.json"), "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+
+
+def _field_to_dict(field) -> dict:
+    d: dict = {"name": field.name, "type": field.type}
+    if field.required is not None:
+        d["required"] = field.required
+    if field.values is not None:
+        d["values"] = field.values
+    if field.default is not None:
+        d["default"] = field.default
+    if field.description is not None:
+        d["description"] = field.description
+    return d

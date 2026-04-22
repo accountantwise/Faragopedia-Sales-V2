@@ -3,7 +3,17 @@ import os
 import tempfile
 from unittest.mock import patch
 from agent.wiki_manager import WikiManager
-from agent.setup_wizard import is_setup_complete, get_wiki_config, migrate_existing, clear_setup
+import yaml
+from agent.setup_wizard import (
+    is_setup_complete,
+    get_wiki_config,
+    migrate_existing,
+    clear_setup,
+    complete_setup,
+    EntityTypeDefinition,
+    EntityTypeField,
+    SetupPayload,
+)
 
 def test_wiki_manager_init_without_schema_files():
     """WikiManager should not crash when SCHEMA.md and company_profile.md are absent."""
@@ -88,3 +98,78 @@ def test_clear_setup_removes_config_and_returns_folders(tmp_path):
     assert not (schema_dir / "wiki_config.json").exists()
     assert "clients" in folders
     assert "productions" not in folders  # no _type.yaml
+
+
+def _make_payload(**kwargs):
+    defaults = dict(
+        wiki_name="TestWiki",
+        org_name="Test Org",
+        org_description="A test organisation.",
+        entity_types=[
+            EntityTypeDefinition(
+                folder_name="clients",
+                display_name="Clients",
+                description="Client organisations",
+                singular="client",
+                fields=[
+                    EntityTypeField(name="name", type="string", required=True),
+                    EntityTypeField(name="status", type="enum", values=["active", "inactive"]),
+                ],
+                sections=["Overview", "Notes"],
+            )
+        ],
+    )
+    defaults.update(kwargs)
+    return SetupPayload(**defaults)
+
+
+def test_complete_setup_writes_all_files(tmp_path):
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    payload = _make_payload()
+
+    complete_setup(str(schema_dir), str(wiki_dir), payload)
+
+    assert (schema_dir / "wiki_config.json").exists()
+    assert (schema_dir / "company_profile.md").exists()
+    assert (schema_dir / "SCHEMA_TEMPLATE.md").exists()
+    assert (schema_dir / "SCHEMA.md").exists()
+    assert (wiki_dir / "clients" / "_type.yaml").exists()
+
+
+def test_complete_setup_config_contents(tmp_path):
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    complete_setup(str(schema_dir), str(wiki_dir), _make_payload())
+    config = json.loads((schema_dir / "wiki_config.json").read_text())
+    assert config["wiki_name"] == "TestWiki"
+    assert config["org_name"] == "Test Org"
+    assert config["setup_complete"] is True
+
+
+def test_complete_setup_schema_template_substitution(tmp_path):
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    complete_setup(str(schema_dir), str(wiki_dir), _make_payload())
+    template = (schema_dir / "SCHEMA_TEMPLATE.md").read_text()
+    assert "Test Org" in template
+    assert "A test organisation." in template
+    assert "{{ORG_NAME}}" not in template
+
+
+def test_complete_setup_type_yaml_contents(tmp_path):
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    complete_setup(str(schema_dir), str(wiki_dir), _make_payload())
+    type_data = yaml.safe_load((wiki_dir / "clients" / "_type.yaml").read_text())
+    assert type_data["name"] == "Clients"
+    assert type_data["singular"] == "client"
+    assert any(f["name"] == "name" for f in type_data["fields"])
