@@ -11,6 +11,7 @@ from agent.setup_wizard import (
     SuggestedSchema,  # noqa: F401
     clear_setup,
     complete_setup,
+    get_existing_folders,
     get_wiki_config,
     is_setup_complete,
     suggest_schema_llm,
@@ -44,6 +45,11 @@ def setup_config():
     if not config:
         raise HTTPException(status_code=404, detail="Wiki not configured")
     return {"wiki_name": config.get("wiki_name", ""), "org_name": config.get("org_name", "")}
+
+
+@setup_router.get("/folders")
+def setup_folders():
+    return {"existing_folders": get_existing_folders(WIKI_DIR)}
 
 
 @setup_router.post("/suggest-schema")

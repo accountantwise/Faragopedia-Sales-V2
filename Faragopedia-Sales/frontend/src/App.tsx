@@ -88,13 +88,20 @@ const App: React.FC = () => {
   };
 
   const handleReconfigure = async () => {
-    const res = await fetch(`${API_BASE}/setup/clear`, { method: 'POST' });
+    // We use /folders (GET) instead of /clear (POST) to avoid deleting
+    // the wiki_config.json until the user actually completes the wizard.
+    const res = await fetch(`${API_BASE}/setup/folders`);
     if (res.ok) {
       const data = await res.json();
       setExistingFolders(data.existing_folders);
     }
     setReconfigureMode(true);
     setSetupState('required');
+  };
+
+  const handleSetupCancel = () => {
+    setReconfigureMode(false);
+    setSetupState('ready');
   };
 
   const handleChat = async () => {
@@ -246,6 +253,7 @@ const App: React.FC = () => {
     return (
       <SetupWizard
         onComplete={handleSetupComplete}
+        onCancel={handleSetupCancel}
         reconfigureMode={reconfigureMode}
         existingFolders={existingFolders}
       />

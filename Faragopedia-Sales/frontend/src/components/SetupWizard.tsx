@@ -24,6 +24,7 @@ interface EntityType {
 
 interface SetupWizardProps {
   onComplete: () => void;
+  onCancel?: () => void;
   reconfigureMode?: boolean;
   existingFolders?: string[];
 }
@@ -321,13 +322,23 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, reconfigureMode =
             </div>
           </div>
 
-          <button
-            onClick={handleGenerateSchema}
-            disabled={!wikiName.trim() || !orgName.trim() || !orgDescription.trim() || llmLoading}
-            className="mt-6 w-full bg-blue-600 text-white rounded-lg py-2.5 font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {llmLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating schema...</> : 'Generate Schema →'}
-          </button>
+          <div className="flex gap-3">
+            {reconfigureMode && onCancel && (
+              <button
+                onClick={onCancel}
+                className="mt-6 flex-1 border border-gray-300 text-gray-600 rounded-lg py-2.5 font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              onClick={handleGenerateSchema}
+              disabled={!wikiName.trim() || !orgName.trim() || !orgDescription.trim() || llmLoading}
+              className={`mt-6 ${reconfigureMode ? 'flex-[2]' : 'w-full'} bg-blue-600 text-white rounded-lg py-2.5 font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+            >
+              {llmLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating schema...</> : 'Generate Schema →'}
+            </button>
+          </div>
         </div>
       </div>
     );

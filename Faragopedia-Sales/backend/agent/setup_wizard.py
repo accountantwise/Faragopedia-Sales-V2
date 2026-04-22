@@ -179,10 +179,8 @@ def migrate_existing(schema_dir: str) -> None:
             json.dump(config, f, indent=2)
 
 
-def clear_setup(schema_dir: str, wiki_dir: str) -> list[str]:
-    config_path = os.path.join(schema_dir, "wiki_config.json")
-    if os.path.exists(config_path):
-        os.remove(config_path)
+def get_existing_folders(wiki_dir: str) -> list[str]:
+    """Scan wiki_dir for valid entity folders (containing _type.yaml)."""
     folders = []
     if os.path.isdir(wiki_dir):
         for entry in sorted(os.listdir(wiki_dir)):
@@ -190,6 +188,13 @@ def clear_setup(schema_dir: str, wiki_dir: str) -> list[str]:
             if os.path.isdir(full) and os.path.exists(os.path.join(full, "_type.yaml")):
                 folders.append(entry)
     return folders
+
+
+def clear_setup(schema_dir: str, wiki_dir: str) -> list[str]:
+    config_path = os.path.join(schema_dir, "wiki_config.json")
+    if os.path.exists(config_path):
+        os.remove(config_path)
+    return get_existing_folders(wiki_dir)
 
 
 def complete_setup(schema_dir: str, wiki_dir: str, payload) -> None:
