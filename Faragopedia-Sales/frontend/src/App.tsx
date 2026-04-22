@@ -8,6 +8,7 @@ import LintView from './components/LintView';
 import { Loader2, MessageSquare, Send, Menu, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { API_BASE } from './config';
+import SettingsDrawer from './components/SettingsDrawer';
 
 const App: React.FC = () => {
   const [setupState, setSetupState] = useState<'loading' | 'required' | 'ready'>('loading');
@@ -25,6 +26,11 @@ const App: React.FC = () => {
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
+    return (localStorage.getItem('faragopedia-theme') as 'light' | 'dark' | 'system') ?? 'system';
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   // Setup status check — must be first useEffect
   useEffect(() => {
     fetch(`${API_BASE}/setup/status`)
@@ -39,6 +45,22 @@ const App: React.FC = () => {
       })
       .catch(() => setSetupState('required'));
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('faragopedia-theme', theme);
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else if (theme === 'light') {
+      root.classList.remove('dark');
+    } else {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      root.classList.toggle('dark', mq.matches);
+      const handler = (e: MediaQueryListEvent) => root.classList.toggle('dark', e.matches);
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
+    }
+  }, [theme]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -281,7 +303,7 @@ const App: React.FC = () => {
             currentView={currentView}
             onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }}
             wikiName={wikiName}
-            onReconfigure={handleReconfigure}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
           <button
             className="md:hidden absolute top-4 right-4 text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/80"
@@ -314,6 +336,13 @@ const App: React.FC = () => {
         </div>
         <ToastContainer toasts={toasts} />
       </main>
+      <SettingsDrawer
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        theme={theme}
+        onThemeChange={setTheme}
+        onReconfigure={() => { setSettingsOpen(false); handleReconfigure(); }}
+      />
     </div>
   );
 };

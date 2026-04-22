@@ -5,10 +5,10 @@ interface SidebarProps {
   currentView: string;
   onViewChange: (view: string) => void;
   wikiName: string;
-  onReconfigure: () => void;
+  onOpenSettings: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, wikiName, onReconfigure }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, wikiName, onOpenSettings }) => {
   const menuItems = [
     { name: 'Wiki', icon: <Book className="w-5 h-5" /> },
     { name: 'Sources', icon: <Layers className="w-5 h-5" /> },
@@ -46,17 +46,15 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, wikiName, 
         </ul>
       </nav>
 
-      <div className="p-4 border-t border-gray-700 space-y-2">
+      <div className="p-4 border-t border-gray-700 flex items-center justify-between">
+        <p className="text-xs text-gray-500 uppercase tracking-wider">{wikiName} v0.2.0</p>
         <button
-          onClick={onReconfigure}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 text-sm transition-colors"
+          onClick={onOpenSettings}
+          title="Settings"
+          className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
         >
-          <Settings className="w-4 h-4" />
-          Reconfigure Wiki
+          <Settings className="w-5 h-5" />
         </button>
-        <p className="text-xs text-gray-500 text-center uppercase tracking-wider">
-          {wikiName} v0.2.0
-        </p>
       </div>
     </div>
   );
