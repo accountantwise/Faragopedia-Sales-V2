@@ -5,6 +5,7 @@ import WikiView from './components/WikiView';
 import SourcesView from './components/SourcesView';
 import ArchiveView from './components/ArchiveView';
 import LintView from './components/LintView';
+import SettingsView from './components/SettingsView';
 import { Loader2, MessageSquare, Send, Menu, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { API_BASE } from './config';
@@ -131,14 +132,14 @@ const App: React.FC = () => {
       case 'Chat':
         return (
           <div className="p-12 max-w-4xl mx-auto h-full flex flex-col">
-            <h1 className="text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">AI Assistant</h1>
-            <p className="text-xl text-gray-500 mb-8 leading-relaxed">
+            <h1 className="text-4xl font-extrabold text-text-base mb-6 tracking-tight">AI Assistant</h1>
+            <p className="text-xl text-text-muted mb-8 leading-relaxed">
               Ask questions about your data. The AI synthesises answers from wiki pages and cites sources.
             </p>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex-grow flex flex-col overflow-hidden mb-8">
+            <div className="bg-bg-elevated rounded-2xl shadow-sm border border-border-color flex-grow flex flex-col overflow-hidden mb-8">
               <div className="flex-grow overflow-y-auto p-6 space-y-4">
                 {chatHistory.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
+                  <div className="h-full flex flex-col items-center justify-center text-text-muted space-y-4">
                     <MessageSquare className="w-12 h-12 opacity-20" />
                     <p>Start a conversation with your Wiki</p>
                   </div>
@@ -159,8 +160,8 @@ const App: React.FC = () => {
                       <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] px-5 py-3 rounded-2xl ${
                           msg.role === 'user'
-                            ? 'bg-blue-600 text-white rounded-tr-none'
-                            : 'bg-gray-100 text-gray-800 rounded-tl-none prose prose-sm prose-slate max-w-none'
+                            ? 'bg-primary text-white rounded-tr-none'
+                            : 'bg-bg-base text-text-base rounded-tl-none prose prose-sm max-w-none dark:prose-invert'
                         }`}>
                           {msg.role === 'user' ? (
                             <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
@@ -201,15 +202,15 @@ const App: React.FC = () => {
                 )}
                 {chatLoading && (
                   <div className="flex justify-start">
-                    <div className="bg-gray-100 px-5 py-3 rounded-2xl rounded-tl-none flex items-center space-x-2">
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-                      <span className="text-sm text-gray-500">AI is thinking...</span>
+                    <div className="bg-bg-base px-5 py-3 rounded-2xl rounded-tl-none flex items-center space-x-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-text-muted" />
+                      <span className="text-sm text-text-muted">AI is thinking...</span>
                     </div>
                   </div>
                 )}
                 <div ref={chatBottomRef} />
               </div>
-              <div className="p-4 bg-gray-50 border-t">
+              <div className="p-4 bg-bg-base border-t border-border-color">
                 <div className="relative">
                   <input
                     type="text"
@@ -218,12 +219,12 @@ const App: React.FC = () => {
                     onKeyDown={(e) => e.key === 'Enter' && handleChat()}
                     placeholder="Ask a question..."
                     disabled={chatLoading}
-                    className="w-full px-6 py-4 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all pr-16"
+                    className="w-full px-6 py-4 bg-bg-elevated text-text-base border border-border-color rounded-xl focus:outline-none focus:ring-2 focus:ring-primary transition-all pr-16"
                   />
                   <button
                     onClick={handleChat}
                     disabled={chatLoading || !chatQuery.trim()}
-                    className="absolute right-3 top-3 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    className="absolute right-3 top-3 bg-primary text-white p-2 rounded-lg hover:bg-primary-hover transition-colors disabled:bg-border-color disabled:cursor-not-allowed"
                   >
                     <Send className="w-5 h-5" />
                   </button>
@@ -236,6 +237,8 @@ const App: React.FC = () => {
         return <ArchiveView />;
       case 'Lint':
         return <LintView />;
+      case 'Settings':
+        return <SettingsView />;
       default:
         return <div className="p-8">Select a view</div>;
     }
@@ -261,7 +264,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans antialiased text-gray-900 overflow-hidden">
+    <div className="flex h-screen bg-bg-base font-sans antialiased text-text-base overflow-hidden transition-colors duration-200">
       {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div
@@ -271,8 +274,8 @@ const App: React.FC = () => {
       )}
 
       {/* Sidebar container */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 h-screen bg-gray-800 overflow-hidden transition-all duration-300 ease-in-out transform ${
+      <div 
+        className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 h-screen bg-bg-sidebar overflow-hidden transition-all duration-300 ease-in-out transform ${
           mobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'
         } md:relative md:translate-x-0 ${sidebarOpen ? 'md:w-64' : 'md:w-0'}`}
       >
@@ -283,8 +286,9 @@ const App: React.FC = () => {
             wikiName={wikiName}
             onReconfigure={handleReconfigure}
           />
-          <button
-            className="md:hidden absolute top-4 right-4 text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/80"
+          {/* Mobile close button */}
+          <button 
+            className="md:hidden absolute top-4 right-4 text-gray-400 hover:text-white p-2 rounded-lg bg-white/10"
             onClick={() => setMobileMenuOpen(false)}
           >
             <X className="w-6 h-6" />
@@ -293,21 +297,25 @@ const App: React.FC = () => {
       </div>
 
       <main className="flex-grow flex flex-col overflow-hidden relative w-full">
-        <div className="bg-white border-b px-4 py-4 flex items-center shrink-0 z-30 relative shadow-sm">
-          <button
+        {/* Universal header area with hamburger toggle */}
+        <div className="bg-bg-elevated border-b border-border-color px-4 py-4 flex items-center shrink-0 z-30 relative shadow-sm transition-colors">
+          <button 
             onClick={() => {
-              if (window.innerWidth < 768) setMobileMenuOpen(true);
-              else setSidebarOpen(prev => !prev);
-            }}
-            className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg flex items-center justify-center transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
+              if (window.innerWidth < 768) {
+                setMobileMenuOpen(true);
+              } else {
+                setSidebarOpen(prev => !prev);
+              }
+            }} 
+            className="p-2 -ml-2 text-text-muted hover:bg-bg-base rounded-lg flex items-center justify-center transition-colors focus:ring-2 focus:ring-primary outline-none"
             aria-label="Toggle Navigation"
           >
             <Menu className="w-6 h-6" />
           </button>
           {!sidebarOpen && (
-            <span className="hidden md:ml-4 font-bold text-gray-800 md:inline-block">{wikiName}</span>
+            <span className="hidden md:ml-4 font-bold text-text-base md:inline-block">{wikiName}</span>
           )}
-          <span className="ml-4 font-bold text-gray-800 md:hidden">{wikiName}</span>
+          <span className="ml-4 font-bold text-text-base md:hidden">{wikiName}</span>
         </div>
         <div className="flex-grow overflow-hidden relative h-full">
           {renderContent()}
