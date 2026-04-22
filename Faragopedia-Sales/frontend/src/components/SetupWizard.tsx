@@ -220,7 +220,7 @@ const EntityCard: React.FC<{
 
 // ── Main SetupWizard component ────────────────────────────────────────────────
 
-const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, reconfigureMode = false, existingFolders = [] }) => {
+const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfigureMode = false, existingFolders = [] }) => {
   const [step, setStep] = useState(1);
   const [wikiName, setWikiName] = useState('');
   const [orgName, setOrgName] = useState('');
