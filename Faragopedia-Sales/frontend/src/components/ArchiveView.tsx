@@ -115,7 +115,7 @@ const ArchiveView: React.FC = () => {
                       onClick={() => handleRestore(page, 'page')}
                       disabled={!!actionLoading}
                       title="Restore"
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                     >
                       {actionLoading === `page-restore-${page}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                     </button>
@@ -123,7 +123,7 @@ const ArchiveView: React.FC = () => {
                       onClick={() => handleDeletePermanent(page, 'page')}
                       disabled={!!actionLoading}
                       title="Delete Permanently"
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                     >
                       {actionLoading === `page-delete-${page}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                     </button>
@@ -157,7 +157,7 @@ const ArchiveView: React.FC = () => {
                       onClick={() => handleRestore(source, 'source')}
                       disabled={!!actionLoading}
                       title="Restore"
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                     >
                       {actionLoading === `source-restore-${source}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                     </button>
@@ -165,7 +165,7 @@ const ArchiveView: React.FC = () => {
                       onClick={() => handleDeletePermanent(source, 'source')}
                       disabled={!!actionLoading}
                       title="Delete Permanently"
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                     >
                       {actionLoading === `source-delete-${source}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                     </button>

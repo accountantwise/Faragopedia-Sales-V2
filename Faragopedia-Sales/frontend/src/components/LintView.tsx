@@ -243,7 +243,7 @@ const LintView: React.FC = () => {
             })}
 
             {report.findings.length === 0 && (
-              <p className="text-green-600 font-medium">Wiki is clean — no issues found.</p>
+              <p className="text-green-600 dark:text-green-400 font-medium">Wiki is clean — no issues found.</p>
             )}
 
             {selected.size > 0 && (
