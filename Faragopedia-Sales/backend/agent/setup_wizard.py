@@ -239,6 +239,38 @@ def complete_setup(schema_dir: str, wiki_dir: str, payload) -> None:
         json.dump(config, f, indent=2)
 
 
+def suggest_schema_llm(org_name: str, org_description: str, llm) -> SuggestedSchema:
+    from langchain_core.output_parsers import PydanticOutputParser
+    from langchain_core.prompts import ChatPromptTemplate
+
+    parser = PydanticOutputParser(pydantic_object=SuggestedSchema)
+
+    system = (
+        "You are a wiki schema designer. Given a description of an organisation, "
+        "design the entity types that the wiki should track. Each entity type becomes a folder.\n\n"
+        "Rules:\n"
+        "- 3–7 entity types; fewer is better\n"
+        "- Each field must have name and type (string | date | integer | enum | list)\n"
+        "- Enum fields must have a values list\n"
+        "- folder_name must be plural, lowercase, hyphen-separated (e.g. 'project-clients')\n"
+        "- singular is the lowercase singular form\n"
+        "- Every entity type must have a 'name' field (type: string, required: true) as the first field\n"
+        "- Sections are markdown heading names for the page template\n"
+    )
+    human = (
+        "Organisation: {org_name}\nDescription: {org_description}\n\n"
+        "Design the wiki entity types for this organisation.\n{format_instructions}"
+    )
+
+    prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
+    chain = prompt | llm | parser
+    return chain.invoke({
+        "org_name": org_name,
+        "org_description": org_description,
+        "format_instructions": parser.get_format_instructions(),
+    })
+
+
 def _field_to_dict(field) -> dict:
     d: dict = {"name": field.name, "type": field.type}
     if field.required is not None:
