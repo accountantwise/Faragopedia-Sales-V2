@@ -1,0 +1,191 @@
+import json
+import os
+import re
+
+import yaml
+from pydantic import BaseModel, field_validator
+
+
+# ── Pydantic models (shared with setup_routes.py via import) ──────────────────
+
+class EntityTypeField(BaseModel):
+    name: str
+    type: str  # string | date | integer | enum | list
+    default: str | None = None
+    required: bool | None = None
+    values: list[str] | None = None
+    description: str | None = None
+
+
+class EntityTypeDefinition(BaseModel):
+    folder_name: str
+    display_name: str
+    description: str
+    singular: str
+    fields: list[EntityTypeField]
+    sections: list[str]
+
+    @field_validator("folder_name")
+    @classmethod
+    def folder_name_slug(cls, v: str) -> str:
+        if not re.match(r"^[a-z][a-z0-9-]*$", v):
+            raise ValueError("folder_name must be lowercase alphanumeric with hyphens")
+        return v
+
+
+class SuggestedSchema(BaseModel):
+    entity_types: list[EntityTypeDefinition]
+
+
+class SuggestRequest(BaseModel):
+    org_name: str
+    org_description: str
+
+
+class SetupPayload(BaseModel):
+    wiki_name: str
+    org_name: str
+    org_description: str
+    entity_types: list[EntityTypeDefinition]
+
+
+BASE_SCHEMA_TEMPLATE = """\
+# SCHEMA.md — {{ORG_NAME}} LLM Wiki
+
+This file is the operating manual for the LLM wiki agent. Read it at the start of every session before taking any action.
+
+---
+
+## Identity
+
+You are the wiki agent for {{ORG_NAME}}. {{ORG_DESCRIPTION}}
+
+Your role: maintain a persistent, compounding knowledge base. You write and maintain all wiki pages. The human curates sources and directs analysis.
+
+Read `company_profile.md` if you need full company context.
+
+---
+
+## Session Start Protocol
+
+At the start of EVERY session, before responding to any request:
+
+1. Read `SCHEMA.md` (this file)
+2. Read `index.md` to load current wiki state
+3. Read the last 10 entries of `log.md` to understand recent activity
+
+---
+
+## Directory Structure
+
+```
+Wiki/
+├── SCHEMA.md              # This file — LLM operating manual
+├── index.md               # Master catalog of all wiki pages
+├── log.md                 # Append-only chronological log
+├── company_profile.md     # Organisation profile (IMMUTABLE — never modify)
+│
+{{ENTITY_TYPES_DIRECTORY}}
+└── sources/               # Immutable raw source documents (human drops here — never modify)
+    └── assets/            # Downloaded images
+```
+
+---
+
+## Immutable Files
+
+NEVER modify these files under any circumstances:
+- `sources/` — all files and subdirectories
+- `company_profile.md`
+
+---
+
+## Page Schemas
+
+All wiki pages use YAML frontmatter for Obsidian Dataview compatibility. Use wikilink syntax (`[[page-name]]`) for all cross-references.
+
+{{ENTITY_TYPES_SCHEMAS}}
+
+## Operations
+
+### Ingest
+**Trigger:** User says "ingest [source]" or "ingest [filename]"
+
+1. Read the source file from `sources/`
+2. Discuss key takeaways with the user
+3. Create or update all touched entity pages — check the Directory Structure above for available folders
+4. Update `index.md` — add any new pages, update summaries of changed pages
+5. Append to `log.md`: `## [YYYY-MM-DD] ingest | [source title]` followed by a 2–3 line summary of what was updated
+
+A single source may touch 5–15 wiki pages. Update all of them.
+
+---
+
+### Query
+**Trigger:** Any question about any entity in the wiki
+
+1. Read `index.md` to identify the most relevant pages
+2. Read those pages in full
+3. Synthesize a clear answer with inline wikilink citations (`[[page-name]]`)
+4. If the answer is valuable enough to keep, offer to file it as a new wiki page
+5. Append to `log.md`: `## [YYYY-MM-DD] query | [topic]`
+
+---
+
+### Lint
+**Trigger:** User says "lint"
+
+1. Read all pages listed in `index.md`
+2. Scan for orphan pages, contradictions, missing entities, data gaps
+3. Append to `log.md`: `## [YYYY-MM-DD] lint | [brief summary of findings]`
+
+---
+
+## General Rules
+
+1. **Never modify** `sources/` or `company_profile.md`
+2. **Always use wikilinks** — cite cross-references as `[[page-name]]` not plain text
+3. **Prefer updating over creating** — update an existing page before creating a new one
+4. **Keep index.md current** — update it on every ingest operation
+5. **Keep log.md current** — append an entry on every ingest, query, and lint operation
+6. **Frontmatter always** — every wiki page must have valid YAML frontmatter matching its schema
+7. **File naming** — lowercase, hyphen-separated: `acme-corp.md`, `jane-smith.md`
+"""
+
+
+def is_setup_complete(schema_dir: str) -> bool:
+    return os.path.exists(os.path.join(schema_dir, "wiki_config.json"))
+
+
+def get_wiki_config(schema_dir: str) -> dict | None:
+    path = os.path.join(schema_dir, "wiki_config.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def migrate_existing(schema_dir: str) -> None:
+    config_path = os.path.join(schema_dir, "wiki_config.json")
+    profile_path = os.path.join(schema_dir, "company_profile.md")
+    if os.path.exists(profile_path) and not os.path.exists(config_path):
+        config = {
+            "wiki_name": "Faragopedia",
+            "org_name": "Farago Projects",
+            "setup_complete": True,
+        }
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+
+def clear_setup(schema_dir: str, wiki_dir: str) -> list[str]:
+    config_path = os.path.join(schema_dir, "wiki_config.json")
+    if os.path.exists(config_path):
+        os.remove(config_path)
+    folders = []
+    if os.path.isdir(wiki_dir):
+        for entry in sorted(os.listdir(wiki_dir)):
+            full = os.path.join(wiki_dir, entry)
+            if os.path.isdir(full) and os.path.exists(os.path.join(full, "_type.yaml")):
+                folders.append(entry)
+    return folders
