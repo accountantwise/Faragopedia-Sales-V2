@@ -1087,10 +1087,10 @@ const WikiView: React.FC = () => {
               <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-800/30 -mx-8 mb-4">
                 {pageTags.map(tag => (
                   <span key={tag}
-                        className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800 shadow-sm">
+                        className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 shadow-sm font-medium">
                     {tag}
                     <button onClick={() => handleRemoveTag(tag)}
-                            className="text-blue-400 hover:text-blue-200 ml-1 leading-none">×</button>
+                            className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-200 ml-1 leading-none">×</button>
                   </span>
                 ))}
                 {addingTag ? (
@@ -1121,12 +1121,12 @@ const WikiView: React.FC = () => {
                 )}
                 {/* AI suggestion chips */}
                 {suggestedTags.map(tag => (
-                  <span key={tag} className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-900/30 text-green-400 border border-green-800 shadow-sm">
+                  <span key={tag} className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-100 dark:border-green-800 shadow-sm font-medium">
                     ✦ {tag}
                     <button onClick={() => handleAcceptSuggestedTag(tag)}
-                            className="text-green-400 hover:text-green-200 font-medium">Accept</button>
+                            className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 font-bold ml-1">Accept</button>
                     <button onClick={() => setSuggestedTags(prev => prev.filter(t => t !== tag))}
-                            className="text-green-500 hover:text-green-300">×</button>
+                            className="text-green-500 dark:text-green-500 hover:text-green-700 dark:hover:text-green-300 ml-1">×</button>
                   </span>
                 ))}
               </div>

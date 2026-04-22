@@ -1,0 +1,231 @@
+# Plan: First-Run Setup Wizard (Company-Agnostic Wiki)
+
+## Context
+
+`Faragopedia-Sales` is a full-stack AI-assisted wiki (FastAPI backend + React/Vite frontend). It is currently hardwired to Farago Projects in three ways:
+
+1. `backend/schema/company_profile.md` — Farago company biography, loaded verbatim into every LLM call
+2. `backend/schema/SCHEMA_TEMPLATE.md` — hardcoded "Farago Projects" identity section
+3. `backend/agent/schema_builder.py:_DEFAULT_TYPE_YAMLS` — five Farago-specific entity types (clients, contacts, photographers, productions, prospects)
+4. `frontend/src/App.tsx` and `frontend/src/components/Sidebar.tsx` — hardcoded name "Faragopedia"
+
+The infrastructure is already well-designed for generality: `_type.yaml` per entity folder drives SCHEMA.md generation, and `schema_builder.py` already handles dynamic type discovery. We just need a first-run wizard to configure those files rather than shipping them pre-filled with Farago details.
+
+---
+
+## Setup Sentinel
+
+`backend/schema/wiki_config.json` — file presence = setup complete.
+
+```json
+{ "wiki_name": "string", "org_name": "string", "setup_complete": true }
+```
+
+**Backward-compat migration path:** if `company_profile.md` exists but `wiki_config.json` doesn't (existing Farago deployments), auto-generate `wiki_config.json` with Farago defaults on startup — wizard never shows.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Browser loads App.tsx                                          │
+│   └─ GET /api/setup/status                                      │
+│       ├─ setup_required: false  → render normal app             │
+│       └─ setup_required: true   → render <SetupWizard />        │
+│                                     │                           │
+│                          [Step 1: Identity]                     │
+│                            wiki_name, org_name, org_description │
+│                                     │                           │
+│                            "Generate Schema" button             │
+│                          POST /api/setup/suggest-schema  ◄──────┤
+│                            LLM call → entity types JSON         │
+│                                     │                           │
+│                          [Step 2: Review & Edit Schema]         │
+│                            edit/add/remove entity types         │
+│                                     │                           │
+│                          [Step 3: Confirm + Launch]             │
+│                          POST /api/setup/complete               │
+│                                     │                           │
+└─────────────────────────────────────┼───────────────────────────┘
+                                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  setup_wizard.complete_setup()                                  │
+│   ├─ write company_profile.md                                   │
+│   ├─ write SCHEMA_TEMPLATE.md  (from generic base + org tokens) │
+│   ├─ mkdir + write _type.yaml  (per entity type)                │
+│   ├─ build_schema_md() → SCHEMA.md                             │
+│   ├─ write wiki_config.json                                     │
+│   └─ reinit_wiki_manager()  (reload routes.py singleton)        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Files
+
+### New files
+
+#### `backend/agent/setup_wizard.py`
+
+```
+is_setup_complete(schema_dir) -> bool          checks wiki_config.json
+get_wiki_config(schema_dir) -> dict | None     reads wiki_config.json
+migrate_existing(schema_dir) -> None           Farago migration: write wiki_config.json if
+                                               company_profile.md present, no config yet
+complete_setup(schema_dir, wiki_dir, payload)  main orchestrator:
+  1. write company_profile.md   (org_name + org_description)
+  2. fill BASE_SCHEMA_TEMPLATE  ({{ORG_NAME}}, {{ORG_DESCRIPTION}} tokens)
+     → write SCHEMA_TEMPLATE.md
+  3. for each entity_type: os.makedirs(wiki_dir/folder), write _type.yaml
+  4. build_schema_md(wiki_dir, schema_dir/SCHEMA_TEMPLATE.md) → write SCHEMA.md
+  5. write wiki_config.json
+```
+
+`BASE_SCHEMA_TEMPLATE` is a string constant in this file — identical structure to the current `SCHEMA_TEMPLATE.md` but with the Identity section using `{{ORG_NAME}}` and `{{ORG_DESCRIPTION}}` tokens rather than Farago-specific text.
+
+#### `backend/api/setup_routes.py`
+
+```
+GET  /api/setup/status         → { setup_required: bool, wiki_name?: str }
+GET  /api/setup/config         → { wiki_name: str, org_name: str }
+POST /api/setup/suggest-schema ← { org_name, org_description }
+  - builds LLM using same _init_llm() logic as WikiManager
+  - calls suggest_schema_llm(org_name, org_description) from setup_wizard.py
+  - returns { entity_types: [...] }
+  - returns 503 if no LLM provider is configured (frontend falls back to presets)
+POST /api/setup/complete       ← SetupPayload
+  - calls complete_setup()
+  - calls reinit_wiki_manager() (imported from api.routes)
+  - returns { success: true, wiki_name: str }
+```
+
+Pydantic models:
+```python
+class EntityTypeField(BaseModel):
+    name: str
+    type: str
+    default: str | None = None
+    required: bool | None = None
+    values: list[str] | None = None
+    description: str | None = None
+
+class EntityTypeDefinition(BaseModel):
+    folder_name: str   # validated: lowercase, hyphen-separated
+    display_name: str
+    description: str
+    singular: str
+    fields: list[EntityTypeField]
+    sections: list[str]
+
+class SuggestedSchema(BaseModel):
+    entity_types: list[EntityTypeDefinition]
+
+class SuggestRequest(BaseModel):
+    org_name: str
+    org_description: str
+
+class SetupPayload(BaseModel):
+    wiki_name: str
+    org_name: str
+    org_description: str
+    entity_types: list[EntityTypeDefinition]
+```
+
+#### `backend/agent/setup_wizard.py` — LLM suggestion function
+
+New function `suggest_schema_llm(org_name, org_description, llm) -> SuggestedSchema`:
+
+```python
+SUGGEST_SYSTEM = """You are a wiki schema designer. Given a description of an organisation,
+design the entity types that the wiki should track. Each entity type becomes a folder in the wiki.
+
+Rules:
+- 3–7 entity types is the right range; fewer is better
+- Each field must have a name and type (string | date | integer | enum | list)
+- Enum fields must have a values list
+- Sections are markdown heading names for the page template
+- folder_name must be plural, lowercase, hyphen-separated (e.g. "project-clients")
+- singular is the lowercase singular form (e.g. "project-client")
+- Every entity type should have a "name" field (type: string, required: true) as the first field
+"""
+
+SUGGEST_HUMAN = """Organisation: {org_name}
+Description: {org_description}
+
+Design the wiki entity types for this organisation.
+{format_instructions}"""
+```
+
+Uses `PydanticOutputParser(pydantic_object=SuggestedSchema)` from LangChain (already a dependency). The LLM is instantiated using the same `_init_llm()` helper extracted from WikiManager.
+
+#### `frontend/src/components/SetupWizard.tsx`
+
+3-step full-screen wizard:
+
+- **Step 1 — Identity**: `wiki_name` text, `org_name` text, `org_description` textarea. "Generate Schema →" button at the bottom.
+  - On click: calls `POST /api/setup/suggest-schema` with a loading spinner
+  - On success: entity types are pre-populated → advance to Step 2
+  - On 503/error: advance to Step 2 with empty list + show inline preset picker as fallback
+
+- **Step 2 — Schema Review & Edit**: shows LLM-generated entity types as editable cards. Each card shows folder_name, display_name, description, field list, sections. User can:
+  - Edit display_name, description, sections (simple inline text)
+  - Add new entity type (blank card)
+  - Remove entity type (×)
+  - Preset fallback buttons shown if LLM failed: "Creative Production / CRM / Research / Blank"
+
+- **Step 3 — Confirm**: read-only summary of folder structure → "Launch Wiki" → `POST /api/setup/complete` → `window.location.reload()`
+
+Preset packages (frontend constants, used only as fallback):
+- `Creative Production` → clients, contacts, photographers, productions, prospects
+- `CRM` → organisations, contacts, deals, notes
+- `Research` → topics, papers, authors, notes
+- `Blank` → empty list
+
+---
+
+### Modified files
+
+#### `backend/main.py`
+- Import `migrate_existing` from `agent.setup_wizard`, call it at startup with `schema_dir`
+- Import `setup_router` from `api.setup_routes`, register at prefix `/api/setup`
+
+#### `backend/api/routes.py`
+- Wrap the module-level `wiki_manager = WikiManager(...)` in `try/except`; on failure (missing SCHEMA.md), set `wiki_manager = None`
+- Add `reinit_wiki_manager()` function that recreates the singleton from the same `SOURCES_DIR`/`WIKI_DIR`/etc paths
+- All routes that use `wiki_manager` already fail on attribute access if it's None (500 error); optionally add an explicit `if wiki_manager is None: raise HTTPException(503, "Wiki not configured")` guard on the routes that the wizard does NOT touch (ingest, chat, lint, pages)
+
+#### `backend/agent/wiki_manager.py`
+- `_load_system_prompt()` (line 201): change `raise FileNotFoundError` to return a fallback stub string when files are absent, so `WikiManager.__init__` doesn't crash on fresh install before setup runs
+
+#### `frontend/src/App.tsx`
+- Add `setupRequired` state (bool, initial `null` = loading)
+- On mount: `GET /api/setup/status` → set state
+- If `setup_required: true`: render `<SetupWizard onComplete={() => window.location.reload()} />` full-screen instead of normal layout
+- Fetch `GET /api/setup/config` → store `wikiName`; pass as prop to `<Sidebar>`
+
+#### `frontend/src/components/Sidebar.tsx`
+- Accept `wikiName: string` prop; replace hardcoded `"Faragopedia"` strings with prop value (2 occurrences in App.tsx header + sidebar title)
+
+---
+
+## Key reuse
+
+- `schema_builder.build_schema_md()` (`backend/agent/schema_builder.py:194`) — called unchanged by `complete_setup()`
+- `schema_builder.discover_entity_types()` (line 122) — used unchanged for post-setup operation
+- `schema_builder.bootstrap_type_yamls()` (line 98) — still safe; it only writes if folder exists and has no `_type.yaml`; wizard creates both together so no collision
+- `WikiManager._init_llm()` (`backend/agent/wiki_manager.py:214`) — the LLM factory logic (reads `AI_PROVIDER`, `AI_MODEL`, env keys) is extracted or duplicated into `setup_wizard.py` so the suggest-schema endpoint can build an LLM without needing a full WikiManager instance. Alternatively, make `_init_llm` a standalone function imported by both.
+- `PydanticOutputParser` (LangChain, already in `requirements.txt`) — used to parse the LLM's JSON response for `SuggestedSchema`
+
+---
+
+## Verification
+
+1. **Fresh install test**: Remove `backend/schema/wiki_config.json` and `backend/schema/SCHEMA.md`. Clear `company_profile.md`. Start app → wizard appears.
+2. **LLM schema generation**: fill in Step 1 identity → click "Generate Schema" → loading spinner → Step 2 shows LLM-generated entity types relevant to the org description.
+3. **Manual edit**: add/remove an entity type in Step 2. Proceed through review → Launch.
+4. **Complete wizard**: "Launch Wiki" → backend writes all files, reinit occurs, page reloads → normal UI with wiki name from Step 1.
+5. **LLM fallback**: call suggest-schema with no `AI_PROVIDER` configured → 503 → Step 2 shows preset picker instead.
+6. **Farago migration**: restore files to current state (no `wiki_config.json`). Start app → `migrate_existing()` auto-creates `wiki_config.json` → wizard does not appear → normal Farago-configured wiki loads.
+7. **Dynamic name**: wiki name entered in wizard appears in sidebar and page header.
+8. **Tests**: existing backend tests unaffected (they construct WikiManager directly with explicit `schema_dir` pointing to real files).

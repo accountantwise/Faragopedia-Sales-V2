@@ -677,9 +677,9 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
           <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-800/30">
             {sourceTags.map(tag => (
               <span key={tag}
-                    className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800 shadow-sm">
+                    className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 shadow-sm font-medium">
                 {tag}
-                <button onClick={() => handleRemoveSourceTag(tag)} className="text-blue-400 hover:text-blue-200">×</button>
+                <button onClick={() => handleRemoveSourceTag(tag)} className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-200">×</button>
               </span>
             ))}
             {addingTag ? (

@@ -1,1 +1,0 @@
-Gamma test content for bulk operations testing.
