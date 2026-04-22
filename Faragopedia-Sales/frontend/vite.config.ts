@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: 5173,
-      allowedHosts: allowedHost ? [allowedHost] : [],
+      allowedHosts: true,
       proxy: {
         // This proxies all requests starting with /api to the backend container
         '/api': {
