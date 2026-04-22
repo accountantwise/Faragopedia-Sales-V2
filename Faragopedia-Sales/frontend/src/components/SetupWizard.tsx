@@ -84,26 +84,26 @@ const FieldEditor: React.FC<{
 }> = ({ field, onChange, onDelete }) => {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className="border border-gray-200 rounded-lg mb-1">
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg mb-1">
       <div
-        className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50"
+        className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
         onClick={() => setExpanded(e => !e)}
       >
         {expanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
-        <span className="text-sm flex-1 font-mono">{field.name || <span className="text-gray-400 italic">unnamed</span>}</span>
-        <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600">{field.type}</span>
-        {field.required && <span className="text-xs text-green-600">required</span>}
+        <span className="text-sm flex-1 font-mono text-gray-900 dark:text-gray-100">{field.name || <span className="text-gray-400 italic">unnamed</span>}</span>
+        <span className="text-xs px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{field.type}</span>
+        {field.required && <span className="text-xs text-green-600 dark:text-green-400">required</span>}
         <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-red-400 hover:text-red-600 ml-1"><Trash2 className="w-3 h-3" /></button>
       </div>
       {expanded && (
         <div className="px-3 pb-3 pt-1 grid grid-cols-2 gap-2 border-t border-gray-100">
           <div>
             <label className="text-xs text-gray-500 block mb-1">Name</label>
-            <input className="w-full border rounded px-2 py-1 text-sm" value={field.name} onChange={e => onChange({ ...field, name: e.target.value })} />
+            <input className="w-full border dark:border-gray-700 rounded px-2 py-1 text-sm dark:bg-gray-800 dark:text-white" value={field.name} onChange={e => onChange({ ...field, name: e.target.value })} />
           </div>
           <div>
             <label className="text-xs text-gray-500 block mb-1">Type</label>
-            <select className="w-full border rounded px-2 py-1 text-sm" value={field.type} onChange={e => onChange({ ...field, type: e.target.value as EntityField['type'] })}>
+            <select className="w-full border dark:border-gray-700 rounded px-2 py-1 text-sm dark:bg-gray-800 dark:text-white" value={field.type} onChange={e => onChange({ ...field, type: e.target.value as EntityField['type'] })}>
               {(['string', 'date', 'integer', 'enum', 'list'] as const).map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
@@ -407,23 +407,23 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
 
   if (step === 1) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-lg p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">{reconfigureMode ? 'Reconfigure Wiki' : 'Welcome — Set up your wiki'}</h1>
-          <p className="text-gray-500 mb-6 text-sm">Tell us about your organisation. We'll generate a schema tailored to what you track.</p>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-8">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 w-full max-w-lg p-8">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">{reconfigureMode ? 'Reconfigure Wiki' : 'Welcome — Set up your wiki'}</h1>
+          <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">Tell us about your organisation. We'll generate a schema tailored to what you track.</p>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Wiki name</label>
-              <input className="w-full border rounded-lg px-3 py-2" placeholder="e.g. Acme Wiki" value={wikiName} onChange={e => setWikiName(e.target.value)} />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Wiki name</label>
+              <input className="w-full border dark:border-gray-700 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white" placeholder="e.g. Acme Wiki" value={wikiName} onChange={e => setWikiName(e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Organisation name</label>
-              <input className="w-full border rounded-lg px-3 py-2" placeholder="e.g. Acme Corp" value={orgName} onChange={e => setOrgName(e.target.value)} />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organisation name</label>
+              <input className="w-full border dark:border-gray-700 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white" placeholder="e.g. Acme Corp" value={orgName} onChange={e => setOrgName(e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">What does your organisation do?</label>
-              <textarea className="w-full border rounded-lg px-3 py-2 resize-none" rows={4} placeholder="Describe your organisation and what kind of information you track..." value={orgDescription} onChange={e => setOrgDescription(e.target.value)} />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">What does your organisation do?</label>
+              <textarea className="w-full border dark:border-gray-700 rounded-lg px-3 py-2 resize-none dark:bg-gray-800 dark:text-white" rows={4} placeholder="Describe your organisation and what kind of information you track..." value={orgDescription} onChange={e => setOrgDescription(e.target.value)} />
             </div>
           </div>
 
@@ -455,17 +455,17 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
     const matchedFolders = new Set(entityTypes.map(et => et.folder_name));
 
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Review your schema</h1>
-          <p className="text-gray-500 text-sm mb-6">Edit entity types, fields, and sections. Add or remove types as needed.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">Review your schema</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">Edit entity types, fields, and sections. Add or remove types as needed.</p>
 
           {llmFailed && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-yellow-800 mb-3">LLM unavailable — choose a preset to get started:</p>
+            <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 rounded-lg p-4 mb-6">
+              <p className="text-sm text-yellow-800 dark:text-yellow-400 mb-3">LLM unavailable — choose a preset to get started:</p>
               <div className="flex flex-wrap gap-2">
                 {Object.keys(PRESETS).map(k => (
-                  <button key={k} onClick={() => setEntityTypes(PRESETS[k])} className="px-3 py-1.5 rounded-lg border border-yellow-300 text-sm text-yellow-800 hover:bg-yellow-100">{k}</button>
+                  <button key={k} onClick={() => setEntityTypes(PRESETS[k])} className="px-3 py-1.5 rounded-lg border border-yellow-300 dark:border-yellow-700 text-sm text-yellow-800 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/30">{k}</button>
                 ))}
               </div>
             </div>
@@ -490,7 +490,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
               })}
               <button
                 onClick={() => setEntityTypes([...entityTypes, blankEntityType()])}
-                className="w-full border-2 border-dashed border-gray-300 rounded-xl py-4 text-gray-400 hover:text-gray-600 hover:border-gray-400 flex items-center justify-center gap-2"
+                className="w-full border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl py-4 text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 hover:border-gray-400 dark:hover:border-gray-600 flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" /> Add entity type
               </button>
@@ -502,19 +502,19 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
                 {existingFolders.map(folder => {
                   const matched = matchedFolders.has(folder);
                   return (
-                    <div key={folder} className={`border rounded-lg p-3 mb-2 ${matched ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                      <div className="font-mono text-sm mb-1">{folder}</div>
+                    <div key={folder} className={`border rounded-lg p-3 mb-2 ${matched ? 'border-green-200 dark:border-green-900/30 bg-green-50 dark:bg-green-900/10' : 'border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10'}`}>
+                      <div className="font-mono text-sm mb-1 text-gray-900 dark:text-gray-100">{folder}</div>
                       {matched ? (
-                        <div className="text-xs text-green-600">→ kept (matched)</div>
+                        <div className="text-xs text-green-600 dark:text-green-400">→ kept (matched)</div>
                       ) : (
                         <div className="flex gap-1 mt-1">
                           <button
                             onClick={() => setFolderActions(a => ({ ...a, [folder]: 'keep' }))}
-                            className={`flex-1 text-xs py-1 rounded ${folderActions[folder] === 'keep' ? 'bg-green-600 text-white' : 'border border-green-400 text-green-700'}`}
+                            className={`flex-1 text-xs py-1 rounded ${folderActions[folder] === 'keep' ? 'bg-green-600 text-white' : 'border border-green-400 dark:border-green-700 text-green-700 dark:text-green-400'}`}
                           >Keep</button>
                           <button
                             onClick={() => setFolderActions(a => ({ ...a, [folder]: 'delete' }))}
-                            className={`flex-1 text-xs py-1 rounded ${folderActions[folder] === 'delete' ? 'bg-red-600 text-white' : 'border border-red-400 text-red-700'}`}
+                            className={`flex-1 text-xs py-1 rounded ${folderActions[folder] === 'delete' ? 'bg-red-600 text-white' : 'border border-red-400 dark:border-red-700 text-red-700 dark:text-red-400'}`}
                           >Delete</button>
                         </div>
                       )}
@@ -526,7 +526,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
           </div>
 
           <div className="flex justify-between mt-6">
-            <button onClick={() => setStep(1)} className="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50">← Back</button>
+            <button onClick={() => setStep(1)} className="px-4 py-2 border dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">← Back</button>
             <button
               onClick={() => setStep(3)}
               disabled={entityTypes.length === 0}
@@ -546,25 +546,25 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
   const toKeep = existingFolders.filter(f => folderActions[f] === 'keep' && !entityTypes.find(et => et.folder_name === f));
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-lg p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Ready to launch</h1>
-        <p className="text-gray-500 text-sm mb-6">Review what will be created, then click Launch Wiki.</p>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-8">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 w-full max-w-lg p-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Ready to launch</h1>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">Review what will be created, then click Launch Wiki.</p>
 
-        <div className="bg-gray-50 rounded-xl p-4 font-mono text-sm space-y-1 mb-4">
-          <div className="font-bold text-gray-700 mb-2">{wikiName}</div>
-          <div className="text-gray-500">wiki/</div>
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 font-mono text-sm space-y-1 mb-4">
+          <div className="font-bold text-gray-700 dark:text-gray-300 mb-2">{wikiName}</div>
+          <div className="text-gray-500 dark:text-gray-400">wiki/</div>
           {entityTypes.map(et => (
-            <div key={et.folder_name} className="text-green-700 pl-2">+ {et.folder_name}/ <span className="text-gray-400">({et.fields.length} fields)</span></div>
+            <div key={et.folder_name} className="text-green-700 dark:text-green-400 pl-2">+ {et.folder_name}/ <span className="text-gray-400 dark:text-gray-500">({et.fields.length} fields)</span></div>
           ))}
-          {toKeep.map(f => <div key={f} className="text-blue-600 pl-2">~ {f}/ <span className="text-gray-400">(kept)</span></div>)}
-          {toDelete.map(f => <div key={f} className="text-red-500 pl-2">- {f}/ <span className="text-gray-400">(deleted)</span></div>)}
+          {toKeep.map(f => <div key={f} className="text-blue-600 dark:text-blue-400 pl-2">~ {f}/ <span className="text-gray-400 dark:text-gray-500">(kept)</span></div>)}
+          {toDelete.map(f => <div key={f} className="text-red-500 dark:text-red-400 pl-2">- {f}/ <span className="text-gray-400 dark:text-gray-500">(deleted)</span></div>)}
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm mb-4">{error}</div>}
+        {error && <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded-lg p-3 text-red-700 dark:text-red-400 text-sm mb-4">{error}</div>}
 
         <div className="flex gap-3">
-          <button onClick={() => setStep(2)} className="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50">← Back</button>
+          <button onClick={() => setStep(2)} className="px-4 py-2 border dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">← Back</button>
           <button
             onClick={handleConfirm}
             disabled={launching}
