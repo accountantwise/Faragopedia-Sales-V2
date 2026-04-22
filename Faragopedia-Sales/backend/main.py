@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router as api_router, set_wiki_manager, WIKI_DIR, SOURCES_DIR, ARCHIVE_DIR, SNAPSHOTS_DIR
 from api.setup_routes import setup_router, SCHEMA_DIR
+from api.export_routes import export_router
 from agent.setup_wizard import migrate_existing, is_setup_complete
 
 app = FastAPI()
@@ -21,6 +22,7 @@ app.add_middleware(
 
 app.include_router(api_router, prefix="/api")
 app.include_router(setup_router, prefix="/api/setup")
+app.include_router(export_router, prefix="/api/export")
 
 migrate_existing(SCHEMA_DIR)
 if is_setup_complete(SCHEMA_DIR):
