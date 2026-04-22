@@ -27,7 +27,7 @@ const App: React.FC = () => {
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
-    return (localStorage.getItem('faragopedia-theme') as 'light' | 'dark' | 'system') ?? 'system';
+    try { return (localStorage.getItem('faragopedia-theme') as 'light' | 'dark' | 'system') ?? 'system'; } catch (_) { return 'system'; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -47,7 +47,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('faragopedia-theme', theme);
+    try { localStorage.setItem('faragopedia-theme', theme); } catch (_) {}
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
