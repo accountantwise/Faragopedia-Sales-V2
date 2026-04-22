@@ -78,7 +78,7 @@ const ArchiveView: React.FC = () => {
   }
 
   return (
-    <div className="p-12 max-w-6xl mx-auto">
+    <div className="h-full overflow-y-auto p-12 max-w-6xl mx-auto">
       <div className="flex items-center space-x-4 mb-8">
         <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-2xl text-amber-600 dark:text-amber-400">
           <Archive className="w-8 h-8" />
