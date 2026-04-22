@@ -334,7 +334,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
             <button
               onClick={handleGenerateSchema}
               disabled={!wikiName.trim() || !orgName.trim() || !orgDescription.trim() || llmLoading}
-              className={`mt-6 ${reconfigureMode ? 'flex-[2]' : 'w-full'} bg-blue-600 text-white rounded-lg py-2.5 font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+              className={`mt-6 ${reconfigureMode ? 'flex-1' : 'w-full'} bg-blue-600 text-white rounded-lg py-2.5 font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
             >
               {llmLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating schema...</> : 'Generate Schema →'}
             </button>
