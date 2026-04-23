@@ -262,11 +262,11 @@ const WikiView: React.FC = () => {
       setBacklinks(backlinksData);
 
       // Parse tags from frontmatter
-      const tagsMatch = contentData.content.match(/^tags:\s*\n((?:\s+-\s+\S+\n?)*)/m);
+      const tagsMatch = contentData.content.match(/^tags:\s*\n((?:\s*-\s+\S+\n?)*)/m);
       if (tagsMatch) {
         const tags = tagsMatch[1]
           .split('\n')
-          .map((l: string) => l.replace(/^\s+-\s+/, '').trim())
+          .map((l: string) => l.replace(/^\s*-\s+/, '').trim())
           .filter(Boolean);
         setPageTags(tags);
       } else {
