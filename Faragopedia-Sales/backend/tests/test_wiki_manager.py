@@ -647,10 +647,9 @@ async def test_query_uses_system_prompt(tmp_path):
 
     captured_calls = []
 
-    async def mock_run_query(user_query, index_content, context):
+    async def mock_run_query(user_query, context):
         captured_calls.append({
             "query": user_query,
-            "index": index_content,
             "context": context,
         })
         return "Louis Vuitton is an A-tier client. [[clients/louis-vuitton]]"

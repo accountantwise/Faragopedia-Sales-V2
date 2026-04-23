@@ -587,7 +587,7 @@ class WikiManager:
 
         return result
 
-    async def _run_query_llm(self, user_query: str, index_content: str, context: str) -> str:
+    async def _run_query_llm(self, user_query: str, context: str) -> str:
         """Run the answer LLM call. Extracted for testability."""
         prompt = ChatPromptTemplate.from_messages([
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
@@ -602,12 +602,38 @@ class WikiManager:
         return response.content
 
     async def query(self, user_query: str) -> str:
-        index_path = os.path.join(self.wiki_dir, "index.md")
-        if not os.path.exists(index_path):
+        # Build page catalog from the actual filesystem so we're never dependent
+        # on index.md being up to date.
+        page_list = self.list_pages()
+        if not page_list:
             return "No wiki content available yet. Please ingest some sources first."
 
-        with open(index_path, "r", encoding="utf-8") as f:
-            index_content = f.read()
+        # Enrich catalog with titles and previews from the search index if available.
+        search_index_path = os.path.join(self.wiki_dir, "search-index.json")
+        page_meta: dict = {}
+        if os.path.exists(search_index_path):
+            try:
+                with open(search_index_path, "r", encoding="utf-8") as f:
+                    si = json.load(f)
+                for entry in si.get("pages", []):
+                    page_meta[entry["path"]] = entry
+            except Exception:
+                pass
+
+        catalog_lines = []
+        for path in page_list:
+            meta = page_meta.get(path, {})
+            title = meta.get("title", path)
+            tags = ", ".join(meta.get("tags", []))
+            preview = meta.get("content_preview", "")[:200]
+            line = f"- {path} | {title}"
+            if tags:
+                line += f" | tags: {tags}"
+            if preview:
+                line += f" | {preview}"
+            catalog_lines.append(line)
+
+        catalog = "\n".join(catalog_lines)
 
         # Step 1: Find relevant pages using the LLM
         relevance_prompt = ChatPromptTemplate.from_messages([
@@ -617,7 +643,7 @@ class WikiManager:
         relevance_chain = relevance_prompt | self.llm
         relevance_resp = await relevance_chain.ainvoke({
             "system_prompt": self.system_prompt,
-            "index": index_content,
+            "index": catalog,
             "query": user_query,
         })
 
@@ -630,12 +656,9 @@ class WikiManager:
 
         page_paths = [p.strip() for p in page_names_str.split(",") if p.strip()]
 
-        # If LLM returned no usable paths, fall back to all pages listed in the index
+        # If LLM returned no usable paths, fall back to all pages
         if not page_paths:
-            wikilink_pattern_idx = re.compile(r"\[\[([^\]]+)\]\]")
-            page_paths = [
-                f"{m}.md" for m in wikilink_pattern_idx.findall(index_content)
-            ]
+            page_paths = page_list
 
         # Step 2: Read relevant pages
         context = ""
@@ -652,7 +675,7 @@ class WikiManager:
             return "I found relevant page names but the pages appear to be missing."
 
         # Step 3: Synthesize answer
-        answer = await self._run_query_llm(user_query, index_content, context)
+        answer = await self._run_query_llm(user_query, context)
         self._append_to_log("query", f"Answered: {user_query}")
         return answer
 
