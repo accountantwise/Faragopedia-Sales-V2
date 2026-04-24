@@ -140,21 +140,24 @@ async def import_bundle(file: UploadFile = File(...)):
             staging = Path(staging_str)
             zf.extractall(staging)
 
-            if bundle_type == "full":
-                _restore_full(staging)
-                _reinit_wiki_manager()
-                return {"status": "ok", "type": "full"}
-            else:
-                entity_types = _restore_template(staging, wiki_config)
-                return {
-                    "status": "ok",
-                    "type": "template",
-                    "wiki_name": wiki_config.get("wiki_name", ""),
-                    "org_name": wiki_config.get("org_name", ""),
-                    "org_description": wiki_config.get("org_description", ""),
-                    "entity_types": entity_types,
-                    "folders": [et["folder_name"] for et in entity_types],
-                }
+            try:
+                if bundle_type == "full":
+                    _restore_full(staging)
+                    _reinit_wiki_manager()
+                    return {"status": "ok", "type": "full"}
+                else:
+                    entity_types = _restore_template(staging, wiki_config)
+                    return {
+                        "status": "ok",
+                        "type": "template",
+                        "wiki_name": wiki_config.get("wiki_name", ""),
+                        "org_name": wiki_config.get("org_name", ""),
+                        "org_description": wiki_config.get("org_description", ""),
+                        "entity_types": entity_types,
+                        "folders": [et["folder_name"] for et in entity_types],
+                    }
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"Restore failed: {exc}") from exc
 
 
 def _restore_full(staging: Path) -> None:
@@ -173,6 +176,12 @@ def _restore_full(staging: Path) -> None:
             shutil.copytree(source, target)
         else:
             target.mkdir(parents=True, exist_ok=True)
+
+    # Ensure sources/.metadata.json exists — if missing from bundle, write empty dict
+    sources_path = Path(SOURCES_DIR)
+    metadata_path = sources_path / ".metadata.json"
+    if sources_path.exists() and not metadata_path.exists():
+        metadata_path.write_text("{}")
 
 
 def _restore_template(staging: Path, wiki_config: dict) -> list:
@@ -208,8 +217,8 @@ def _restore_template(staging: Path, wiki_config: dict) -> list:
 
 
 def _reinit_wiki_manager() -> None:
+    from agent.wiki_manager import WikiManager
     try:
-        from agent.wiki_manager import WikiManager
         wm = WikiManager(
             sources_dir=SOURCES_DIR,
             wiki_dir=WIKI_DIR,
@@ -219,5 +228,6 @@ def _reinit_wiki_manager() -> None:
         )
         set_wiki_manager(wm)
     except Exception:
-        # WikiManager may fail if LLM is not configured; wiki files are already restored
+        # WikiManager may fail if LLM is not yet configured; wiki files are already
+        # restored to disk. The user will configure the LLM on first use.
         pass
