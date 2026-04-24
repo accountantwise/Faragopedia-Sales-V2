@@ -410,6 +410,22 @@ async def move_page(wm: WM, path: str, payload: dict):
         raise HTTPException(status_code=500, detail=f"Error moving page: {str(e)}")
 
 
+@router.post("/pages/{path:path}/rename")
+async def rename_page_endpoint(wm: WM, path: str, payload: dict):
+    try:
+        safe_path = safe_wiki_filename(path, wm)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    new_name = (payload.get("new_name") or "").strip()
+    if not new_name:
+        raise HTTPException(status_code=422, detail="new_name is required")
+    try:
+        new_path = await wm.rename_page(safe_path, new_name)
+        return {"new_path": new_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error renaming page: {str(e)}")
+
+
 @router.post("/lint")
 async def run_lint(wm: WM):
     try:

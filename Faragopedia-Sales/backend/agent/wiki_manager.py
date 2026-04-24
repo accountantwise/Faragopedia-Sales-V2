@@ -1107,6 +1107,39 @@ class WikiManager:
 
         return new_rel_path
 
+    async def rename_page(self, rel_path: str, new_name: str) -> str:
+        """Rename a page within its entity type folder.
+        Rewrites all wikilinks pointing to the old path.
+        Returns the new relative path (unchanged if slug is identical).
+        """
+        slug = self._slugify(new_name)
+        entity_type = rel_path.split('/')[0]
+        sub_dir = os.path.join(self.wiki_dir, entity_type)
+        old_abs = os.path.join(self.wiki_dir, rel_path.replace('/', os.sep))
+
+        new_rel = f"{entity_type}/{slug}.md"
+        new_abs = os.path.join(sub_dir, f"{slug}.md")
+
+        if new_abs == old_abs:
+            return rel_path
+
+        counter = 2
+        while os.path.exists(new_abs):
+            new_rel = f"{entity_type}/{slug}-{counter}.md"
+            new_abs = os.path.join(sub_dir, f"{slug}-{counter}.md")
+            counter += 1
+
+        old_ref = rel_path[:-3]   # strip .md for wikilink format
+        new_ref = new_rel[:-3]
+
+        async with self._write_lock:
+            os.rename(old_abs, new_abs)
+            self._rewrite_wikilinks_specific(old_ref, new_ref)
+            self.update_index()
+            self._append_to_log("rename", f"Renamed {rel_path} → {new_rel}")
+        self._rebuild_search_index()
+        return new_rel
+
     async def archive_page(self, page_path: str):
         """Move a wiki page to the archive."""
         src = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
