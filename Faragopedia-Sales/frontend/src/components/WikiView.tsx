@@ -87,6 +87,9 @@ const WikiView: React.FC = () => {
   const [newFolderDescription, setNewFolderDescription] = useState('');
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
   const [renameFolderValue, setRenameFolderValue] = useState('');
+  const [renamingPage, setRenamingPage] = useState<string | null>(null);
+  const [renamePageValue, setRenamePageValue] = useState('');
+  const [showMobileRenameInput, setShowMobileRenameInput] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set());
   const [hoveredPage, setHoveredPage] = useState<string | null>(null);
@@ -553,6 +556,31 @@ const WikiView: React.FC = () => {
     }
   };
 
+  const handleRenamePage = async (pagePath: string) => {
+    const newName = renamePageValue.trim();
+    if (!newName) { setRenamingPage(null); setShowMobileRenameInput(false); return; }
+    try {
+      const response = await fetch(`${API_BASE}/pages/${encodeURIComponent(pagePath)}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_name: newName }),
+      });
+      if (!response.ok) throw new Error('Failed to rename page');
+      const data = await response.json();
+      setRenamingPage(null);
+      setRenamePageValue('');
+      setShowMobileRenameInput(false);
+      setShowActionMenu(false);
+      await fetchPages();
+      if (selectedPage === pagePath) {
+        setSelectedPage(data.new_path);
+        await fetchPageContent(data.new_path);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const handleMovePage = async (targetFolder: string) => {
     if (!selectedPage) return;
     try {
@@ -939,34 +967,74 @@ const WikiView: React.FC = () => {
                   {expandedSections[section] && sectionPages.length > 0 && (
                     <ul className="ml-1 space-y-0.5 mb-1">
                       {sectionPages.map(pagePath => (
-                        <li 
+                        <li
                           key={pagePath}
-                          className="relative group flex items-center"
+                          className="relative group flex flex-col"
                           onMouseEnter={() => setHoveredPage(pagePath)}
                           onMouseLeave={() => setHoveredPage(null)}
                         >
-                          {(hoveredPage === pagePath || selectedPages.size > 0 || isBulkMode) && (
-                            <input
-                              type="checkbox"
-                              checked={selectedPages.has(pagePath)}
-                              onChange={() => togglePageSelection(pagePath)}
-                              onClick={e => e.stopPropagation()}
-                              className="absolute left-3 z-10 w-3.5 h-3.5 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
-                            />
+                          <div className="flex items-center">
+                            {(hoveredPage === pagePath || selectedPages.size > 0 || isBulkMode) && (
+                              <input
+                                type="checkbox"
+                                checked={selectedPages.has(pagePath)}
+                                onChange={() => togglePageSelection(pagePath)}
+                                onClick={e => e.stopPropagation()}
+                                className="absolute left-3 z-10 w-3.5 h-3.5 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
+                              />
+                            )}
+                            <button
+                              onClick={() => fetchPageContent(pagePath)}
+                              className={`w-full text-left py-2 pl-8 pr-2 rounded-lg text-sm transition-colors flex items-center ${
+                                selectedPage === pagePath
+                                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold'
+                                  : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                              }`}
+                            >
+                              <FileText className="w-4 h-4 mr-2 flex-shrink-0 opacity-40" />
+                              <span className="break-all line-clamp-2 leading-tight">
+                                {pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
+                              </span>
+                            </button>
+                            {hoveredPage === pagePath && renamingPage !== pagePath && (
+                              <button
+                                onClick={() => {
+                                  setRenamingPage(pagePath);
+                                  setRenamePageValue(pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ') || '');
+                                }}
+                                className="ml-2 p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mr-2"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                          {renamingPage === pagePath && (
+                            <div className="pl-8 pr-2 py-2 flex gap-2">
+                              <input
+                                type="text"
+                                value={renamePageValue}
+                                onChange={(e) => setRenamePageValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleRenamePage(pagePath);
+                                  if (e.key === 'Escape') { setRenamingPage(null); setRenamePageValue(''); }
+                                }}
+                                autoFocus
+                                className="flex-1 px-2 py-1 text-sm border border-blue-400 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                              />
+                              <button
+                                onClick={() => handleRenamePage(pagePath)}
+                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => { setRenamingPage(null); setRenamePageValue(''); }}
+                                className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded hover:bg-gray-400"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           )}
-                          <button
-                            onClick={() => fetchPageContent(pagePath)}
-                            className={`w-full text-left py-2 pl-8 pr-2 rounded-lg text-sm transition-colors flex items-center ${
-                              selectedPage === pagePath
-                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold'
-                                : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                            }`}
-                          >
-                            <FileText className="w-4 h-4 mr-2 flex-shrink-0 opacity-40" />
-                            <span className="break-all line-clamp-2 leading-tight">
-                              {pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
-                            </span>
-                          </button>
                         </li>
                       ))}
                     </ul>
@@ -1322,54 +1390,95 @@ const WikiView: React.FC = () => {
             <div className="flex flex-col items-stretch space-y-3 mb-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
               {selectedPages.size === 0 && (
                 <>
-                  {isEditing ? (
-                    <>
+                  {showMobileRenameInput ? (
+                    <div className="bg-white dark:bg-gray-800 rounded-full shadow-md px-5 py-3 flex gap-2">
+                      <input
+                        type="text"
+                        value={renamePageValue}
+                        onChange={(e) => setRenamePageValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && selectedPage) handleRenamePage(selectedPage);
+                          if (e.key === 'Escape') { setShowMobileRenameInput(false); setRenamePageValue(''); }
+                        }}
+                        autoFocus
+                        className="flex-1 px-2 py-1 text-sm border border-blue-400 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      />
                       <button
-                        onClick={() => { handleSave(); setShowActionMenu(false); }}
-                        disabled={isSaving}
-                        className="flex justify-start items-center px-5 py-2 bg-green-600 text-white rounded-full shadow-md text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                        onClick={() => selectedPage && handleRenamePage(selectedPage)}
+                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                       >
-                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Save className="w-4 h-4 mr-3" />}
                         Save
                       </button>
                       <button
-                        onClick={() => {
-                          setIsEditing(false);
-                          setEditedContent(content || '');
-                          setShowActionMenu(false);
-                        }}
-                        disabled={isSaving}
-                        className="flex justify-start items-center px-5 py-2 bg-gray-100 text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-200 transition-colors"
+                        onClick={() => { setShowMobileRenameInput(false); setRenamePageValue(''); }}
+                        className="px-3 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded hover:bg-gray-400"
                       >
-                        <X className="w-4 h-4 mr-3" />
                         Cancel
                       </button>
-                    </>
+                    </div>
                   ) : (
-                    <button
-                      onClick={() => { setIsEditing(true); setShowActionMenu(false); }}
-                      className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
-                    >
-                      <Edit3 className="w-4 h-4 mr-3" />
-                      Edit
-                    </button>
+                    <>
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => { handleSave(); setShowActionMenu(false); }}
+                            disabled={isSaving}
+                            className="flex justify-start items-center px-5 py-2 bg-green-600 text-white rounded-full shadow-md text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                          >
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Save className="w-4 h-4 mr-3" />}
+                            Save
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsEditing(false);
+                              setEditedContent(content || '');
+                              setShowActionMenu(false);
+                            }}
+                            disabled={isSaving}
+                            className="flex justify-start items-center px-5 py-2 bg-gray-100 text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-200 transition-colors"
+                          >
+                            <X className="w-4 h-4 mr-3" />
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => { setIsEditing(true); setShowActionMenu(false); }}
+                          className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                        >
+                          <Edit3 className="w-4 h-4 mr-3" />
+                          Edit
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          if (selectedPage) setRenamePageValue(selectedPage.split('/').pop()?.replace('.md', '').replace(/-/g, ' ') || '');
+                          setShowMobileRenameInput(true);
+                        }}
+                        className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                      >
+                        <Pencil className="w-4 h-4 mr-3" />
+                        Rename
+                      </button>
+
+                      <button
+                        onClick={() => { handleDownload(); setShowActionMenu(false); }}
+                        className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                      >
+                        <Download className="w-4 h-4 mr-3" />
+                        Download
+                      </button>
+                      <button
+                        onClick={() => { handleDelete(); setShowActionMenu(false); }}
+                        disabled={isDeleting}
+                        className="flex justify-start items-center px-5 py-2 bg-red-50 text-red-600 rounded-full shadow-md text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+                      >
+                        {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Trash2 className="w-4 h-4 mr-3" />}
+                        Archive
+                      </button>
+                    </>
                   )}
-                  
-                  <button
-                    onClick={() => { handleDownload(); setShowActionMenu(false); }}
-                    className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
-                  >
-                    <Download className="w-4 h-4 mr-3" />
-                    Download
-                  </button>
-                  <button
-                    onClick={() => { handleDelete(); setShowActionMenu(false); }}
-                    disabled={isDeleting}
-                    className="flex justify-start items-center px-5 py-2 bg-red-50 text-red-600 rounded-full shadow-md text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
-                  >
-                    {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-3" /> : <Trash2 className="w-4 h-4 mr-3" />}
-                    Archive
-                  </button>
                 </>
               )}
               {selectedPages.size > 0 && (
