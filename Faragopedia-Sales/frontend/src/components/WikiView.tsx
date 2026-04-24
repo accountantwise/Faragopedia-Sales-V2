@@ -238,6 +238,7 @@ const WikiView: React.FC = () => {
     try {
       setContentLoading(true);
       setIsEditing(false);
+      setIsSystemPage(false);
 
       // History management
       if (addToHistory && selectedPage && selectedPage !== filename) {
@@ -385,9 +386,10 @@ const WikiView: React.FC = () => {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to delete page');
-      
+
       setSelectedPage(null);
       setContent(null);
+      setIsSystemPage(false);
       fetchPages();
     } catch (err: any) {
       setError(err.message);
@@ -412,6 +414,7 @@ const WikiView: React.FC = () => {
       if (selectedPage && selectedPages.has(selectedPage)) {
         setSelectedPage(null);
         setContent(null);
+        setIsSystemPage(false);
       }
       clearPageSelection();
       fetchPages();
