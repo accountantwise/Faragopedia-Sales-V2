@@ -1,8 +1,13 @@
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException
 from agent import workspace_manager
 from api.routes import set_wiki_manager
 
 workspace_router = APIRouter()
+
+
+class CreateWorkspaceRequest(BaseModel):
+    name: str
 
 
 @workspace_router.get("")
@@ -14,13 +19,11 @@ def list_workspaces_endpoint():
 
 
 @workspace_router.post("")
-def create_workspace_endpoint(payload: dict):
-    name = (payload.get("name") or "").strip()
+def create_workspace_endpoint(payload: CreateWorkspaceRequest):
+    name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
-    result = workspace_manager.create_workspace(name)
-    # result = { "id": str, "name": str, "setup_required": True }
-    return result
+    return workspace_manager.create_workspace(name)
 
 
 @workspace_router.post("/{workspace_id}/switch")
@@ -35,14 +38,18 @@ def switch_workspace(workspace_id: str):
     if is_setup_complete(schema_dir):
         from agent.wiki_manager import WikiManager
         from agent.setup_wizard import get_wiki_config
-        wm = WikiManager(
-            sources_dir=workspace_manager.get_sources_dir(),
-            wiki_dir=workspace_manager.get_wiki_dir(),
-            archive_dir=workspace_manager.get_archive_dir(),
-            snapshots_dir=workspace_manager.get_snapshots_dir(),
-            schema_dir=schema_dir,
-        )
-        set_wiki_manager(wm)
+        try:
+            wm = WikiManager(
+                sources_dir=workspace_manager.get_sources_dir(),
+                wiki_dir=workspace_manager.get_wiki_dir(),
+                archive_dir=workspace_manager.get_archive_dir(),
+                snapshots_dir=workspace_manager.get_snapshots_dir(),
+                schema_dir=schema_dir,
+            )
+            set_wiki_manager(wm)
+        except Exception:
+            set_wiki_manager(None)
+            return {"id": workspace_id, "setup_required": True, "wiki_name": ""}
         config = get_wiki_config(schema_dir)
         wiki_name = (config or {}).get("wiki_name", "")
         return {"id": workspace_id, "setup_required": False, "wiki_name": wiki_name}
