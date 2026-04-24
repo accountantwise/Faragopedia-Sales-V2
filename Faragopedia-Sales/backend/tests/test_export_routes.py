@@ -125,3 +125,125 @@ def test_template_export_structure_only(dirs):
     # Sources, archive, snapshots excluded
     assert "sources/doc.pdf" not in names
     assert "snapshots/20260101-000000.zip" not in names
+
+
+# ── Import helpers ─────────────────────────────────────────────────────────────
+
+def _make_bundle(bundle_type: str) -> bytes:
+    wiki_config = {
+        "setup_complete": True,
+        "wiki_name": "ImportedWiki",
+        "org_name": "ImportedOrg",
+        "org_description": "An imported org",
+        "entity_types": [
+            {"folder_name": "contacts", "display_name": "Contacts", "description": "People",
+             "singular": "Contact", "fields": [], "sections": ["Overview"]},
+        ],
+    }
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps({"version": 1, "type": bundle_type, "exported_at": "2026-04-24T00:00:00Z", "app_version": "1.0.0"}))
+        zf.writestr("schema/SCHEMA.md", "# Schema")
+        zf.writestr("schema/SCHEMA_TEMPLATE.md", "# Template")
+        zf.writestr("schema/company_profile.md", "Imported Corp")
+        zf.writestr("schema/wiki_config.json", json.dumps(wiki_config))
+        zf.writestr("wiki/contacts/_type.yaml", "name: contacts\n")
+        if bundle_type == "full":
+            zf.writestr("wiki/index.md", "# Index")
+            zf.writestr("wiki/log.md", "# Log")
+            zf.writestr("wiki/contacts/alice.md", "# Alice")
+            zf.writestr("sources/.metadata.json", json.dumps({"doc.pdf": {"ingested": True, "ingested_at": "2026-01-01 00:00:00", "tags": []}}))
+            zf.writestr("sources/doc.pdf", "PDF")
+            zf.writestr("snapshots/20260101.zip", "snap")
+    buf.seek(0)
+    return buf.read()
+
+
+# ── Import tests ───────────────────────────────────────────────────────────────
+
+def test_full_import_restores_all_directories(dirs):
+    client = _make_client(dirs)
+    r = client.post("/import", files={"file": ("bundle.zip", _make_bundle("full"), "application/zip")})
+    assert r.status_code == 200
+    assert r.json()["type"] == "full"
+    # Imported content present
+    assert (dirs / "wiki" / "contacts" / "alice.md").exists()
+    assert (dirs / "wiki" / "contacts" / "_type.yaml").exists()
+    assert (dirs / "sources" / ".metadata.json").exists()
+    assert (dirs / "sources" / "doc.pdf").exists()
+    assert (dirs / "schema" / "SCHEMA.md").exists()
+    assert (dirs / "schema" / "wiki_config.json").exists()
+    # Previous wiki content replaced
+    assert not (dirs / "wiki" / "clients" / "acme.md").exists()
+
+
+def test_template_import_writes_schema_and_type_yamls(dirs):
+    client = _make_client(dirs)
+    r = client.post("/import", files={"file": ("bundle.zip", _make_bundle("template"), "application/zip")})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["type"] == "template"
+    # _type.yaml written
+    assert (dirs / "wiki" / "contacts" / "_type.yaml").exists()
+    # Schema files written
+    assert (dirs / "schema" / "SCHEMA.md").exists()
+    # wiki_config.json NOT written — wizard writes it after user confirms
+    assert not (dirs / "schema" / "wiki_config.json").exists()
+
+
+def test_template_import_returns_entity_types_and_meta(dirs):
+    client = _make_client(dirs)
+    r = client.post("/import", files={"file": ("bundle.zip", _make_bundle("template"), "application/zip")})
+    data = r.json()
+    assert data["wiki_name"] == "ImportedWiki"
+    assert data["org_name"] == "ImportedOrg"
+    assert data["org_description"] == "An imported org"
+    assert any(et["folder_name"] == "contacts" for et in data["entity_types"])
+    assert "contacts" in data["folders"]
+
+
+def test_import_rejects_missing_manifest(dirs):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("schema/wiki_config.json", "{}")
+    buf.seek(0)
+    r = _make_client(dirs).post("/import", files={"file": ("bad.zip", buf.getvalue(), "application/zip")})
+    assert r.status_code == 400
+    assert "manifest" in r.json()["detail"].lower()
+
+
+def test_import_rejects_incompatible_version(dirs):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps({"version": 99, "type": "full"}))
+        zf.writestr("schema/wiki_config.json", "{}")
+    buf.seek(0)
+    r = _make_client(dirs).post("/import", files={"file": ("bad.zip", buf.getvalue(), "application/zip")})
+    assert r.status_code == 400
+    assert "version" in r.json()["detail"].lower()
+
+
+def test_import_rejects_unknown_type(dirs):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps({"version": 1, "type": "unknown"}))
+        zf.writestr("schema/wiki_config.json", "{}")
+    buf.seek(0)
+    r = _make_client(dirs).post("/import", files={"file": ("bad.zip", buf.getvalue(), "application/zip")})
+    assert r.status_code == 400
+    assert "type" in r.json()["detail"].lower()
+
+
+def test_import_rejects_missing_wiki_config(dirs):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps({"version": 1, "type": "full"}))
+    buf.seek(0)
+    r = _make_client(dirs).post("/import", files={"file": ("bad.zip", buf.getvalue(), "application/zip")})
+    assert r.status_code == 400
+    assert "wiki_config" in r.json()["detail"].lower()
+
+
+def test_import_rejects_invalid_zip(dirs):
+    r = _make_client(dirs).post("/import", files={"file": ("bad.zip", b"not a zip", "application/zip")})
+    assert r.status_code == 400
