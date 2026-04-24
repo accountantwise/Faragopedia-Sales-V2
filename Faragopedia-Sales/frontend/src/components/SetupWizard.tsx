@@ -233,12 +233,6 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
   const [error, setError] = useState('');
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState('');
-  const [importedConfig, setImportedConfig] = useState<{
-    wiki_name: string;
-    org_name: string;
-    org_description: string;
-    entity_types: EntityType[];
-  } | null>(null);
 
   // Prefill in reconfigure mode
   useEffect(() => {
@@ -252,6 +246,26 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
       setFolderActions(initial);
     }
   }, [reconfigureMode, existingFolders]);
+
+  // Auto-detect template import data written by SettingsDrawer before page reload
+  useEffect(() => {
+    if (reconfigureMode) return;
+    const raw = sessionStorage.getItem('templateImport');
+    if (!raw) return;
+    sessionStorage.removeItem('templateImport');
+    try {
+      const data = JSON.parse(raw);
+      if (data.wiki_name) setWikiName(data.wiki_name);
+      if (data.org_name) setOrgName(data.org_name);
+      if (data.org_description) setOrgDescription(data.org_description);
+      if (Array.isArray(data.entity_types) && data.entity_types.length > 0) {
+        setEntityTypes(data.entity_types);
+        setStep(2);
+      }
+    } catch {
+      // Malformed sessionStorage entry — ignore and start fresh
+    }
+  }, []);
 
   const handleGenerateSchema = async () => {
     setLlmLoading(true);
@@ -306,60 +320,44 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
     }
   };
 
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportError('');
-    setImportLoading(true);
-    try {
+  const handleImportFile = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.zip';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      setImportLoading(true);
+      setImportError('');
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch(`${API_BASE}/export/import`, { method: 'POST', body: form });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
-        setImportError(err.detail ?? 'Upload failed');
-        return;
-      }
-      const data = await res.json();
-      setImportedConfig(data);
-      setWikiName(data.wiki_name);
-      setOrgName(data.org_name);
-      setOrgDescription(data.org_description);
-      setEntityTypes(data.entity_types ?? []);
-      setStep(3);
-    } catch {
-      setImportError('Failed to read zip file.');
-    } finally {
-      setImportLoading(false);
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (importedConfig) {
-      // Import flow — call finalize
-      setLaunching(true);
       try {
-        const res = await fetch(`${API_BASE}/export/import/finalize`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            wiki_name: wikiName,
-            org_name: orgName,
-            org_description: orgDescription,
-            entity_types: entityTypes,
-          }),
-        });
-        if (!res.ok) throw new Error('Finalize failed');
-        onComplete();
-      } catch (err) {
-        setError('Failed to finalize import.');
+        const r = await fetch(`${API_BASE}/export/import`, { method: 'POST', body: form });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({ detail: 'Import failed' }));
+          setImportError(err.detail || 'Import failed');
+          return;
+        }
+        const data = await r.json();
+        if (data.type === 'full') {
+          window.location.reload();
+          return;
+        }
+        // Template: pre-populate wizard with imported schema and jump to step 2
+        if (data.wiki_name) setWikiName(data.wiki_name);
+        if (data.org_name) setOrgName(data.org_name);
+        if (data.org_description) setOrgDescription(data.org_description);
+        if (Array.isArray(data.entity_types) && data.entity_types.length > 0) {
+          setEntityTypes(data.entity_types);
+        }
+        setStep(2);
+      } catch {
+        setImportError('Import failed. Please try again.');
       } finally {
-        setLaunching(false);
+        setImportLoading(false);
       }
-    } else {
-      // Normal flow
-      handleLaunch();
-    }
+    };
+    input.click();
   };
 
   // ── Step 0: Getting Started ───────────────────────────────────────────────
@@ -380,19 +378,16 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
               <span className="text-sm text-blue-500 dark:text-blue-500">Design your wiki schema from scratch or use a preset.</span>
             </button>
 
-            <label className="w-full flex flex-col items-start gap-1 px-5 py-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+            <button
+              onClick={handleImportFile}
+              disabled={importLoading}
+              className="w-full flex flex-col items-start gap-1 px-5 py-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
               <span className="font-semibold text-gray-700 dark:text-gray-300">
                 {importLoading ? 'Importing…' : 'Import from backup'}
               </span>
-              <span className="text-sm text-gray-400">Restore schema and settings from a wiki-bundle.zip file.</span>
-              <input
-                type="file"
-                accept=".zip"
-                className="hidden"
-                onChange={handleImportFile}
-                disabled={importLoading}
-              />
-            </label>
+              <span className="text-sm text-gray-400">Restore or start from a Faragopedia export file (.zip).</span>
+            </button>
           </div>
 
           {importError && (
@@ -566,11 +561,11 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
         <div className="flex gap-3">
           <button onClick={() => setStep(2)} className="px-4 py-2 border dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">← Back</button>
           <button
-            onClick={handleConfirm}
+            onClick={handleLaunch}
             disabled={launching}
             className="flex-1 bg-blue-600 text-white rounded-lg py-2.5 font-medium hover:bg-blue-700 disabled:bg-gray-300 flex items-center justify-center gap-2"
           >
-            {launching ? <><Loader2 className="w-4 h-4 animate-spin" /> {importedConfig ? 'Importing...' : 'Launching...'}</> : (importedConfig ? 'Complete Import' : 'Launch Wiki')}
+            {launching ? <><Loader2 className="w-4 h-4 animate-spin" /> Launching...</> : 'Launch Wiki'}
           </button>
         </div>
       </div>
