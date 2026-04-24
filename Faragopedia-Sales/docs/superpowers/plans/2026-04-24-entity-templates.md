@@ -18,7 +18,7 @@
 | `backend/agent/setup_wizard.py` | Import + call `write_entity_templates()` inside `complete_setup()` |
 | `backend/agent/wiki_manager.py` | Filter `_`-prefixed files in `list_pages()`; read template in `create_new_page()`; add `_slugify()` + `auto_rename_if_untitled()` |
 | `backend/api/routes.py` | Call `auto_rename_if_untitled()` after save; return `new_filename` in PUT response |
-| `frontend/src/components/WikiView.tsx` | Handle `new_filename` in `handleSave`; update `selectedPage` and reload content |
+| `frontend/src/components/WikiView.tsx` | Handle `new_filename` in `handleSave`; update `selectedPage` and reload content; desktop inline rename; mobile action menu rename |
 | `backend/tests/test_schema_builder.py` | Add tests for two new functions |
 | `backend/tests/test_setup_wizard.py` | Add test that `complete_setup` writes templates |
 | `backend/tests/test_wiki_manager.py` | Add tests for `list_pages` filter, `create_new_page` template usage, `_slugify`, and `auto_rename_if_untitled` |
@@ -864,4 +864,376 @@ Open `frontend/src/components/WikiView.tsx`. Replace `handleSave` (lines 296–3
 
 ```bash
 cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2" && git add "Faragopedia-Sales/backend/agent/wiki_manager.py" "Faragopedia-Sales/backend/api/routes.py" "Faragopedia-Sales/frontend/src/components/WikiView.tsx" "Faragopedia-Sales/backend/tests/test_wiki_manager.py" && git commit -m "feat: auto-rename Untitled pages to wiki slug on first save"
+```
+
+---
+
+### Task 7: Manual page rename
+
+Rename a page by typing a new display name. Desktop: pencil icon on hover in the sidebar opens an inline input (same pattern as folder rename). Mobile: a Rename pill in the action menu replaces the menu with an inline input.
+
+**Files:**
+- Modify: `backend/agent/wiki_manager.py` (add `rename_page` method)
+- Modify: `backend/api/routes.py` (add `POST /pages/{path}/rename` endpoint)
+- Modify: `frontend/src/components/WikiView.tsx` (state, handler, desktop sidebar, mobile menu)
+- Test: `backend/tests/test_wiki_manager.py`
+
+- [ ] **Step 1: Write the failing backend tests**
+
+Open `backend/tests/test_wiki_manager.py`. Append these tests:
+
+```python
+@pytest.mark.asyncio
+async def test_rename_page_renames_file(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    (wiki / "clients" / "old-name.md").write_text("---\ntype: client\nname: Old Name\n---\n")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    new_path = await manager.rename_page("clients/old-name.md", "New Name")
+    assert new_path == "clients/new-name.md"
+    assert (wiki / "clients" / "new-name.md").exists()
+    assert not (wiki / "clients" / "old-name.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_rename_page_rewrites_wikilinks(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    (wiki / "clients" / "old-name.md").write_text("---\ntype: client\nname: Old Name\n---\n")
+    referencing = wiki / "clients" / "other.md"
+    referencing.write_text("See also [[clients/old-name]] for more.\n")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    await manager.rename_page("clients/old-name.md", "New Name")
+    updated = referencing.read_text()
+    assert "[[clients/new-name]]" in updated
+    assert "[[clients/old-name]]" not in updated
+
+
+@pytest.mark.asyncio
+async def test_rename_page_no_op_when_same_slug(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    (wiki / "clients" / "acme-corp.md").write_text("---\ntype: client\nname: Acme Corp\n---\n")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    result = await manager.rename_page("clients/acme-corp.md", "Acme Corp")
+    assert result == "clients/acme-corp.md"
+    assert (wiki / "clients" / "acme-corp.md").exists()
+```
+
+- [ ] **Step 2: Run tests to confirm they fail**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2/Faragopedia-Sales/backend" && python -m pytest tests/test_wiki_manager.py::test_rename_page_renames_file tests/test_wiki_manager.py::test_rename_page_rewrites_wikilinks -v
+```
+
+Expected: `AttributeError` — `rename_page` not yet defined.
+
+- [ ] **Step 3: Implement `rename_page` in `wiki_manager.py`**
+
+Open `backend/agent/wiki_manager.py`. Add `rename_page` as an async method near `move_page` (around line 1040):
+
+```python
+    async def rename_page(self, rel_path: str, new_name: str) -> str:
+        """Rename a page within its entity type folder.
+        Rewrites all wikilinks pointing to the old path.
+        Returns the new relative path (unchanged if slug is identical).
+        """
+        slug = self._slugify(new_name)
+        entity_type = rel_path.split('/')[0]
+        sub_dir = os.path.join(self.wiki_dir, entity_type)
+        old_abs = os.path.join(self.wiki_dir, rel_path.replace('/', os.sep))
+
+        new_rel = f"{entity_type}/{slug}.md"
+        new_abs = os.path.join(sub_dir, f"{slug}.md")
+
+        if new_abs == old_abs:
+            return rel_path
+
+        counter = 2
+        while os.path.exists(new_abs):
+            new_rel = f"{entity_type}/{slug}-{counter}.md"
+            new_abs = os.path.join(sub_dir, f"{slug}-{counter}.md")
+            counter += 1
+
+        old_ref = rel_path[:-3]   # strip .md for wikilink format
+        new_ref = new_rel[:-3]
+
+        async with self._write_lock:
+            os.rename(old_abs, new_abs)
+            self._rewrite_wikilinks_specific(old_ref, new_ref)
+            self.update_index()
+            self._append_to_log("rename", f"Renamed {rel_path} → {new_rel}")
+        self._rebuild_search_index()
+        return new_rel
+```
+
+- [ ] **Step 4: Run tests to confirm they pass**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2/Faragopedia-Sales/backend" && python -m pytest tests/test_wiki_manager.py::test_rename_page_renames_file tests/test_wiki_manager.py::test_rename_page_rewrites_wikilinks tests/test_wiki_manager.py::test_rename_page_no_op_when_same_slug -v
+```
+
+Expected: 3 PASSED.
+
+- [ ] **Step 5: Add `POST /pages/{path}/rename` endpoint to `routes.py`**
+
+Open `backend/api/routes.py`. Add this endpoint after the existing `move_page` endpoint (after line ~410):
+
+```python
+@router.post("/pages/{path:path}/rename")
+async def rename_page_endpoint(wm: WM, path: str, payload: dict):
+    try:
+        safe_path = safe_wiki_filename(path, wm)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    new_name = (payload.get("new_name") or "").strip()
+    if not new_name:
+        raise HTTPException(status_code=422, detail="new_name is required")
+    try:
+        new_path = await wm.rename_page(safe_path, new_name)
+        return {"new_path": new_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error renaming page: {str(e)}")
+```
+
+- [ ] **Step 6: Run the full backend test suite**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2/Faragopedia-Sales/backend" && python -m pytest tests/ -v --tb=short 2>&1 | tail -20
+```
+
+Expected: All previously passing tests still pass.
+
+- [ ] **Step 7: Commit the backend**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2" && git add "Faragopedia-Sales/backend/agent/wiki_manager.py" "Faragopedia-Sales/backend/api/routes.py" "Faragopedia-Sales/backend/tests/test_wiki_manager.py" && git commit -m "feat: add rename_page method and POST /pages/{path}/rename endpoint"
+```
+
+- [ ] **Step 8: Add state and handler to `WikiView.tsx`**
+
+Open `frontend/src/components/WikiView.tsx`.
+
+Add two new state variables alongside the existing `renamingFolder` / `renameFolderValue` state (around line 88):
+
+```typescript
+  const [renamingPage, setRenamingPage] = useState<string | null>(null);
+  const [renamePageValue, setRenamePageValue] = useState('');
+  const [showMobileRenameInput, setShowMobileRenameInput] = useState(false);
+```
+
+Add the `handleRenamePage` function near `handleRenameFolder` (search for `handleRenameFolder` and add after it):
+
+```typescript
+  const handleRenamePage = async (pagePath: string) => {
+    const newName = renamePageValue.trim();
+    if (!newName) { setRenamingPage(null); setShowMobileRenameInput(false); return; }
+    try {
+      const response = await fetch(`${API_BASE}/pages/${encodeURIComponent(pagePath)}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_name: newName }),
+      });
+      if (!response.ok) throw new Error('Failed to rename page');
+      const data = await response.json();
+      setRenamingPage(null);
+      setRenamePageValue('');
+      setShowMobileRenameInput(false);
+      setShowActionMenu(false);
+      await fetchPages();
+      if (selectedPage === pagePath) {
+        setSelectedPage(data.new_path);
+        await fetchPageContent(data.new_path);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+```
+
+- [ ] **Step 9: Add desktop sidebar inline rename**
+
+In `WikiView.tsx`, find the page list item (the `<li>` containing `pagePath`, around line 934). The current structure ends each `<li>` with the page `<button>`. Replace the `<li>` block for each page with this updated version that adds a pencil icon on hover and an inline rename input:
+
+```tsx
+<li
+  key={pagePath}
+  className="relative group flex flex-col"
+  onMouseEnter={() => setHoveredPage(pagePath)}
+  onMouseLeave={() => setHoveredPage(null)}
+>
+  <div className="flex items-center">
+    {(hoveredPage === pagePath || selectedPages.size > 0 || isBulkMode) && (
+      <input
+        type="checkbox"
+        checked={selectedPages.has(pagePath)}
+        onChange={() => togglePageSelection(pagePath)}
+        onClick={e => e.stopPropagation()}
+        className="absolute left-3 z-10 w-3.5 h-3.5 accent-blue-600 cursor-pointer shadow-sm hover:scale-110 transition-transform"
+      />
+    )}
+    <button
+      onClick={() => fetchPageContent(pagePath)}
+      className={`flex-1 text-left py-2 pl-8 pr-2 rounded-lg text-sm transition-colors flex items-center ${
+        selectedPage === pagePath
+          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold'
+          : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+      }`}
+    >
+      <FileText className="w-4 h-4 mr-2 flex-shrink-0 opacity-40" />
+      <span className="break-all line-clamp-2 leading-tight">
+        {pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
+      </span>
+    </button>
+    {hoveredPage === pagePath && renamingPage !== pagePath && (
+      <button
+        onClick={e => {
+          e.stopPropagation();
+          setRenamingPage(pagePath);
+          setRenamePageValue(pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ') ?? '');
+        }}
+        className="p-0.5 mr-1 text-gray-300 hover:text-blue-500 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Rename page"
+      >
+        <Pencil className="w-3 h-3" />
+      </button>
+    )}
+  </div>
+  {renamingPage === pagePath && (
+    <div className="flex items-center px-2 py-1 space-x-1">
+      <input
+        autoFocus
+        value={renamePageValue}
+        onChange={e => setRenamePageValue(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') handleRenamePage(pagePath);
+          if (e.key === 'Escape') { setRenamingPage(null); setRenamePageValue(''); }
+        }}
+        className="flex-1 text-xs border dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded px-2 py-1"
+      />
+      <button onClick={() => handleRenamePage(pagePath)} className="text-xs text-blue-600">Save</button>
+      <button onClick={() => { setRenamingPage(null); setRenamePageValue(''); }} className="text-xs text-gray-400">Cancel</button>
+    </div>
+  )}
+</li>
+```
+
+- [ ] **Step 10: Add mobile action menu rename**
+
+In `WikiView.tsx`, find the mobile action menu section (the non-editing single-page actions, around line 1341). Add a Rename button between Edit and Download. Also add the rename input overlay that appears when `showMobileRenameInput` is true.
+
+Locate the block that starts with the Edit button and ends before the Download button, and add the Rename button after Edit:
+
+```tsx
+                  {!isEditing && !showMobileRenameInput && (
+                    <button
+                      onClick={() => {
+                        setRenamePageValue(
+                          selectedPage?.split('/').pop()?.replace('.md', '').replace(/-/g, ' ') ?? ''
+                        );
+                        setShowMobileRenameInput(true);
+                      }}
+                      className="flex justify-start items-center px-5 py-2 bg-white text-gray-700 rounded-full shadow-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      <Pencil className="w-4 h-4 mr-3" />
+                      Rename
+                    </button>
+                  )}
+```
+
+Then, inside `showActionMenu && selectedPages.size === 0`, add the rename input state (shown when `showMobileRenameInput` is true), replacing all other buttons:
+
+```tsx
+                  {showMobileRenameInput && (
+                    <div className="flex flex-col items-stretch space-y-2 bg-white rounded-2xl shadow-md p-3">
+                      <span className="text-xs text-gray-500 font-medium px-1">Rename page</span>
+                      <input
+                        autoFocus
+                        value={renamePageValue}
+                        onChange={e => setRenamePageValue(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && selectedPage) handleRenamePage(selectedPage);
+                          if (e.key === 'Escape') setShowMobileRenameInput(false);
+                        }}
+                        className="border dark:border-gray-700 bg-white text-gray-900 rounded-lg px-3 py-2 text-sm"
+                        placeholder="New name..."
+                      />
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => selectedPage && handleRenamePage(selectedPage)}
+                          className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setShowMobileRenameInput(false)}
+                          className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+```
+
+- [ ] **Step 11: Run the full backend test suite one more time**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2/Faragopedia-Sales/backend" && python -m pytest tests/ -v --tb=short 2>&1 | tail -20
+```
+
+Expected: All tests pass.
+
+- [ ] **Step 12: Commit the frontend**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2" && git add "Faragopedia-Sales/frontend/src/components/WikiView.tsx" "Faragopedia-Sales/backend/tests/test_wiki_manager.py" && git commit -m "feat: add manual page rename (desktop sidebar + mobile action menu)"
 ```
