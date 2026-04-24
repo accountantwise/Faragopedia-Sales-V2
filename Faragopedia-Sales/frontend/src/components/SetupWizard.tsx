@@ -258,14 +258,20 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
       if (data.wiki_name) setWikiName(data.wiki_name);
       if (data.org_name) setOrgName(data.org_name);
       if (data.org_description) setOrgDescription(data.org_description);
-      if (Array.isArray(data.entity_types) && data.entity_types.length > 0) {
-        setEntityTypes(data.entity_types);
+      const validTypes = Array.isArray(data.entity_types)
+        ? data.entity_types.filter((et: any) =>
+            et && typeof et.folder_name === 'string' && Array.isArray(et.fields) && Array.isArray(et.sections)
+          )
+        : [];
+      if (validTypes.length > 0) {
+        setEntityTypes(validTypes);
         setStep(2);
       }
     } catch {
       // Malformed sessionStorage entry — ignore and start fresh
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally mount-only: reconfigureMode is constant at mount time
 
   const handleGenerateSchema = async () => {
     setLlmLoading(true);
@@ -347,9 +353,12 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
         if (data.wiki_name) setWikiName(data.wiki_name);
         if (data.org_name) setOrgName(data.org_name);
         if (data.org_description) setOrgDescription(data.org_description);
-        if (Array.isArray(data.entity_types) && data.entity_types.length > 0) {
-          setEntityTypes(data.entity_types);
-        }
+        const validTypes = Array.isArray(data.entity_types)
+          ? data.entity_types.filter((et: any) =>
+              et && typeof et.folder_name === 'string' && Array.isArray(et.fields) && Array.isArray(et.sections)
+            )
+          : [];
+        if (validTypes.length > 0) setEntityTypes(validTypes);
         setStep(2);
       } catch {
         setImportError('Import failed. Please try again.');
@@ -381,7 +390,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
             <button
               onClick={handleImportFile}
               disabled={importLoading}
-              className="w-full flex flex-col items-start gap-1 px-5 py-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              className="w-full flex flex-col items-start gap-1 px-5 py-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="font-semibold text-gray-700 dark:text-gray-300">
                 {importLoading ? 'Importing…' : 'Import from backup'}
