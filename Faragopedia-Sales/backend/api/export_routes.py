@@ -2,12 +2,18 @@ import io
 import json
 import os
 import zipfile
+from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter
+from fastapi.responses import Response
 
-from agent.setup_wizard import SetupPayload, finalize_import
-from api.routes import ARCHIVE_DIR, SNAPSHOTS_DIR, SOURCES_DIR, WIKI_DIR, set_wiki_manager
+from api.routes import (
+    ARCHIVE_DIR,
+    SNAPSHOTS_DIR,
+    SOURCES_DIR,
+    WIKI_DIR,
+)
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _BACKEND_DIR = os.path.dirname(_THIS_DIR)
@@ -15,85 +21,77 @@ SCHEMA_DIR = os.path.join(_BACKEND_DIR, "schema")
 
 export_router = APIRouter()
 
-_BUNDLE_FILES = [
-    ("schema", "SCHEMA.md"),
-    ("schema", "company_profile.md"),
-    ("schema", "wiki_config.json"),
-    ("wiki", "index.md"),
-    ("wiki", "log.md"),
-]
+_APP_VERSION = "1.0.0"
 
 
-@export_router.get("/bundle")
-def export_bundle():
+def _utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _timestamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+
+
+@export_router.get("/bundle/full")
+async def export_bundle_full():
+    manifest = {
+        "version": 1,
+        "type": "full",
+        "exported_at": _utcnow(),
+        "app_version": _APP_VERSION,
+    }
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for source, filename in _BUNDLE_FILES:
-            dir_path = SCHEMA_DIR if source == "schema" else WIKI_DIR
-            full_path = os.path.join(dir_path, filename)
-            if os.path.exists(full_path):
-                zf.write(full_path, arcname=filename)
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+        for dir_name, dir_str in [
+            ("schema", SCHEMA_DIR),
+            ("wiki", WIKI_DIR),
+            ("sources", SOURCES_DIR),
+            ("archive", ARCHIVE_DIR),
+            ("snapshots", SNAPSHOTS_DIR),
+        ]:
+            dir_path = Path(dir_str)
+            if not dir_path.exists():
+                continue
+            for fp in sorted(dir_path.rglob("*")):
+                if fp.is_file():
+                    rel = str(fp.relative_to(dir_path)).replace("\\", "/")
+                    zf.write(fp, f"{dir_name}/{rel}")
     buf.seek(0)
-    return StreamingResponse(
-        buf,
+    ts = _timestamp()
+    return Response(
+        content=buf.read(),
         media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="wiki-bundle.zip"'},
+        headers={"Content-Disposition": f'attachment; filename="faragopedia-full-{ts}.zip"'},
     )
 
 
-@export_router.post("/import")
-async def import_bundle(file: UploadFile = File(...)):
-    raw = await file.read()
-
-    try:
-        zf = zipfile.ZipFile(io.BytesIO(raw))
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=422, detail="Not a valid zip file")
-
-    names = zf.namelist()
-
-    if "SCHEMA.md" not in names:
-        raise HTTPException(status_code=422, detail="zip must contain SCHEMA.md")
-    if "wiki_config.json" not in names:
-        raise HTTPException(status_code=422, detail="zip must contain wiki_config.json")
-
-    try:
-        config = json.loads(zf.read("wiki_config.json"))
-    except (json.JSONDecodeError, KeyError) as exc:
-        raise HTTPException(status_code=422, detail="wiki_config.json is not valid JSON") from exc
-
-    os.makedirs(SCHEMA_DIR, exist_ok=True)
-    zf.extract("SCHEMA.md", SCHEMA_DIR)
-    if "company_profile.md" in names:
-        zf.extract("company_profile.md", SCHEMA_DIR)
-
-    return {
-        "wiki_name": config.get("wiki_name", ""),
-        "org_name": config.get("org_name", ""),
-        "org_description": config.get("org_description", ""),
-        "entity_types": config.get("entity_types", []),
+@export_router.get("/bundle/template")
+async def export_bundle_template():
+    manifest = {
+        "version": 1,
+        "type": "template",
+        "exported_at": _utcnow(),
+        "app_version": _APP_VERSION,
     }
-
-
-@export_router.post("/import/finalize")
-def import_finalize(payload: SetupPayload):
-    from agent.wiki_manager import WikiManager
-
-    try:
-        finalize_import(SCHEMA_DIR, WIKI_DIR, payload)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    try:
-        wm = WikiManager(
-            sources_dir=SOURCES_DIR,
-            wiki_dir=WIKI_DIR,
-            archive_dir=ARCHIVE_DIR,
-            snapshots_dir=SNAPSHOTS_DIR,
-            schema_dir=SCHEMA_DIR,
-        )
-        set_wiki_manager(wm)
-    except Exception:
-        pass  # LLM may not be configured yet; wiki files are already written
-
-    return {"success": True, "wiki_name": payload.wiki_name}
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+        schema_path = Path(SCHEMA_DIR)
+        if schema_path.exists():
+            for fp in sorted(schema_path.rglob("*")):
+                if fp.is_file():
+                    rel = str(fp.relative_to(schema_path)).replace("\\", "/")
+                    zf.write(fp, f"schema/{rel}")
+        wiki_path = Path(WIKI_DIR)
+        if wiki_path.exists():
+            for fp in sorted(wiki_path.rglob("_type.yaml")):
+                rel = str(fp.relative_to(wiki_path)).replace("\\", "/")
+                zf.write(fp, f"wiki/{rel}")
+    buf.seek(0)
+    ts = _timestamp()
+    return Response(
+        content=buf.read(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="faragopedia-template-{ts}.zip"'},
+    )

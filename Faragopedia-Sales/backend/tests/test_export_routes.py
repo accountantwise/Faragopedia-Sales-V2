@@ -1,7 +1,7 @@
 import io
 import json
-import os
 import zipfile
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -11,184 +11,117 @@ from fastapi.testclient import TestClient
 def dirs(tmp_path):
     schema_dir = tmp_path / "schema"
     wiki_dir = tmp_path / "wiki"
-    schema_dir.mkdir()
-    wiki_dir.mkdir()
+    sources_dir = tmp_path / "sources"
+    archive_dir = tmp_path / "archive"
+    snapshots_dir = tmp_path / "snapshots"
 
-    (schema_dir / "SCHEMA.md").write_text("# Schema content")
-    (schema_dir / "company_profile.md").write_text("# Org Profile")
-    (schema_dir / "wiki_config.json").write_text(
-        json.dumps({"wiki_name": "TestWiki", "org_name": "TestOrg", "setup_complete": True})
-    )
-    (wiki_dir / "index.md").write_text("# Index")
-    (wiki_dir / "log.md").write_text("# Log")
-    return str(schema_dir), str(wiki_dir)
+    for d in [schema_dir, wiki_dir, sources_dir, archive_dir, snapshots_dir]:
+        d.mkdir()
+
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "SCHEMA_TEMPLATE.md").write_text("# Template")
+    (schema_dir / "company_profile.md").write_text("Acme Corp")
+    (schema_dir / "wiki_config.json").write_text(json.dumps({
+        "setup_complete": True,
+        "wiki_name": "TestWiki",
+        "org_name": "Acme",
+        "org_description": "A company",
+        "entity_types": [
+            {"folder_name": "clients", "display_name": "Clients", "description": "Client orgs",
+             "singular": "Client", "fields": [], "sections": ["Overview"]},
+        ],
+    }))
+
+    clients_dir = wiki_dir / "clients"
+    clients_dir.mkdir()
+    (clients_dir / "_type.yaml").write_text("name: clients\n")
+    (clients_dir / "acme.md").write_text("# Acme\n")
+    (wiki_dir / "index.md").write_text("# Index\n")
+    (wiki_dir / "log.md").write_text("# Log\n")
+    (wiki_dir / "search-index.json").write_text("{}")
+
+    metadata = {"doc.pdf": {"ingested": True, "ingested_at": "2026-01-01 00:00:00", "tags": []}}
+    (sources_dir / ".metadata.json").write_text(json.dumps(metadata))
+    (sources_dir / "doc.pdf").write_bytes(b"PDF content")
+    (snapshots_dir / "20260101-000000.zip").write_bytes(b"snapshot data")
+
+    return tmp_path
 
 
-def _client(schema_dir, wiki_dir):
-    import importlib
-    from api import export_routes
-    importlib.reload(export_routes)
-    export_routes.SCHEMA_DIR = schema_dir
-    export_routes.WIKI_DIR = wiki_dir
+def _make_client(dirs):
+    import backend.api.export_routes as er
+    er.WIKI_DIR = str(dirs / "wiki")
+    er.SOURCES_DIR = str(dirs / "sources")
+    er.ARCHIVE_DIR = str(dirs / "archive")
+    er.SNAPSHOTS_DIR = str(dirs / "snapshots")
+    er.SCHEMA_DIR = str(dirs / "schema")
+
     app = FastAPI()
-    app.include_router(export_routes.export_router)
+    app.include_router(er.export_router)
     return TestClient(app)
 
 
-def test_bundle_returns_zip_with_all_files(dirs):
-    schema_dir, wiki_dir = dirs
-    client = _client(schema_dir, wiki_dir)
+# ── Full export ────────────────────────────────────────────────────────────────
 
-    response = client.get("/bundle")
-
-    assert response.status_code == 200
-    assert "application/zip" in response.headers["content-type"]
-    zf = zipfile.ZipFile(io.BytesIO(response.content))
-    names = zf.namelist()
-    assert "SCHEMA.md" in names
-    assert "company_profile.md" in names
-    assert "wiki_config.json" in names
-    assert "index.md" in names
-    assert "log.md" in names
+def test_full_export_returns_zip(dirs):
+    r = _make_client(dirs).get("/bundle/full")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"
+    assert "faragopedia-full-" in r.headers["content-disposition"]
 
 
-def test_bundle_skips_missing_files(dirs):
-    schema_dir, wiki_dir = dirs
-    import os
-    os.remove(os.path.join(wiki_dir, "log.md"))
-    client = _client(schema_dir, wiki_dir)
-
-    response = client.get("/bundle")
-
-    assert response.status_code == 200
-    zf = zipfile.ZipFile(io.BytesIO(response.content))
-    names = zf.namelist()
-    assert "log.md" not in names
-    assert "index.md" in names
+def test_full_export_manifest(dirs):
+    r = _make_client(dirs).get("/bundle/full")
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        m = json.loads(zf.read("manifest.json"))
+    assert m["version"] == 1
+    assert m["type"] == "full"
+    assert "exported_at" in m
 
 
-def _make_zip(include_schema=True, include_profile=True, include_config=True, config_data=None):
-    if config_data is None:
-        config_data = {
-            "wiki_name": "ImportedWiki",
-            "org_name": "ImportedOrg",
-            "org_description": "An imported org",
-            "entity_types": [
-                {
-                    "folder_name": "clients",
-                    "display_name": "Clients",
-                    "description": "Client orgs",
-                    "singular": "client",
-                    "fields": [{"name": "name", "type": "string", "required": True}],
-                    "sections": ["Overview"],
-                }
-            ],
-        }
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        if include_schema:
-            zf.writestr("SCHEMA.md", "# Imported Schema")
-        if include_profile:
-            zf.writestr("company_profile.md", "# Imported Org")
-        if include_config:
-            zf.writestr("wiki_config.json", json.dumps(config_data))
-    buf.seek(0)
-    return buf.read()
+def test_full_export_includes_all_directories(dirs):
+    r = _make_client(dirs).get("/bundle/full")
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        names = set(zf.namelist())
+    assert "schema/SCHEMA.md" in names
+    assert "schema/wiki_config.json" in names
+    assert "wiki/clients/_type.yaml" in names
+    assert "wiki/clients/acme.md" in names
+    assert "wiki/index.md" in names
+    assert "sources/doc.pdf" in names
+    assert "sources/.metadata.json" in names
+    assert "snapshots/20260101-000000.zip" in names
 
 
-def test_import_stages_files_and_returns_config(dirs):
-    schema_dir, wiki_dir = dirs
-    client = _client(schema_dir, wiki_dir)
-    zip_bytes = _make_zip()
+# ── Template export ────────────────────────────────────────────────────────────
 
-    response = client.post(
-        "/import",
-        files={"file": ("wiki-bundle.zip", zip_bytes, "application/zip")},
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["wiki_name"] == "ImportedWiki"
-    assert data["org_name"] == "ImportedOrg"
-    assert len(data["entity_types"]) == 1
-    assert os.path.exists(os.path.join(schema_dir, "SCHEMA.md"))
-    assert open(os.path.join(schema_dir, "SCHEMA.md")).read() == "# Imported Schema"
-    assert os.path.exists(os.path.join(schema_dir, "company_profile.md"))
-    # wiki_config.json must NOT be written by import (finalize does that)
-    config_on_disk = json.loads(open(os.path.join(schema_dir, "wiki_config.json")).read())
-    assert config_on_disk.get("wiki_name") != "ImportedWiki"
+def test_template_export_returns_zip(dirs):
+    r = _make_client(dirs).get("/bundle/template")
+    assert r.status_code == 200
+    assert "faragopedia-template-" in r.headers["content-disposition"]
 
 
-def test_import_rejects_invalid_zip(dirs):
-    schema_dir, wiki_dir = dirs
-    client = _client(schema_dir, wiki_dir)
-
-    response = client.post(
-        "/import",
-        files={"file": ("bad.zip", b"not a zip", "application/zip")},
-    )
-    assert response.status_code == 422
+def test_template_export_manifest(dirs):
+    r = _make_client(dirs).get("/bundle/template")
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        m = json.loads(zf.read("manifest.json"))
+    assert m["version"] == 1
+    assert m["type"] == "template"
 
 
-def test_import_rejects_missing_schema(dirs):
-    schema_dir, wiki_dir = dirs
-    client = _client(schema_dir, wiki_dir)
-    zip_bytes = _make_zip(include_schema=False)
-
-    response = client.post(
-        "/import",
-        files={"file": ("bundle.zip", zip_bytes, "application/zip")},
-    )
-    assert response.status_code == 422
-
-
-def test_import_rejects_missing_config(dirs):
-    schema_dir, wiki_dir = dirs
-    client = _client(schema_dir, wiki_dir)
-    zip_bytes = _make_zip(include_config=False)
-
-    response = client.post(
-        "/import",
-        files={"file": ("bundle.zip", zip_bytes, "application/zip")},
-    )
-    assert response.status_code == 422
-
-
-def test_finalize_creates_folders_and_config(dirs):
-    schema_dir, wiki_dir = dirs
-    import os
-    with open(os.path.join(schema_dir, "SCHEMA.md"), "w") as f:
-        f.write("# Imported Schema")
-    with open(os.path.join(schema_dir, "company_profile.md"), "w") as f:
-        f.write("# Imported Org")
-
-    client = _client(schema_dir, wiki_dir)
-    payload = {
-        "wiki_name": "ImportedWiki",
-        "org_name": "ImportedOrg",
-        "org_description": "An org",
-        "entity_types": [
-            {
-                "folder_name": "clients",
-                "display_name": "Clients",
-                "description": "Client orgs",
-                "singular": "client",
-                "fields": [{"name": "name", "type": "string", "required": True}],
-                "sections": ["Overview"],
-            }
-        ],
-    }
-
-    response = client.post("/import/finalize", json=payload)
-
-    assert response.status_code == 200
-    assert response.json()["success"] is True
-    config_path = os.path.join(schema_dir, "wiki_config.json")
-    assert os.path.exists(config_path)
-    config = json.loads(open(config_path).read())
-    assert config["setup_complete"] is True
-    assert config["wiki_name"] == "ImportedWiki"
-    assert os.path.isdir(os.path.join(wiki_dir, "clients"))
-    assert os.path.exists(os.path.join(wiki_dir, "clients", "_type.yaml"))
-    # Must NOT overwrite SCHEMA.md
-    assert open(os.path.join(schema_dir, "SCHEMA.md")).read() == "# Imported Schema"
+def test_template_export_structure_only(dirs):
+    r = _make_client(dirs).get("/bundle/template")
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        names = set(zf.namelist())
+    # Schema included in full
+    assert "schema/SCHEMA.md" in names
+    assert "schema/wiki_config.json" in names
+    # Entity type structure included
+    assert "wiki/clients/_type.yaml" in names
+    # Page content excluded
+    assert "wiki/clients/acme.md" not in names
+    assert "wiki/index.md" not in names
+    assert "wiki/search-index.json" not in names
+    # Sources, archive, snapshots excluded
+    assert "sources/doc.pdf" not in names
+    assert "snapshots/20260101-000000.zip" not in names
