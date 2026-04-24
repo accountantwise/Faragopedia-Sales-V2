@@ -80,3 +80,4 @@ schema/SCHEMA_TEMPLATE.md
 *.tar.gz
 .cache/
 tmp/
+workspaces/
