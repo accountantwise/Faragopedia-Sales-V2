@@ -1046,3 +1046,25 @@ def test_list_pages_excludes_meta(temp_dirs):
     pages = manager.list_pages()
     assert "_meta/index.md" not in pages
     assert "contacts/jane-doe.md" in pages
+
+
+def test_get_backlinks_excludes_meta(temp_dirs):
+    """_meta/index.md must not appear as a backlink source."""
+    sources, wiki = temp_dirs
+    manager = WikiManager(sources_dir=sources, wiki_dir=wiki)
+
+    contacts_dir = os.path.join(wiki, "contacts")
+    os.makedirs(contacts_dir, exist_ok=True)
+    with open(os.path.join(contacts_dir, "_type.yaml"), "w") as f:
+        f.write("name: contacts\n")
+    with open(os.path.join(contacts_dir, "jane-doe.md"), "w") as f:
+        f.write("---\nname: Jane Doe\n---\n# Jane\n")
+
+    # Write a _meta/index.md that contains a wikilink to jane-doe
+    meta_dir = os.path.join(wiki, "_meta")
+    os.makedirs(meta_dir, exist_ok=True)
+    with open(os.path.join(meta_dir, "index.md"), "w") as f:
+        f.write("---\nsystem: true\n---\n\n- [[contacts/jane-doe]]\n")
+
+    backlinks = manager.get_backlinks("contacts/jane-doe.md")
+    assert "_meta/index.md" not in backlinks

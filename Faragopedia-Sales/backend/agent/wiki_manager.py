@@ -320,7 +320,14 @@ class WikiManager:
             raise
         self._rebuild_index_md(pages, index["generated_at"])
 
-    def _rebuild_index_md(self, pages: list, generated_at: str) -> None:
+    def _rebuild_index_md(self, pages: list[dict], generated_at: str) -> None:
+        """Write wiki/_meta/index.md from the in-memory pages list.
+
+        Called immediately after search-index.json is written so both files
+        share the same page data without extra I/O. `pages` is the list of
+        page dicts built in `_rebuild_search_index()`; `generated_at` is the
+        ISO-8601 UTC timestamp from the index header.
+        """
         meta_dir = os.path.join(self.wiki_dir, "_meta")
         os.makedirs(meta_dir, exist_ok=True)
 
@@ -1157,7 +1164,7 @@ class WikiManager:
 
     def list_pages(self) -> List[str]:
         """List all entity pages as relative paths (e.g. 'clients/louis-vuitton.md').
-        Excludes index.md and log.md."""
+        Excludes index.md, log.md, and all _meta/ paths."""
         pages = []
         for root, _dirs, files in os.walk(self.wiki_dir):
             for filename in sorted(files):
