@@ -1341,7 +1341,7 @@ const WikiView: React.FC = () => {
           
           {/* Close checkmark for chat */}
           <button 
-            className="absolute top-3 right-4 text-gray-500 hover:bg-gray-100 rounded-full p-1.5 transition-colors z-50"
+            className="absolute top-4 right-4 text-gray-500 hover:bg-gray-100 rounded-full p-1.5 transition-colors z-50"
             onClick={() => setShowChat(false)}
             title="Close Chat"
           >

@@ -49,7 +49,7 @@ const ChatPanel: React.FC<Props> = ({ className = '', onLinkClick }) => {
 
   return (
     <div className={`flex flex-col bg-white h-full ${className}`}>
-      <div className="border-b px-4 py-3 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-between shrink-0">
+      <div className="border-b px-4 h-16 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-between shrink-0">
         <h2 className="font-bold text-gray-800 flex items-center">
           <MessageSquare className="w-5 h-5 mr-2" /> AI Assistant
         </h2>
