@@ -33,6 +33,16 @@ const App: React.FC = () => {
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const fetchWorkspaces = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/workspaces`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setWorkspaces(data.workspaces ?? []);
+      setActiveWorkspaceId(data.active_workspace_id ?? '');
+    } catch (_) {}
+  }, []);
+
   // Setup status check — must be first useEffect
   useEffect(() => {
     fetch(`${API_BASE}/setup/status`)
@@ -73,16 +83,6 @@ const App: React.FC = () => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
-  }, []);
-
-  const fetchWorkspaces = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/workspaces`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setWorkspaces(data.workspaces ?? []);
-      setActiveWorkspaceId(data.active_workspace_id ?? '');
-    } catch (_) {}
   }, []);
 
   useEffect(() => {
