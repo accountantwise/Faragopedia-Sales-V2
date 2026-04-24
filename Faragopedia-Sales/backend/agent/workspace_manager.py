@@ -232,6 +232,30 @@ def delete_workspace(workspace_id: str) -> None:
         _active_dirs = workspace_dirs(new_active) if new_active else {}
 
 
+def archive_workspace(workspace_id: str) -> dict:
+    """Set archived=True on a workspace registry entry."""
+    if workspace_id == _active_workspace_id:
+        raise ValueError("Cannot archive the active workspace.")
+    registry = _read_registry()
+    for ws in registry.get("workspaces", []):
+        if ws["id"] == workspace_id:
+            ws["archived"] = True
+            _write_registry(registry)
+            return ws
+    raise ValueError(f"Workspace '{workspace_id}' not found.")
+
+
+def unarchive_workspace(workspace_id: str) -> dict:
+    """Set archived=False on a workspace registry entry."""
+    registry = _read_registry()
+    for ws in registry.get("workspaces", []):
+        if ws["id"] == workspace_id:
+            ws["archived"] = False
+            _write_registry(registry)
+            return ws
+    raise ValueError(f"Workspace '{workspace_id}' not found.")
+
+
 # ── Directory accessors (delegate to active workspace) ───────────────────────
 
 def get_wiki_dir() -> str:
