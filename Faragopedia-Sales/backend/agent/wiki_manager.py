@@ -318,6 +318,54 @@ class WikiManager:
             except OSError:
                 pass
             raise
+        self._rebuild_index_md(pages, index["generated_at"])
+
+    def _rebuild_index_md(self, pages: list, generated_at: str) -> None:
+        meta_dir = os.path.join(self.wiki_dir, "_meta")
+        os.makedirs(meta_dir, exist_ok=True)
+
+        by_type: dict = {}
+        for page in pages:
+            by_type.setdefault(page["entity_type"], []).append(page)
+
+        lines = [
+            "---",
+            "system: true",
+            f"generated_at: {generated_at}",
+            "---",
+            "",
+            "# Wiki Index",
+            "",
+            "## By Type",
+            "",
+        ]
+
+        for et in sorted(by_type.keys()):
+            heading = et.replace("-", " ").replace("_", " ").title()
+            lines.append(f"### {heading}")
+            for page in sorted(by_type[et], key=lambda p: p["title"].lower()):
+                path_no_ext = page["path"].removesuffix(".md")
+                tag_str = " ".join(f"`#{t}`" for t in page["tags"]) if page["tags"] else ""
+                entry = f"- [[{path_no_ext}]] — {page['title']}"
+                if tag_str:
+                    entry += f" {tag_str}"
+                lines.append(entry)
+            lines.append("")
+
+        lines += [
+            "---",
+            "",
+            "## All Pages (A–Z)",
+            "",
+        ]
+
+        for page in sorted(pages, key=lambda p: p["title"].lower()):
+            path_no_ext = page["path"].removesuffix(".md")
+            lines.append(f"- [[{path_no_ext}]] — {page['title']}")
+
+        index_md_path = os.path.join(meta_dir, "index.md")
+        with open(index_md_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
 
     async def update_page_tags(self, page_path: str, tags: list[str], _rebuild: bool = True) -> None:
         """Replace the tags list on a wiki page's YAML frontmatter and rebuild index."""
@@ -1118,7 +1166,7 @@ class WikiManager:
                 rel_path = os.path.relpath(os.path.join(root, filename), self.wiki_dir)
                 # Normalize to forward slashes
                 rel_path = rel_path.replace(os.sep, "/")
-                if rel_path in ("index.md", "log.md"):
+                if rel_path in ("index.md", "log.md") or rel_path.startswith("_meta/"):
                     continue
                 pages.append(rel_path)
         return pages
@@ -1177,7 +1225,7 @@ class WikiManager:
                 if not filename.endswith(".md"):
                     continue
                 rel = os.path.relpath(os.path.join(root, filename), self.wiki_dir).replace(os.sep, "/")
-                if rel == page_path or rel in ("index.md", "log.md"):
+                if rel == page_path or rel in ("index.md", "log.md") or rel.startswith("_meta/"):
                     continue
                 full_path = os.path.join(root, filename)
                 with open(full_path, "r", encoding="utf-8") as f:

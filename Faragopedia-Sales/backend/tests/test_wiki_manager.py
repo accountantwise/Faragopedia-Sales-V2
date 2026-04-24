@@ -966,3 +966,83 @@ async def test_fix_lint_findings(tmp_path):
     assert (wiki / "concepts" / "e-sign.md").exists()
     log_content = (wiki / "log.md").read_text()
     assert "lint-fix" in log_content
+
+
+def test_rebuild_search_index_creates_index_md(temp_dirs):
+    """_rebuild_search_index() must write wiki/_meta/index.md."""
+    sources, wiki = temp_dirs
+    manager = WikiManager(sources_dir=sources, wiki_dir=wiki)
+
+    # Create a page so index has content
+    contacts_dir = os.path.join(wiki, "contacts")
+    os.makedirs(contacts_dir, exist_ok=True)
+    type_yaml = os.path.join(contacts_dir, "_type.yaml")
+    with open(type_yaml, "w") as f:
+        f.write("name: contacts\n")
+    page_path = os.path.join(contacts_dir, "jane-doe.md")
+    with open(page_path, "w") as f:
+        f.write("---\nname: Jane Doe\ntags:\n  - prospect\n---\n# Jane Doe\n")
+
+    manager._rebuild_search_index()
+
+    index_md = os.path.join(wiki, "_meta", "index.md")
+    assert os.path.exists(index_md), "_meta/index.md was not created"
+
+
+def test_index_md_content(temp_dirs):
+    """_meta/index.md must contain frontmatter, by-type sections, and A-Z list."""
+    sources, wiki = temp_dirs
+    manager = WikiManager(sources_dir=sources, wiki_dir=wiki)
+
+    contacts_dir = os.path.join(wiki, "contacts")
+    os.makedirs(contacts_dir, exist_ok=True)
+    with open(os.path.join(contacts_dir, "_type.yaml"), "w") as f:
+        f.write("name: contacts\n")
+    with open(os.path.join(contacts_dir, "jane-doe.md"), "w") as f:
+        f.write("---\nname: Jane Doe\ntags:\n  - prospect\n---\n# Jane\n")
+    with open(os.path.join(contacts_dir, "adam-smith.md"), "w") as f:
+        f.write("---\nname: Adam Smith\ntags: []\n---\n# Adam\n")
+
+    manager._rebuild_search_index()
+
+    index_md = os.path.join(wiki, "_meta", "index.md")
+    with open(index_md, "r", encoding="utf-8") as f:
+        text = f.read()
+
+    # Frontmatter
+    assert "system: true" in text
+    assert "generated_at:" in text
+
+    # By-type section
+    assert "## By Type" in text
+    assert "### Contacts" in text
+    assert "[[contacts/jane-doe]]" in text
+    assert "`#prospect`" in text
+
+    # A-Z section: Adam should appear before Jane
+    assert "## All Pages (A" in text
+    adam_pos = text.index("adam-smith")
+    jane_pos = text.index("jane-doe")
+    assert adam_pos < jane_pos, "A-Z list is not sorted alphabetically by title"
+
+
+def test_list_pages_excludes_meta(temp_dirs):
+    """list_pages() must not include _meta/index.md."""
+    sources, wiki = temp_dirs
+    manager = WikiManager(sources_dir=sources, wiki_dir=wiki)
+
+    meta_dir = os.path.join(wiki, "_meta")
+    os.makedirs(meta_dir, exist_ok=True)
+    with open(os.path.join(meta_dir, "index.md"), "w") as f:
+        f.write("---\nsystem: true\n---\n# Index\n")
+
+    contacts_dir = os.path.join(wiki, "contacts")
+    os.makedirs(contacts_dir, exist_ok=True)
+    with open(os.path.join(contacts_dir, "_type.yaml"), "w") as f:
+        f.write("name: contacts\n")
+    with open(os.path.join(contacts_dir, "jane-doe.md"), "w") as f:
+        f.write("---\nname: Jane Doe\n---\n# Jane\n")
+
+    pages = manager.list_pages()
+    assert "_meta/index.md" not in pages
+    assert "contacts/jane-doe.md" in pages
