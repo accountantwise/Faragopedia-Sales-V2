@@ -79,7 +79,9 @@ def setup_complete(payload: SetupPayload):
             schema_dir=get_schema_dir(),
         )
         set_wiki_manager(wm)
-        update_workspace_name(get_active_workspace_id(), payload.wiki_name)
+        workspace_id = get_active_workspace_id()
+        if workspace_id is not None:
+            update_workspace_name(workspace_id, payload.wiki_name)
         return {"success": True, "wiki_name": payload.wiki_name}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
