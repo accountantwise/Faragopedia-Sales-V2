@@ -233,8 +233,8 @@ const WikiView: React.FC = () => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const fetchPageContent = async (filename: string, addToHistory: boolean = true) => {
-    if (isEditing && editedContent !== content) {
+  const fetchPageContent = async (filename: string, addToHistory: boolean = true, skipDirtyCheck: boolean = false) => {
+    if (!skipDirtyCheck && isEditing && editedContent !== content) {
       if (!window.confirm('You have unsaved changes. Discard them and navigate away?')) return;
     }
 
@@ -320,7 +320,7 @@ const WikiView: React.FC = () => {
         // File was renamed from Untitled — navigate to the new path
         await fetchPages();
         setSelectedPage(saveData.new_filename);
-        await fetchPageContent(saveData.new_filename);
+        await fetchPageContent(saveData.new_filename, true, true);
       } else {
         fetchPages();
       }
