@@ -1150,3 +1150,96 @@ async def test_create_new_page_falls_back_when_no_template(tmp_path):
     written = (wiki / "clients" / "Untitled.md").read_text()
     assert "type: client" in written
     assert "name: " in written
+
+
+def test_slugify_basic():
+    from agent.wiki_manager import WikiManager
+    assert WikiManager._slugify("Acme Corp") == "acme-corp"
+    assert WikiManager._slugify("Jane O'Brien") == "jane-o-brien"
+    assert WikiManager._slugify("  Hello  World  ") == "hello-world"
+    assert WikiManager._slugify("ABC 123") == "abc-123"
+    assert WikiManager._slugify("---") == "untitled"
+    assert WikiManager._slugify("") == "untitled"
+
+
+@pytest.mark.asyncio
+async def test_auto_rename_if_untitled_renames_when_name_present(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    untitled_path = wiki / "clients" / "Untitled.md"
+    untitled_path.write_text("---\ntype: client\nname: Acme Corp\n---\n\n# Acme Corp\n")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    new_path = await manager.auto_rename_if_untitled("clients/Untitled.md")
+    assert new_path == "clients/acme-corp.md"
+    assert (wiki / "clients" / "acme-corp.md").exists()
+    assert not (wiki / "clients" / "Untitled.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_auto_rename_if_untitled_no_op_when_already_named(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    (wiki / "clients" / "acme-corp.md").write_text("---\ntype: client\nname: Acme Corp\n---\n")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    result = await manager.auto_rename_if_untitled("clients/acme-corp.md")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_auto_rename_if_untitled_no_op_when_name_empty(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    untitled_path = wiki / "clients" / "Untitled.md"
+    untitled_path.write_text("---\ntype: client\nname: \n---\n\n# \n")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    result = await manager.auto_rename_if_untitled("clients/Untitled.md")
+    assert result is None
+    assert (wiki / "clients" / "Untitled.md").exists()

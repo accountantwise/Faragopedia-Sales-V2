@@ -312,8 +312,15 @@ const WikiView: React.FC = () => {
 
       setContent(editedContent);
       setIsEditing(false);
-      // Refresh list in case title changed (though current implementation doesn't change filename on save)
-      fetchPages();
+
+      if (saveData.new_filename) {
+        // File was renamed from Untitled — navigate to the new path
+        await fetchPages();
+        setSelectedPage(saveData.new_filename);
+        await fetchPageContent(saveData.new_filename);
+      } else {
+        fetchPages();
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {

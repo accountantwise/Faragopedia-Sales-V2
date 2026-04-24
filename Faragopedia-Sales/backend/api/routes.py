@@ -792,6 +792,11 @@ async def update_page(wm: WM, path: str, payload: dict):
         raise HTTPException(status_code=422, detail="Content is required")
     try:
         suggested_tags = await wm.save_page_content(safe_path, content)
-        return {"message": "Page updated successfully", "suggested_tags": suggested_tags}
+        new_filename = await wm.auto_rename_if_untitled(safe_path)
+        return {
+            "message": "Page updated successfully",
+            "suggested_tags": suggested_tags,
+            "new_filename": new_filename,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating page: {str(e)}")

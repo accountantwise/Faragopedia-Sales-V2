@@ -247,6 +247,17 @@ class WikiManager:
                            allow_unicode=True, sort_keys=False).rstrip()
         return f"---\n{fm_str}\n---\n{body}"
 
+    @staticmethod
+    def _slugify(name: str) -> str:
+        """Convert a name to a slug suitable for filenames.
+        Lowercase, hyphen-separated, alphanumeric + hyphens only.
+        Returns 'untitled' for empty or non-alphanumeric-only strings.
+        """
+        slug = name.lower().strip()
+        slug = re.sub(r'[^a-z0-9]+', '-', slug)
+        slug = slug.strip('-')
+        return slug or "untitled"
+
     def _strip_markdown(self, text: str) -> str:
         text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
         text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
@@ -918,6 +929,56 @@ class WikiManager:
             self._append_to_log("create", f"Created {rel_path}")
         self._rebuild_search_index()
         return rel_path
+
+    async def auto_rename_if_untitled(self, rel_path: str) -> str | None:
+        """Rename an Untitled page to a slug based on its 'name' frontmatter field.
+
+        Returns the new relative path if a rename occurred, None otherwise.
+        Renames only if:
+        1. File basename matches Untitled(_N)?.md pattern
+        2. File exists
+        3. Frontmatter contains a non-empty 'name' field
+
+        Handles collisions by appending -2, -3, etc.
+        """
+        basename = os.path.basename(rel_path)
+        if not re.match(r'^Untitled(_\d+)?\.md$', basename):
+            return None
+
+        abs_path = os.path.join(self.wiki_dir, rel_path.replace("/", os.sep))
+        if not os.path.exists(abs_path):
+            return None
+
+        with open(abs_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        fm, _ = self._parse_frontmatter(content)
+        name_value = fm.get("name")
+        # Skip if name is None or empty/whitespace string
+        if name_value is None:
+            return None
+        name = str(name_value).strip()
+        if not name:
+            return None
+
+        entity_type = rel_path.split("/")[0]
+        sub_dir = os.path.join(self.wiki_dir, entity_type)
+        slug = self._slugify(name)
+        new_rel_path = f"{entity_type}/{slug}.md"
+        new_abs_path = os.path.join(sub_dir, f"{slug}.md")
+
+        # Handle collisions
+        counter = 2
+        while os.path.exists(new_abs_path):
+            new_rel_path = f"{entity_type}/{slug}-{counter}.md"
+            new_abs_path = os.path.join(sub_dir, f"{slug}-{counter}.md")
+            counter += 1
+
+        async with self._write_lock:
+            os.rename(abs_path, new_abs_path)
+            self.update_index()
+        self._rebuild_search_index()
+        return new_rel_path
 
     def rebuild_schema(self):
         """Regenerate SCHEMA.md from SCHEMA_TEMPLATE.md and _type.yaml files."""
