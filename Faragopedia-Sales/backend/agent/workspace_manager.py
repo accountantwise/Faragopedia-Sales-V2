@@ -256,6 +256,80 @@ def unarchive_workspace(workspace_id: str) -> dict:
     raise ValueError(f"Workspace '{workspace_id}' not found.")
 
 
+def duplicate_workspace(source_id: str, name: str, mode: str) -> dict:
+    """Duplicate a workspace. mode must be 'full' or 'template'."""
+    if mode not in ("full", "template"):
+        raise ValueError(f"Invalid mode: {mode!r}. Must be 'full' or 'template'.")
+
+    slug = name.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    slug = slug.strip("-")
+    slug = slug[:50]
+    if not slug:
+        slug = "workspace"
+
+    registry = _read_registry()
+    existing_ids = {ws["id"] for ws in registry.get("workspaces", [])}
+
+    source_entry = next((ws for ws in registry.get("workspaces", []) if ws["id"] == source_id), None)
+    if source_entry is None:
+        raise ValueError(f"Workspace '{source_id}' not found.")
+
+    if slug in existing_ids:
+        counter = 2
+        while f"{slug}-{counter}" in existing_ids:
+            counter += 1
+        slug = f"{slug}-{counter}"
+
+    source_dirs = workspace_dirs(source_id)
+    new_dirs = workspace_dirs(slug)
+
+    if mode == "full":
+        for key in ("wiki_dir", "sources_dir", "archive_dir", "snapshots_dir", "schema_dir"):
+            src = source_dirs[key]
+            dst = new_dirs[key]
+            if os.path.isdir(src):
+                shutil.copytree(src, dst)
+            else:
+                os.makedirs(dst, exist_ok=True)
+        setup_required = False
+    else:  # template
+        for path in new_dirs.values():
+            os.makedirs(path, exist_ok=True)
+        src_schema = source_dirs["schema_dir"]
+        dst_schema = new_dirs["schema_dir"]
+        if os.path.isdir(src_schema):
+            shutil.copytree(src_schema, dst_schema, dirs_exist_ok=True)
+        wiki_config_path = os.path.join(dst_schema, "wiki_config.json")
+        if os.path.isfile(wiki_config_path):
+            os.remove(wiki_config_path)
+        src_wiki = source_dirs["wiki_dir"]
+        dst_wiki = new_dirs["wiki_dir"]
+        if os.path.isdir(src_wiki):
+            for item in os.listdir(src_wiki):
+                src_folder = os.path.join(src_wiki, item)
+                if os.path.isdir(src_folder):
+                    dst_folder = os.path.join(dst_wiki, item)
+                    os.makedirs(dst_folder, exist_ok=True)
+                    for fname in ("_type.yaml", "_template.md"):
+                        src_file = os.path.join(src_folder, fname)
+                        if os.path.isfile(src_file):
+                            shutil.copy2(src_file, os.path.join(dst_folder, fname))
+        setup_required = True
+
+    entry = {
+        "id": slug,
+        "name": name,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "archived": False,
+    }
+    registry.setdefault("workspaces", []).append(entry)
+    _write_registry(registry)
+    set_active_workspace(slug)
+
+    return {"id": slug, "name": name, "setup_required": setup_required}
+
+
 # ── Directory accessors (delegate to active workspace) ───────────────────────
 
 def get_wiki_dir() -> str:
