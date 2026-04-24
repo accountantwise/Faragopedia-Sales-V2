@@ -13,14 +13,14 @@ BACKEND_DIR = os.path.dirname(_THIS_DIR)                # backend/
 BASE_DIR = os.path.dirname(BACKEND_DIR)                 # project root
 
 LEGACY_DIRS = {
-    "wiki_dir":      os.path.join(BASE_DIR, "wiki"),
-    "sources_dir":   os.path.join(BASE_DIR, "sources"),
-    "archive_dir":   os.path.join(BASE_DIR, "archive"),
-    "snapshots_dir": os.path.join(BASE_DIR, "snapshots"),
+    "wiki_dir":      os.path.join(BACKEND_DIR, "wiki"),
+    "sources_dir":   os.path.join(BACKEND_DIR, "sources"),
+    "archive_dir":   os.path.join(BACKEND_DIR, "archive"),
+    "snapshots_dir": os.path.join(BACKEND_DIR, "snapshots"),
     "schema_dir":    os.path.join(BACKEND_DIR, "schema"),
 }
 
-WORKSPACES_BASE = os.path.join(BASE_DIR, "workspaces")
+WORKSPACES_BASE = os.path.join(BACKEND_DIR, "workspaces")
 REGISTRY_PATH   = os.path.join(WORKSPACES_BASE, "registry.json")
 
 # ── Module-level state ────────────────────────────────────────────────────────
