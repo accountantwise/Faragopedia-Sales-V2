@@ -7,10 +7,10 @@
 
 Replace the existing partial bundle export (5 files) with a full-fidelity export/import system offering two modes:
 
-- **Full** — complete migration of all wiki data, sources, archive, snapshots, and schema to a new server
-- **Template** — schema and folder structure only, giving a clean starting point with the organization's entity types and company profile pre-configured but no actual data
+- **Full** — complete migration of all wiki data, sources, archive, snapshots, and schema to a new server; wizard is bypassed entirely
+- **Template** — schema and folder structure only; on import the user is dropped into the wizard at the schema review step (pre-populated from the bundle) so they can finalize entity types before the wiki is initialized
 
-Importing either bundle type bypasses the setup wizard entirely since `wiki_config.json` is present in both. Environment-specific settings (API keys, model config, port config) are excluded from all bundles.
+Environment-specific settings (API keys, model config, port config) are excluded from all bundles.
 
 ---
 
@@ -52,13 +52,15 @@ schema/
   SCHEMA.md
   SCHEMA_TEMPLATE.md
   company_profile.md
-  wiki_config.json
+  wiki_config.json         ← used to read entity types; not written to disk on import
 wiki/
   {entity_type}/
     _type.yaml             ← folder structure only, no page files
 ```
 
-Template imports generate fresh empty `index.md` and `log.md` on the new server. No sources, archive, snapshots, or wiki page content is included.
+Note: `wiki_config.json` is included so the import handler can read entity type definitions without parsing YAML files, but it is not written to disk. The wizard writes its own `wiki_config.json` after the user confirms.
+
+Template imports seed the schema files and entity type folders on disk, then hand control to the setup wizard at the schema review step. The wizard is pre-populated with the imported entity types and company profile. The user can modify them, then confirms to complete setup — at which point `wiki_config.json` is written and fresh `index.md` and `log.md` are generated (same as a normal first-time setup). No sources, archive, snapshots, or wiki page content is included.
 
 ### manifest.json
 
@@ -136,27 +138,36 @@ Steps:
    - **Full:** clear `wiki/`, `sources/`, `archive/`, `snapshots/`, `schema/`
    - **Template:** clear `wiki/`, `schema/` only (leave sources/archive/snapshots untouched)
 6. Move staged contents to final locations
-7. **Template only:** generate fresh `wiki/index.md` and `wiki/log.md`
-8. Clean up temp staging directory
-9. Reinitialize `WikiManager` with restored data
-10. Rebuild search index via `_rebuild_search_index()`
-11. Return `{"status": "ok", "type": "full"|"template"}`
+   - **Template:** do NOT write `wiki_config.json` — it is written later by `POST /api/setup/complete` after the user confirms in the wizard
+7. Clean up temp staging directory
+8. **Full only:** reinitialize `WikiManager`, rebuild search index via `_rebuild_search_index()`
+9. Return:
+   - Full: `{"status": "ok", "type": "full"}`
+   - Template: `{"status": "ok", "type": "template", "folders": [...entity type names...], "company_profile": "...content..."}`
 
 The existing `POST /api/export/import/finalize` endpoint is deprecated and removed.
 
-### Setup-Complete on Import
+### Setup-Complete Behavior by Type
 
-`wiki_config.json` presence on disk is what the setup check reads. Both bundle types include it, so the wizard is automatically bypassed after any import — no additional flag or state change required.
+| | **Full Import** | **Template Import** |
+|---|---|---|
+| `wiki_config.json` written | Immediately (from bundle) | After user confirms in wizard |
+| Wizard shown after import | No — wiki is ready immediately | Yes — lands on schema review step, pre-populated |
+| Wiki content created | Restored from bundle | Generated fresh after wizard confirms |
+
+**Full import:** `wiki_config.json` is restored from the bundle, so `GET /api/setup/status` returns setup-complete and the wizard is skipped on next load.
+
+**Template import:** The backend writes schema files and `_type.yaml` files to disk but does NOT write `wiki_config.json`. It returns `{"status": "ok", "type": "template", "folders": [...], "company_profile": "..."}` — the frontend uses this payload to jump the wizard directly to the schema review screen, pre-populated. The user confirms (or edits), then `POST /api/setup/complete` fires as normal, writing `wiki_config.json` and initializing the wiki.
 
 ### Frontend
 
 **Two entry points, same upload flow:**
 
-1. **Settings Drawer** (`SettingsDrawer.tsx`) — Import section alongside Export. Single "Import" button opens a `.zip` file picker, uploads to `/api/export/import`, shows a spinner, then reloads the app on success. The bundle `type` is detected automatically on the backend.
+1. **Settings Drawer** (`SettingsDrawer.tsx`) — Import section alongside Export. Single "Import" button opens a `.zip` file picker, uploads to `/api/export/import`, shows a spinner. On success, reloads the app (Full) or transitions to wizard schema review (Template).
 
-2. **Setup Wizard** (`SetupWizard.tsx`) — "Already have a Faragopedia export? Import it instead." visible on the wizard's first screen. Same file picker + upload flow. On success, page reloads and the wizard is bypassed.
+2. **Setup Wizard** (`SetupWizard.tsx`) — "Already have a Faragopedia export? Import it instead." visible on the wizard's first screen. Same file picker + upload flow. Full import reloads; Template import jumps to schema review within the wizard.
 
-Both share the same upload helper function.
+Both share the same upload helper function. The response `type` field determines which post-import path to take.
 
 ---
 
