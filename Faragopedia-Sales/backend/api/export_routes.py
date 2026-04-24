@@ -160,6 +160,15 @@ async def import_bundle(file: UploadFile = File(...)):
                 raise HTTPException(status_code=500, detail=f"Restore failed: {exc}") from exc
 
 
+def _clear_dir(path: Path) -> None:
+    """Clear directory contents without deleting the directory itself."""
+    for item in path.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+
+
 def _restore_full(staging: Path) -> None:
     for dir_name, dir_str in [
         ("schema", SCHEMA_DIR),
@@ -170,12 +179,10 @@ def _restore_full(staging: Path) -> None:
     ]:
         target = Path(dir_str)
         source = staging / dir_name
-        if target.exists():
-            shutil.rmtree(target)
+        target.mkdir(parents=True, exist_ok=True)
+        _clear_dir(target)
         if source.exists():
-            shutil.copytree(source, target)
-        else:
-            target.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source, target, dirs_exist_ok=True)
 
     # Ensure sources/.metadata.json exists — if missing from bundle, write empty dict
     sources_path = Path(SOURCES_DIR)
@@ -188,11 +195,10 @@ def _restore_template(staging: Path, wiki_config: dict) -> list:
     # Restore schema directory
     schema_target = Path(SCHEMA_DIR)
     schema_staging = staging / "schema"
-    if schema_target.exists():
-        shutil.rmtree(schema_target)
-    if schema_staging.exists():
-        shutil.copytree(schema_staging, schema_target)
     schema_target.mkdir(parents=True, exist_ok=True)
+    _clear_dir(schema_target)
+    if schema_staging.exists():
+        shutil.copytree(schema_staging, schema_target, dirs_exist_ok=True)
 
     # Remove wiki_config.json — setup wizard writes it after user confirms
     config_path = schema_target / "wiki_config.json"
@@ -201,9 +207,8 @@ def _restore_template(staging: Path, wiki_config: dict) -> list:
 
     # Clear wiki, restore only _type.yaml files
     wiki_target = Path(WIKI_DIR)
-    if wiki_target.exists():
-        shutil.rmtree(wiki_target)
-    wiki_target.mkdir(parents=True)
+    wiki_target.mkdir(parents=True, exist_ok=True)
+    _clear_dir(wiki_target)
 
     wiki_staging = staging / "wiki"
     if wiki_staging.exists():
