@@ -46,6 +46,7 @@ const WikiView: React.FC = () => {
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editedContent, setEditedContent] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isSystemPage, setIsSystemPage] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [showNewPageMenu, setShowNewPageMenu] = useState(false);
@@ -278,7 +279,10 @@ const WikiView: React.FC = () => {
         }
       }
       setSuggestedTags([]);
-      
+
+      const systemMatch = /^system:\s*true\s*$/m.test(contentData.content);
+      setIsSystemPage(systemMatch);
+
       // Auto-switch away from list view on small screens
       setShowMobileList(false);
     } catch (err: any) {
@@ -1023,7 +1027,7 @@ const WikiView: React.FC = () => {
                         Cancel
                       </button>
                     </>
-                  ) : (
+                  ) : !isSystemPage ? (
                     <button
                       onClick={() => setIsEditing(true)}
                       className="flex items-center px-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -1031,7 +1035,7 @@ const WikiView: React.FC = () => {
                       <Edit3 className="w-4 h-4 mr-1.5" />
                       Edit
                     </button>
-                  )}
+                  ) : null}
                   
                   <button
                     onClick={handleDownload}
@@ -1083,7 +1087,7 @@ const WikiView: React.FC = () => {
             </div>
           ) : content ? (
             <>
-            {selectedPage && !isEditing && (
+            {selectedPage && !isEditing && !isSystemPage && (
               <div className="flex flex-wrap items-center gap-1.5 px-6 pb-3 pt-1 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-800/30 -mx-8 mb-4">
                 {pageTags.map(tag => (
                   <span key={tag}
