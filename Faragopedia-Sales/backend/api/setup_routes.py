@@ -19,7 +19,7 @@ from agent.setup_wizard import (
 from api.routes import set_wiki_manager
 from agent.workspace_manager import (
     get_wiki_dir, get_sources_dir, get_archive_dir, get_snapshots_dir, get_schema_dir,
-    update_workspace_name, get_active_workspace_id,
+    update_workspace_name, get_active_workspace_id, create_workspace,
 )
 
 setup_router = APIRouter()
@@ -70,6 +70,8 @@ def suggest_schema(req: SuggestRequest):
 def setup_complete(payload: SetupPayload):
     try:
         from agent.wiki_manager import WikiManager
+        if get_active_workspace_id() is None:
+            create_workspace(payload.wiki_name)
         complete_setup(get_schema_dir(), get_wiki_dir(), payload)
         wm = WikiManager(
             sources_dir=get_sources_dir(),
