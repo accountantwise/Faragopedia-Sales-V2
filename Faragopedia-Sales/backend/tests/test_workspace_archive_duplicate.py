@@ -159,3 +159,113 @@ def test_duplicate_slug_uniqueness(ws_with_content):
     wm2._active_workspace_id = result1["id"]
     result2 = wm.duplicate_workspace("ws-a", "Copy", "full")
     assert result1["id"] != result2["id"]
+
+
+# ── API route tests ────────────────────────────────────────────────────────────
+
+import json as _json
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture
+def api_env(tmp_path, monkeypatch):
+    import agent.workspace_manager as wm_module
+    import api.workspace_routes as wr
+
+    registry_path = tmp_path / "registry.json"
+    monkeypatch.setattr(wm_module, "REGISTRY_PATH", str(registry_path))
+    monkeypatch.setattr(wm_module, "WORKSPACES_BASE", str(tmp_path))
+    monkeypatch.setattr(wm_module, "_active_workspace_id", "ws-a")
+    monkeypatch.setattr(wm_module, "_active_dirs", {
+        "wiki_dir":      str(tmp_path / "ws-a" / "wiki"),
+        "sources_dir":   str(tmp_path / "ws-a" / "sources"),
+        "archive_dir":   str(tmp_path / "ws-a" / "archive"),
+        "snapshots_dir": str(tmp_path / "ws-a" / "snapshots"),
+        "schema_dir":    str(tmp_path / "ws-a" / "schema"),
+    })
+    # Stub set_wiki_manager so duplicate doesn't try to init WikiManager
+    monkeypatch.setattr(wr, "set_wiki_manager", lambda wm: None)
+
+    for ws_id in ("ws-a", "ws-b"):
+        schema = tmp_path / ws_id / "schema"
+        wiki = tmp_path / ws_id / "wiki"
+        for sub in ("wiki", "sources", "archive", "snapshots", "schema"):
+            os.makedirs(tmp_path / ws_id / sub, exist_ok=True)
+        (schema / "wiki_config.json").write_text(_json.dumps({"setup_complete": True, "wiki_name": ws_id}))
+        (schema / "SCHEMA.md").write_text("# Schema")
+        clients = wiki / "clients"
+        clients.mkdir(exist_ok=True)
+        (clients / "_type.yaml").write_text("name: Clients\n")
+        (clients / "page.md").write_text("# Page\n")
+
+    registry = {
+        "active_workspace_id": "ws-a",
+        "workspaces": [
+            {"id": "ws-a", "name": "Workspace A", "created_at": "2026-01-01T00:00:00"},
+            {"id": "ws-b", "name": "Workspace B", "created_at": "2026-01-01T00:00:00"},
+        ],
+    }
+    registry_path.write_text(_json.dumps(registry))
+
+    app = FastAPI()
+    app.include_router(wr.workspace_router, prefix="/api/workspaces")
+    return TestClient(app)
+
+
+def test_archive_endpoint_returns_archived_workspace(api_env):
+    r = api_env.post("/api/workspaces/ws-b/archive")
+    assert r.status_code == 200
+    assert r.json()["archived"] is True
+
+
+def test_archive_active_workspace_returns_400(api_env):
+    r = api_env.post("/api/workspaces/ws-a/archive")
+    assert r.status_code == 400
+
+
+def test_archive_nonexistent_returns_404(api_env):
+    r = api_env.post("/api/workspaces/no-such/archive")
+    assert r.status_code == 404
+
+
+def test_unarchive_endpoint_clears_flag(api_env, tmp_path):
+    # Archive ws-b first via the API
+    api_env.post("/api/workspaces/ws-b/archive")
+    r = api_env.post("/api/workspaces/ws-b/unarchive")
+    assert r.status_code == 200
+    assert r.json()["archived"] is False
+
+
+def test_unarchive_nonexistent_returns_404(api_env):
+    r = api_env.post("/api/workspaces/no-such/unarchive")
+    assert r.status_code == 404
+
+
+def test_duplicate_full_endpoint(api_env):
+    r = api_env.post("/api/workspaces/ws-a/duplicate", json={"name": "Copy of A", "mode": "full"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["setup_required"] is False
+    assert "id" in data
+
+
+def test_duplicate_template_endpoint(api_env):
+    r = api_env.post("/api/workspaces/ws-a/duplicate", json={"name": "Template Copy", "mode": "template"})
+    assert r.status_code == 200
+    assert r.json()["setup_required"] is True
+
+
+def test_duplicate_empty_name_returns_422(api_env):
+    r = api_env.post("/api/workspaces/ws-a/duplicate", json={"name": "  ", "mode": "full"})
+    assert r.status_code == 422
+
+
+def test_duplicate_invalid_mode_returns_422(api_env):
+    r = api_env.post("/api/workspaces/ws-a/duplicate", json={"name": "Copy", "mode": "bad"})
+    assert r.status_code == 422
+
+
+def test_duplicate_nonexistent_source_returns_404(api_env):
+    r = api_env.post("/api/workspaces/no-such/duplicate", json={"name": "Copy", "mode": "full"})
+    assert r.status_code == 404
