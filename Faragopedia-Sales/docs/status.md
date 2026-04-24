@@ -239,6 +239,7 @@
 | 3 | ⬜ Todo | `setup_wizard.py` `complete_setup()` — call `write_entity_templates()` after `_type.yaml` loop |
 | 4 | ⬜ Todo | `wiki_manager.py` `list_pages()` — filter `_`-prefixed `.md` files from page list |
 | 5 | ⬜ Todo | `wiki_manager.py` `create_new_page()` — read `_template.md` if present, fallback to stub |
+| 6 | ⬜ Todo | `wiki_manager.py` `_slugify()` + `auto_rename_if_untitled()`; `routes.py` returns `new_filename`; `WikiView.tsx` navigates to new path on save |
 
 ---
 

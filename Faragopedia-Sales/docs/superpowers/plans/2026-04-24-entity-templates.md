@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Generate a `_template.md` for each entity type at setup time; use it to pre-populate new pages in the editor, and hide it from the wiki sidebar.
+**Goal:** Generate a `_template.md` for each entity type at setup time; use it to pre-populate new pages in the editor, hide it from the wiki sidebar, and auto-rename the file to the correct wiki slug when the user first saves.
 
-**Architecture:** New `generate_entity_template` / `write_entity_templates` functions in `schema_builder.py` render templates from `_type.yaml` data. `complete_setup()` calls them after writing `_type.yaml` files. `list_pages()` filters `_`-prefixed filenames. `create_new_page()` reads `_template.md` if present, else falls back to the existing stub.
+**Architecture:** New `generate_entity_template` / `write_entity_templates` functions in `schema_builder.py` render templates from `_type.yaml` data. `complete_setup()` calls them after writing `_type.yaml` files. `list_pages()` filters `_`-prefixed filenames. `create_new_page()` reads `_template.md` if present, else falls back to the existing stub. On save, `auto_rename_if_untitled()` in `WikiManager` detects `Untitled*.md` filenames, extracts the `name` frontmatter field, slugifies it, and renames the file; the new filename is returned to the frontend which updates its state accordingly.
 
 **Tech Stack:** Python 3.11, pytest, PyYAML, FastAPI (no new dependencies)
 
@@ -16,10 +16,12 @@
 |---|---|
 | `backend/agent/schema_builder.py` | Add `generate_entity_template()` and `write_entity_templates()` |
 | `backend/agent/setup_wizard.py` | Import + call `write_entity_templates()` inside `complete_setup()` |
-| `backend/agent/wiki_manager.py` | Filter `_`-prefixed files in `list_pages()`; read template in `create_new_page()` |
+| `backend/agent/wiki_manager.py` | Filter `_`-prefixed files in `list_pages()`; read template in `create_new_page()`; add `_slugify()` + `auto_rename_if_untitled()` |
+| `backend/api/routes.py` | Call `auto_rename_if_untitled()` after save; return `new_filename` in PUT response |
+| `frontend/src/components/WikiView.tsx` | Handle `new_filename` in `handleSave`; update `selectedPage` and reload content |
 | `backend/tests/test_schema_builder.py` | Add tests for two new functions |
 | `backend/tests/test_setup_wizard.py` | Add test that `complete_setup` writes templates |
-| `backend/tests/test_wiki_manager.py` | Add tests for `list_pages` filter and `create_new_page` template usage |
+| `backend/tests/test_wiki_manager.py` | Add tests for `list_pages` filter, `create_new_page` template usage, `_slugify`, and `auto_rename_if_untitled` |
 
 ---
 
@@ -596,4 +598,270 @@ Expected: All previously passing tests still pass.
 
 ```bash
 cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2" && git add "Faragopedia-Sales/backend/agent/wiki_manager.py" "Faragopedia-Sales/backend/tests/test_wiki_manager.py" && git commit -m "feat: pre-populate new pages from _template.md"
+```
+
+---
+
+### Task 6: Auto-rename Untitled pages on first save
+
+When a user fills in the `name` field and saves an `Untitled*.md` page, the backend renames the file to the correct lowercase-hyphenated slug, and the frontend navigates to the new filename.
+
+**Files:**
+- Modify: `backend/agent/wiki_manager.py` (add `_slugify` static method + `auto_rename_if_untitled` method)
+- Modify: `backend/api/routes.py:784-797` (`update_page` endpoint)
+- Modify: `frontend/src/components/WikiView.tsx:296-322` (`handleSave`)
+- Test: `backend/tests/test_wiki_manager.py`
+
+- [ ] **Step 1: Write the failing tests**
+
+Open `backend/tests/test_wiki_manager.py`. Append these tests:
+
+```python
+def test_slugify_basic():
+    from agent.wiki_manager import WikiManager
+    assert WikiManager._slugify("Acme Corp") == "acme-corp"
+    assert WikiManager._slugify("Jane O'Brien") == "jane-o-brien"
+    assert WikiManager._slugify("  Hello  World  ") == "hello-world"
+    assert WikiManager._slugify("ABC 123") == "abc-123"
+    assert WikiManager._slugify("---") == "untitled"
+    assert WikiManager._slugify("") == "untitled"
+
+
+@pytest.mark.asyncio
+async def test_auto_rename_if_untitled_renames_when_name_present(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    # Simulate an Untitled page that the user has filled in
+    untitled_path = wiki / "clients" / "Untitled.md"
+    untitled_path.write_text("---\ntype: client\nname: Acme Corp\n---\n\n# Acme Corp\n")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    new_path = await manager.auto_rename_if_untitled("clients/Untitled.md")
+    assert new_path == "clients/acme-corp.md"
+    assert (wiki / "clients" / "acme-corp.md").exists()
+    assert not (wiki / "clients" / "Untitled.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_auto_rename_if_untitled_no_op_when_already_named(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    (wiki / "clients" / "acme-corp.md").write_text("---\ntype: client\nname: Acme Corp\n---\n")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    result = await manager.auto_rename_if_untitled("clients/acme-corp.md")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_auto_rename_if_untitled_no_op_when_name_empty(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    untitled_path = wiki / "clients" / "Untitled.md"
+    untitled_path.write_text("---\ntype: client\nname: \n---\n\n# \n")
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    result = await manager.auto_rename_if_untitled("clients/Untitled.md")
+    assert result is None
+    assert (wiki / "clients" / "Untitled.md").exists()
+```
+
+- [ ] **Step 2: Run tests to confirm they fail**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2/Faragopedia-Sales/backend" && python -m pytest tests/test_wiki_manager.py::test_slugify_basic tests/test_wiki_manager.py::test_auto_rename_if_untitled_renames_when_name_present -v
+```
+
+Expected: `AttributeError` — `_slugify` and `auto_rename_if_untitled` not yet defined.
+
+- [ ] **Step 3: Implement `_slugify` and `auto_rename_if_untitled` in `wiki_manager.py`**
+
+Open `backend/agent/wiki_manager.py`. Add the static `_slugify` method near the other `_parse_frontmatter` / `_render_frontmatter` helpers (around line 250):
+
+```python
+    @staticmethod
+    def _slugify(name: str) -> str:
+        """Convert a display name to a lowercase-hyphenated wiki filename slug."""
+        slug = name.lower().strip()
+        slug = re.sub(r'[^a-z0-9]+', '-', slug)
+        slug = slug.strip('-')
+        return slug or "untitled"
+```
+
+Then add `auto_rename_if_untitled` as an async method on `WikiManager`, near `create_new_page` (around line 916):
+
+```python
+    async def auto_rename_if_untitled(self, rel_path: str) -> str | None:
+        """If rel_path is an Untitled*.md file with a non-empty name frontmatter field,
+        rename it to the correct wiki slug and return the new relative path.
+        Returns None if no rename was performed.
+        """
+        basename = os.path.basename(rel_path)
+        if not re.match(r'^Untitled(_\d+)?\.md$', basename):
+            return None
+
+        abs_path = os.path.join(self.wiki_dir, rel_path.replace("/", os.sep))
+        if not os.path.exists(abs_path):
+            return None
+
+        with open(abs_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        fm, _ = self._parse_frontmatter(content)
+        name = str(fm.get("name", "")).strip()
+        if not name:
+            return None
+
+        entity_type = rel_path.split("/")[0]
+        sub_dir = os.path.join(self.wiki_dir, entity_type)
+        slug = self._slugify(name)
+        new_rel_path = f"{entity_type}/{slug}.md"
+        new_abs_path = os.path.join(sub_dir, f"{slug}.md")
+
+        # Collision handling: append -2, -3, etc.
+        counter = 2
+        while os.path.exists(new_abs_path):
+            new_rel_path = f"{entity_type}/{slug}-{counter}.md"
+            new_abs_path = os.path.join(sub_dir, f"{slug}-{counter}.md")
+            counter += 1
+
+        async with self._write_lock:
+            os.rename(abs_path, new_abs_path)
+            self.update_index()
+        self._rebuild_search_index()
+        return new_rel_path
+```
+
+- [ ] **Step 4: Run tests to confirm they pass**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2/Faragopedia-Sales/backend" && python -m pytest tests/test_wiki_manager.py::test_slugify_basic tests/test_wiki_manager.py::test_auto_rename_if_untitled_renames_when_name_present tests/test_wiki_manager.py::test_auto_rename_if_untitled_no_op_when_already_named tests/test_wiki_manager.py::test_auto_rename_if_untitled_no_op_when_name_empty -v
+```
+
+Expected: 4 PASSED.
+
+- [ ] **Step 5: Update the `update_page` route to call `auto_rename_if_untitled`**
+
+Open `backend/api/routes.py`. Replace the `update_page` function (lines 784–797):
+
+```python
+@router.put("/pages/{path:path}")
+async def update_page(wm: WM, path: str, payload: dict):
+    try:
+        safe_path = safe_wiki_filename(path, wm)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    content = payload.get("content")
+    if content is None:
+        raise HTTPException(status_code=422, detail="Content is required")
+    try:
+        suggested_tags = await wm.save_page_content(safe_path, content)
+        new_filename = await wm.auto_rename_if_untitled(safe_path)
+        return {
+            "message": "Page updated successfully",
+            "suggested_tags": suggested_tags,
+            "new_filename": new_filename,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating page: {str(e)}")
+```
+
+- [ ] **Step 6: Run the full backend test suite to check for regressions**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2/Faragopedia-Sales/backend" && python -m pytest tests/ -v --tb=short 2>&1 | tail -30
+```
+
+Expected: All previously passing tests still pass.
+
+- [ ] **Step 7: Update `handleSave` in `WikiView.tsx` to handle the new filename**
+
+Open `frontend/src/components/WikiView.tsx`. Replace `handleSave` (lines 296–322):
+
+```typescript
+  const handleSave = async () => {
+    if (!selectedPage) return;
+    try {
+      setIsSaving(true);
+      const response = await fetch(`${API_BASE}/pages/${encodeURIComponent(selectedPage)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editedContent }),
+      });
+
+      if (!response.ok) throw new Error('Failed to save page');
+
+      const saveData = await response.json();
+      if (saveData.suggested_tags && saveData.suggested_tags.length > 0) {
+        setSuggestedTags(saveData.suggested_tags);
+      }
+
+      setContent(editedContent);
+      setIsEditing(false);
+
+      if (saveData.new_filename) {
+        // File was renamed from Untitled — navigate to the new path
+        await fetchPages();
+        setSelectedPage(saveData.new_filename);
+        await fetchPageContent(saveData.new_filename);
+      } else {
+        fetchPages();
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+```
+
+- [ ] **Step 8: Commit**
+
+```bash
+cd "/home/colacho/Nextcloud/AI/VS Code/Faragopedia-V2" && git add "Faragopedia-Sales/backend/agent/wiki_manager.py" "Faragopedia-Sales/backend/api/routes.py" "Faragopedia-Sales/frontend/src/components/WikiView.tsx" "Faragopedia-Sales/backend/tests/test_wiki_manager.py" && git commit -m "feat: auto-rename Untitled pages to wiki slug on first save"
 ```
