@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, RefreshCw, Download, Settings } from 'lucide-react';
+import { X, RefreshCw, Download, Settings, Upload } from 'lucide-react';
 import { API_BASE } from '../config';
 
 interface SettingsDrawerProps {
@@ -24,7 +24,8 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   onReconfigure,
 }) => {
   const [wikiName, setWikiName] = useState('');
-  const [downloading, setDownloading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState('');
 
   useEffect(() => {
     if (open && !wikiName) {
@@ -35,21 +36,49 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     }
   }, [open, wikiName]);
 
-  const handleDownload = async () => {
-    setDownloading(true);
-    try {
-      const res = await fetch(`${API_BASE}/export/bundle`);
-      if (!res.ok) throw new Error('Download failed');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'wiki-bundle.zip';
-      a.click();
-      URL.revokeObjectURL(url);
-    } finally {
-      setDownloading(false);
-    }
+  const handleExportFull = () => {
+    window.open(`${API_BASE}/export/bundle/full`, '_blank');
+  };
+
+  const handleExportTemplate = () => {
+    window.open(`${API_BASE}/export/bundle/template`, '_blank');
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.zip';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      setImportLoading(true);
+      setImportError('');
+      const form = new FormData();
+      form.append('file', file);
+      try {
+        const r = await fetch(`${API_BASE}/export/import`, { method: 'POST', body: form });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({ detail: 'Import failed' }));
+          setImportError(err.detail || 'Import failed');
+          return;
+        }
+        const data = await r.json();
+        if (data.type === 'template') {
+          sessionStorage.setItem('templateImport', JSON.stringify({
+            wiki_name: data.wiki_name,
+            org_name: data.org_name,
+            org_description: data.org_description,
+            entity_types: data.entity_types,
+          }));
+        }
+        window.location.reload();
+      } catch {
+        setImportError('Import failed. Please try again.');
+      } finally {
+        setImportLoading(false);
+      }
+    };
+    input.click();
   };
 
   return (
@@ -131,21 +160,49 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
             <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">
               Export
             </p>
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Wiki infrastructure files
-              </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
-                SCHEMA.md · index.md · log.md · company_profile.md · wiki_config.json
-              </p>
+            <div className="space-y-2">
               <button
-                onClick={handleDownload}
-                disabled={downloading}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors text-sm font-medium"
+                onClick={handleExportFull}
+                className="w-full flex items-start gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-left transition-colors"
               >
-                <Download className="w-4 h-4" />
-                {downloading ? 'Downloading…' : 'Download as .zip'}
+                <Download size={16} className="mt-0.5 shrink-0 text-gray-500 dark:text-gray-400" />
+                <div>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Export Full</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">All pages, sources, archive &amp; snapshots</div>
+                </div>
               </button>
+              <button
+                onClick={handleExportTemplate}
+                className="w-full flex items-start gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-left transition-colors"
+              >
+                <Download size={16} className="mt-0.5 shrink-0 text-gray-500 dark:text-gray-400" />
+                <div>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Export Template</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">Schema &amp; folder structure only — no content</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Import */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">
+              Import
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={handleImport}
+                disabled={importLoading}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-left transition-colors disabled:opacity-50"
+              >
+                <Upload size={16} className="shrink-0 text-gray-500 dark:text-gray-400" />
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {importLoading ? 'Importing…' : 'Import Bundle'}
+                </div>
+              </button>
+              {importError && (
+                <p className="text-xs text-red-500 dark:text-red-400 px-1">{importError}</p>
+              )}
             </div>
           </div>
 
