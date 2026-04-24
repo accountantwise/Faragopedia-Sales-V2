@@ -8,7 +8,7 @@
 
 ## Current Phase: 🟡 MVP Development / Prototype Functional
 
-**Last updated:** 2026-04-22
+**Last updated:** 2026-04-24
 
 ---
 
@@ -16,6 +16,7 @@
 
 | Date       | Agent/Person | Summary                                       |
 | ---------- | ------------ | --------------------------------------------- |
+| 2026-04-24 | Claude | **Entity Type Templates — designed and planned**. Design spec saved to `docs/superpowers/specs/2026-04-24-entity-templates-design.md`. Full 5-task TDD implementation plan saved to `docs/superpowers/plans/2026-04-24-entity-templates.md`. Feature: during setup wizard completion, generate a `_template.md` per entity type co-located with `_type.yaml`; filter `_`-prefixed files from `list_pages()`; pre-populate new pages from the template. Pure backend — no frontend changes. No code changes yet. |
 | 2026-04-22 | Claude | **Settings Section — designed and planned** (branch: `setup-wizard`). Design spec saved to `docs/superpowers/specs/2026-04-22-settings-design.md`. Full 13-task TDD implementation plan saved to `docs/superpowers/plans/2026-04-22-settings-implementation.md`. Feature covers: slide-out SettingsDrawer (theme toggle, reconfigure, export zip), Tailwind dark mode (`dark:` class strategy), backend export/import API (3 endpoints), SetupWizard step-0 import-from-backup flow. Backend tasks (1–5) → Claude. Frontend tasks (6–13) → Gemini. No code changes yet. |
 | 2026-04-21 | Claude | **Setup Wizard — All 10 tasks complete** (branch: `setup-wizard`). Tasks 3–9 implemented: `setup_wizard.py` Pydantic models + core functions + `complete_setup()`; `setup_routes.py` 5 endpoints + `suggest_schema_llm()`; `main.py` startup migration + WikiManager init; `Sidebar.tsx` wikiName prop + Reconfigure button; `App.tsx` setup state gating + reconfigure flow; `SetupWizard.tsx` full 3-step wizard (identity → schema review → confirm/launch). `wiki_config.json` generated on setup completion. |
 | 2026-04-21 | Claude | **Setup Wizard — Tasks 1–2 complete** (branch: `setup-wizard`). Task 1: `WikiManager._load_system_prompt()` now returns a stub string instead of raising `FileNotFoundError` when schema files are absent. Task 2: Replaced module-level `WikiManager` singleton in `routes.py` with FastAPI DI (`get_wiki_manager`, `set_wiki_manager`, `WM = Annotated[WikiManager, Depends(...)]`); `safe_wiki_filename` now takes explicit `wm` param; all 139 tests updated and passing. Tasks 3–10 remain. |
@@ -80,6 +81,7 @@
 - [x] Actionable Lint (checkbox findings, Apply Selected, snapshot rollback) ✅ (2026-04-20) — branch: `bulk-actions`
 - [x] Setup Wizard (first-run identity + LLM schema generation, company-agnostic config) ✅ (2026-04-21) — branch: `setup-wizard`
 - [ ] Settings Section (slide-out drawer, dark mode, export/import infrastructure files) 🟡 Planned — branch: `setup-wizard`
+- [ ] Entity Type Templates (`_template.md` per entity type, pre-populated new pages) 🟡 Planned — `main`
 
 ---
 
@@ -219,8 +221,24 @@
 1. **Execute Settings backend (Tasks 1–5)** — Claude implements `finalize_import` + `export_routes.py` + `main.py` registration on `setup-wizard` branch.
 2. **Execute Settings frontend (Tasks 6–13)** — Gemini implements per `docs/superpowers/plans/2026-04-22-settings-implementation.md`.
 3. Merge `setup-wizard` to `main` once Settings is complete and verified.
-4. Add Graph View (post-settings).
-5. Monitor snapshot storage usage and add auto-pruning if needed.
+4. **Execute Entity Type Templates plan (Tasks 1–5)** — pure backend, `main` branch, per `docs/superpowers/plans/2026-04-24-entity-templates.md`.
+5. Add Graph View (post-settings).
+6. Monitor snapshot storage usage and add auto-pruning if needed.
+
+---
+
+## Entity Type Templates Progress (branch: `main`)
+
+**Plan:** `docs/superpowers/plans/2026-04-24-entity-templates.md`
+**Spec:** `docs/superpowers/specs/2026-04-24-entity-templates-design.md`
+
+| Task | Status | Description |
+| ---- | ------ | ----------- |
+| 1 | ⬜ Todo | `schema_builder.py` — `generate_entity_template(folder_name, singular, fields, sections) -> str` |
+| 2 | ⬜ Todo | `schema_builder.py` — `write_entity_templates(wiki_dir, entity_type_dicts)` |
+| 3 | ⬜ Todo | `setup_wizard.py` `complete_setup()` — call `write_entity_templates()` after `_type.yaml` loop |
+| 4 | ⬜ Todo | `wiki_manager.py` `list_pages()` — filter `_`-prefixed `.md` files from page list |
+| 5 | ⬜ Todo | `wiki_manager.py` `create_new_page()` — read `_template.md` if present, fallback to stub |
 
 ---
 

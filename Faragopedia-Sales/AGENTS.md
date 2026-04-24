@@ -13,7 +13,7 @@
 | ------------ | -------------------------------------------------------- |
 | **Name**     | Faragopedia-Sales                                        |
 | **Repo**     | `github.com/accountantwise/Faragopedia-Sales`            |
-| **Phase**    | 🟡 MVP Development / Settings Section planned, ready to implement (branch: `setup-wizard`) |
+| **Phase**    | 🟡 MVP Development / Settings Section + Entity Templates planned, ready to implement |
 | **Stack**    | Python/FastAPI + React/Vite                              |
 | **Deploy**   | Docker container → Portainer on Ubuntu server            |
 
@@ -105,9 +105,10 @@ current direction.
 21. ~~Desktop UI/UX Polish (Consistency, Layout fixes)~~ ✅
 22. ~~Setup Wizard (3-step wizard, LLM schema suggestion, reconfigure flow)~~ ✅ (2026-04-21)
 23. **Execute Settings Section plan (Tasks 1–13)** 👈 — spec + plan in `docs/superpowers/`; backend → Claude, frontend → Gemini
-24. **Add "estimated time remaining" to Lint View**
-25. **Monitor snapshot storage / add auto-pruning**
-26. **Implement Graph View**
+24. **Execute Entity Type Templates plan (Tasks 1–5)** — pure backend; spec + plan in `docs/superpowers/`; `main` branch
+25. **Add "estimated time remaining" to Lint View**
+26. **Monitor snapshot storage / add auto-pruning**
+27. **Implement Graph View**
 
 
 
