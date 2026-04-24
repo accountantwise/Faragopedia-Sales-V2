@@ -7,6 +7,7 @@ from agent.schema_builder import (
     render_type_schema_section,
     build_schema_md,
     generate_entity_template,
+    write_entity_templates,
 )
 
 
@@ -150,3 +151,68 @@ def test_generate_entity_template_h1_blank():
     result = generate_entity_template("clients", "client", [], ["Overview"])
     # Body starts with a blank H1
     assert "\n\n# \n" in result
+
+
+def test_write_entity_templates_creates_files(tmp_path):
+    wiki = tmp_path / "wiki"
+    (wiki / "clients").mkdir(parents=True)
+    (wiki / "contacts").mkdir()
+
+    entity_dicts = [
+        {
+            "folder_name": "clients",
+            "singular": "client",
+            "fields": [{"name": "name", "type": "string"}],
+            "sections": ["Overview"],
+        },
+        {
+            "folder_name": "contacts",
+            "singular": "contact",
+            "fields": [{"name": "name", "type": "string"}],
+            "sections": ["Bio"],
+        },
+    ]
+    write_entity_templates(str(wiki), entity_dicts)
+
+    clients_tmpl = wiki / "clients" / "_template.md"
+    contacts_tmpl = wiki / "contacts" / "_template.md"
+    assert clients_tmpl.exists()
+    assert contacts_tmpl.exists()
+    assert "type: client" in clients_tmpl.read_text()
+    assert "## Overview" in clients_tmpl.read_text()
+    assert "type: contact" in contacts_tmpl.read_text()
+    assert "## Bio" in contacts_tmpl.read_text()
+
+
+def test_write_entity_templates_creates_missing_folder(tmp_path):
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    entity_dicts = [
+        {
+            "folder_name": "deals",
+            "singular": "deal",
+            "fields": [],
+            "sections": [],
+        }
+    ]
+    write_entity_templates(str(wiki), entity_dicts)
+    assert (wiki / "deals" / "_template.md").exists()
+
+
+def test_write_entity_templates_overwrites_existing(tmp_path):
+    wiki = tmp_path / "wiki"
+    (wiki / "clients").mkdir(parents=True)
+    (wiki / "clients" / "_template.md").write_text("old content")
+
+    entity_dicts = [
+        {
+            "folder_name": "clients",
+            "singular": "client",
+            "fields": [{"name": "name", "type": "string"}],
+            "sections": [],
+        }
+    ]
+    write_entity_templates(str(wiki), entity_dicts)
+    content = (wiki / "clients" / "_template.md").read_text()
+    assert content != "old content"
+    assert "type: client" in content

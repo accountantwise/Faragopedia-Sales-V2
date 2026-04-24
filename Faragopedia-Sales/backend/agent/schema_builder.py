@@ -241,3 +241,21 @@ def generate_entity_template(
         lines.append(f"_Add {section.lower()} here..._")
         lines.append("")
     return "\n".join(lines)
+
+
+def write_entity_templates(wiki_dir: str, entity_type_dicts: list) -> None:
+    """Write _template.md files for each entity type in entity_type_dicts.
+    Creates folders if they don't exist. Overwrites existing templates.
+    """
+    for et in entity_type_dicts:
+        folder_path = os.path.join(wiki_dir, et["folder_name"])
+        os.makedirs(folder_path, exist_ok=True)
+        content = generate_entity_template(
+            folder_name=et["folder_name"],
+            singular=et["singular"],
+            fields=et.get("fields", []),
+            sections=et.get("sections", []),
+        )
+        template_path = os.path.join(folder_path, "_template.md")
+        with open(template_path, "w", encoding="utf-8") as f:
+            f.write(content)
