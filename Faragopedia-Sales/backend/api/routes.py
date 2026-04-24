@@ -117,6 +117,7 @@ def secure_filename(filename: str) -> str:
 def safe_wiki_filename(path: str, wm: WikiManager) -> str:
     """Validate a wiki page path of the form 'subdir/page-name.md'.
     Accepts exactly one level of subdirectory from VALID_ENTITY_SUBDIRS.
+    Also allows _meta/ system paths without entity-type validation.
     Rejects path traversal, unknown subdirectories, and non-.md files.
     """
     # Normalize separators
@@ -125,6 +126,20 @@ def safe_wiki_filename(path: str, wm: WikiManager) -> str:
     # Must end with .md
     if not normalized.endswith(".md"):
         raise ValueError(f"Invalid page path: {path!r} — must end with .md")
+
+    # Allow _meta/ system paths without entity-type validation
+    if normalized.startswith("_meta/"):
+        if ".." in normalized:
+            raise ValueError(f"Path traversal detected in: {path!r}")
+        wiki_real = os.path.realpath(WIKI_DIR)
+        resolved = os.path.realpath(os.path.join(wiki_real, normalized))
+        if os.name == "nt":
+            if not resolved.lower().startswith(wiki_real.lower() + os.sep):
+                raise ValueError(f"Path traversal detected in: {path!r}")
+        else:
+            if not resolved.startswith(wiki_real + os.sep):
+                raise ValueError(f"Path traversal detected in: {path!r}")
+        return normalized
 
     parts = normalized.split("/")
 

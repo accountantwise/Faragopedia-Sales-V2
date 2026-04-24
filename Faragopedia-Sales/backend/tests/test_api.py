@@ -221,3 +221,27 @@ def test_delete_snapshot_endpoint(client):
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
+
+
+def test_get_meta_index_file(client):
+    """Test that _meta/index.md paths are allowed and return proper content."""
+    # Mock the wiki manager's get_page_content to return index content
+    from api.routes import _wiki_manager
+    index_content = """{
+  "system": true,
+  "pages": [
+    {
+      "path": "clients/test-page.md",
+      "title": "Test Page",
+      "tags": []
+    }
+  ]
+}"""
+    _wiki_manager.get_page_content = MagicMock(return_value=index_content)
+
+    # Request the _meta/index.md file (URL-encoded path)
+    response = client.get("/api/pages/_meta%2Findex.md")
+    assert response.status_code == 200
+    data = response.json()
+    assert "content" in data
+    assert "system" in data["content"]
