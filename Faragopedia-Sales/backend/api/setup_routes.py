@@ -16,24 +16,18 @@ from agent.setup_wizard import (
     is_setup_complete,
     suggest_schema_llm,
 )
-from api.routes import (
-    ARCHIVE_DIR,
-    SNAPSHOTS_DIR,
-    SOURCES_DIR,
-    WIKI_DIR,
-    set_wiki_manager,
+from api.routes import set_wiki_manager
+from agent.workspace_manager import (
+    get_wiki_dir, get_sources_dir, get_archive_dir, get_snapshots_dir, get_schema_dir,
+    update_workspace_name, get_active_workspace_id,
 )
 
 setup_router = APIRouter()
 
-_THIS_DIR = os.path.dirname(os.path.abspath(__file__))   # backend/api/
-_BACKEND_DIR = os.path.dirname(_THIS_DIR)                 # backend/
-SCHEMA_DIR = os.path.join(_BACKEND_DIR, "schema")
-
 
 @setup_router.get("/status")
 def setup_status():
-    config = get_wiki_config(SCHEMA_DIR)
+    config = get_wiki_config(get_schema_dir())
     if config and config.get("setup_complete"):
         return {"setup_required": False, "wiki_name": config.get("wiki_name", "")}
     return {"setup_required": True}
@@ -41,7 +35,7 @@ def setup_status():
 
 @setup_router.get("/config")
 def setup_config():
-    config = get_wiki_config(SCHEMA_DIR)
+    config = get_wiki_config(get_schema_dir())
     if not config:
         raise HTTPException(status_code=404, detail="Wiki not configured")
     return {"wiki_name": config.get("wiki_name", ""), "org_name": config.get("org_name", "")}
@@ -49,7 +43,7 @@ def setup_config():
 
 @setup_router.get("/folders")
 def setup_folders():
-    return {"existing_folders": get_existing_folders(WIKI_DIR)}
+    return {"existing_folders": get_existing_folders(get_wiki_dir())}
 
 
 @setup_router.post("/suggest-schema")
@@ -76,15 +70,16 @@ def suggest_schema(req: SuggestRequest):
 def setup_complete(payload: SetupPayload):
     try:
         from agent.wiki_manager import WikiManager
-        complete_setup(SCHEMA_DIR, WIKI_DIR, payload)
+        complete_setup(get_schema_dir(), get_wiki_dir(), payload)
         wm = WikiManager(
-            sources_dir=SOURCES_DIR,
-            wiki_dir=WIKI_DIR,
-            archive_dir=ARCHIVE_DIR,
-            snapshots_dir=SNAPSHOTS_DIR,
-            schema_dir=SCHEMA_DIR,
+            sources_dir=get_sources_dir(),
+            wiki_dir=get_wiki_dir(),
+            archive_dir=get_archive_dir(),
+            snapshots_dir=get_snapshots_dir(),
+            schema_dir=get_schema_dir(),
         )
         set_wiki_manager(wm)
+        update_workspace_name(get_active_workspace_id(), payload.wiki_name)
         return {"success": True, "wiki_name": payload.wiki_name}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -93,7 +88,7 @@ def setup_complete(payload: SetupPayload):
 @setup_router.post("/clear")
 def setup_clear():
     set_wiki_manager(None)
-    folders = clear_setup(SCHEMA_DIR, WIKI_DIR)
+    folders = clear_setup(get_schema_dir(), get_wiki_dir())
     return {"existing_folders": folders}
 
 
@@ -102,7 +97,7 @@ def delete_setup_folder(folder_name: str):
     import re
     if not re.match(r"^[a-z][a-z0-9-]*$", folder_name):
         raise HTTPException(status_code=400, detail="Invalid folder name")
-    folder_path = os.path.join(WIKI_DIR, folder_name)
+    folder_path = os.path.join(get_wiki_dir(), folder_name)
     if not os.path.isdir(folder_path):
         raise HTTPException(status_code=404, detail="Folder not found")
     shutil.rmtree(folder_path)
