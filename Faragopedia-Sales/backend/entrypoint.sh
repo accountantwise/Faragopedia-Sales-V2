@@ -21,8 +21,8 @@ USER_NAME=$(getent passwd "$USER_ID" | cut -d: -f1)
 GROUP_NAME=$(getent group "$GROUP_ID" | cut -d: -f1)
 
 echo "Correcting permissions for data directories (UID: $USER_ID, GID: $GROUP_ID)..."
-mkdir -p /app/wiki /app/sources /app/snapshots /app/archive /app/schema
-chown -R "$USER_ID:$GROUP_ID" /app/wiki /app/sources /app/snapshots /app/archive /app/schema
+mkdir -p /app/wiki /app/sources /app/snapshots /app/archive /app/schema /app/workspaces
+chown -R "$USER_ID:$GROUP_ID" /app/wiki /app/sources /app/snapshots /app/archive /app/schema /app/workspaces
 
 echo "Starting application as $USER_NAME..."
 exec gosu "$USER_ID:$GROUP_ID" "$@"

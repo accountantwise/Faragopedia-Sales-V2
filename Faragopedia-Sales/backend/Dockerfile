@@ -16,7 +16,7 @@ COPY . .
 RUN chmod +x /app/entrypoint.sh
 
 # Ensure data directories exist
-RUN mkdir -p /app/wiki /app/sources /app/snapshots /app/archive /app/schema
+RUN mkdir -p /app/wiki /app/sources /app/snapshots /app/archive /app/schema /app/workspaces
 
 EXPOSE 8300
 
