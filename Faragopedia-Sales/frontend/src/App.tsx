@@ -25,11 +25,23 @@ const App: React.FC = () => {
   const prevMetadataRef = useRef<Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }>>({});
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState('');
 
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
     try { return (localStorage.getItem('faragopedia-theme') as 'light' | 'dark' | 'system') ?? 'system'; } catch (_) { return 'system'; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const fetchWorkspaces = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/workspaces`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setWorkspaces(data.workspaces ?? []);
+      setActiveWorkspaceId(data.active_workspace_id ?? '');
+    } catch (_) {}
+  }, []);
 
   // Setup status check — must be first useEffect
   useEffect(() => {
@@ -41,10 +53,11 @@ const App: React.FC = () => {
         } else {
           setWikiName(data.wiki_name || 'Wiki');
           setSetupState('ready');
+          fetchWorkspaces();
         }
       })
       .catch(() => setSetupState('required'));
-  }, []);
+  }, [fetchWorkspaces]);
 
   useEffect(() => {
     try { localStorage.setItem('faragopedia-theme', theme); } catch (_) {}
@@ -126,6 +139,43 @@ const App: React.FC = () => {
     setSetupState('ready');
   };
 
+  const handleSwitchWorkspace = async (id: string) => {
+    const res = await fetch(`${API_BASE}/workspaces/${id}/switch`, { method: 'POST' });
+    if (!res.ok) return;
+    const data = await res.json();
+    setActiveWorkspaceId(id);
+    setChatHistory([]);
+    setCurrentView('Wiki');
+    setSourcesMetadata({});
+    if (data.setup_required) {
+      setReconfigureMode(false);
+      setExistingFolders([]);
+      setSetupState('required');
+    } else {
+      setWikiName(data.wiki_name || 'Wiki');
+      setSetupState('ready');
+    }
+    fetchWorkspaces();
+  };
+
+  const handleNewWorkspace = async () => {
+    const res = await fetch(`${API_BASE}/workspaces`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'New Workspace' }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setActiveWorkspaceId(data.id);
+    setChatHistory([]);
+    setCurrentView('Wiki');
+    setSourcesMetadata({});
+    setSetupState('required');
+    setReconfigureMode(false);
+    setExistingFolders([]);
+    fetchWorkspaces();
+  };
+
   const handleChat = async () => {
     if (!chatQuery.trim()) return;
     const userMessage = chatQuery;
@@ -147,9 +197,9 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (currentView) {
       case 'Wiki':
-        return <WikiView />;
+        return <WikiView key={activeWorkspaceId} />;
       case 'Sources':
-        return <SourcesView sourcesMetadata={sourcesMetadata} />;
+        return <SourcesView key={activeWorkspaceId} sourcesMetadata={sourcesMetadata} />;
       case 'Chat':
         return (
           <div className="p-12 max-w-4xl mx-auto h-full flex flex-col">
@@ -255,9 +305,9 @@ const App: React.FC = () => {
           </div>
         );
       case 'Archive':
-        return <ArchiveView />;
+        return <ArchiveView key={activeWorkspaceId} />;
       case 'Lint':
-        return <LintView />;
+        return <LintView key={activeWorkspaceId} />;
       default:
         return <div className="p-8">Select a view</div>;
     }
@@ -304,6 +354,10 @@ const App: React.FC = () => {
             onViewChange={(v) => { setCurrentView(v); setMobileMenuOpen(false); }}
             wikiName={wikiName}
             onOpenSettings={() => setSettingsOpen(true)}
+            workspaces={workspaces}
+            activeWorkspaceId={activeWorkspaceId}
+            onSwitchWorkspace={handleSwitchWorkspace}
+            onNewWorkspace={handleNewWorkspace}
           />
           <button
             className="md:hidden absolute top-4 right-4 text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/80"

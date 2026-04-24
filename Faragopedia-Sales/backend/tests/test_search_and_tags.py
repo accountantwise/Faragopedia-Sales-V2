@@ -336,9 +336,9 @@ def client(wiki_env, monkeypatch):
     monkeypatch.setenv("AI_MODEL", "gpt-4o-mini")
 
     from api import routes as r
-    r.SOURCES_DIR = sources
-    r.WIKI_DIR = wiki
-    r.ARCHIVE_DIR = archive
+    monkeypatch.setattr("api.routes.get_sources_dir", lambda: sources)
+    monkeypatch.setattr("api.routes.get_wiki_dir", lambda: wiki)
+    monkeypatch.setattr("api.routes.get_archive_dir", lambda: archive)
     r.set_wiki_manager(WikiManager(sources_dir=sources, wiki_dir=wiki, archive_dir=archive))
 
     from fastapi import FastAPI

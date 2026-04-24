@@ -11,6 +11,9 @@ import io
 import asyncio
 from typing import Annotated, Dict, List
 from agent.wiki_manager import WikiManager, LintFinding, FixReport, Snapshot
+from agent.workspace_manager import (
+    get_wiki_dir, get_sources_dir, get_archive_dir, get_snapshots_dir
+)
 
 router = APIRouter()
 
@@ -36,19 +39,6 @@ class LintFixRequest(BaseModel):
             raise ValueError('findings must not be empty')
         return v
 
-# The 'sources/' directory is at '../sources' from 'backend/' if running inside the container,
-# or './sources' from the root.
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# If we are in the 'backend' directory (common in local dev), the project root is one level up.
-if os.path.basename(BASE_DIR) == "backend":
-    BASE_DIR = os.path.dirname(BASE_DIR)
-
-SOURCES_DIR = os.path.join(BASE_DIR, "sources")
-WIKI_DIR = os.path.join(BASE_DIR, "wiki")
-ARCHIVE_DIR = os.path.join(BASE_DIR, "archive")
-SNAPSHOTS_DIR = os.path.join(BASE_DIR, "snapshots")
-
 # ── Dependency injection ──────────────────────────────────────────────────────
 
 _wiki_manager: WikiManager | None = None
@@ -69,14 +59,14 @@ WM = Annotated[WikiManager, Depends(get_wiki_manager)]
 def get_valid_entity_subdirs(wm: WikiManager) -> set:
     return set(wm.get_entity_types().keys())
 
-def rewrite_wikilinks(path_map: dict) -> dict:
-    """Scan all .md files in WIKI_DIR and rewrite wikilinks for moved pages.
+def rewrite_wikilinks(path_map: dict, wiki_dir: str) -> dict:
+    """Scan all .md files in wiki_dir and rewrite wikilinks for moved pages.
 
     path_map: {old_path: new_path} e.g. {"prospects/acme.md": "clients/acme.md"}
     Returns: {file_path: count_of_rewrites}
     """
     links_rewritten = {}
-    for root, dirs, files in os.walk(WIKI_DIR):
+    for root, dirs, files in os.walk(wiki_dir):
         for fname in files:
             if not fname.endswith(".md"):
                 continue
@@ -100,8 +90,8 @@ def rewrite_wikilinks(path_map: dict) -> dict:
             if count > 0 and updated != original:
                 with open(full, "w", encoding="utf-8") as f:
                     f.write(updated)
-                # Use relative path from WIKI_DIR for the key
-                rel = os.path.relpath(full, WIKI_DIR).replace("\\", "/")
+                # Use relative path from wiki_dir for the key
+                rel = os.path.relpath(full, wiki_dir).replace("\\", "/")
                 links_rewritten[rel] = count
     return links_rewritten
 
@@ -131,7 +121,7 @@ def safe_wiki_filename(path: str, wm: WikiManager) -> str:
     if normalized.startswith("_meta/"):
         if ".." in normalized:
             raise ValueError(f"Path traversal detected in: {path!r}")
-        wiki_real = os.path.realpath(WIKI_DIR)
+        wiki_real = os.path.realpath(get_wiki_dir())
         resolved = os.path.realpath(os.path.join(wiki_real, normalized))
         if os.name == "nt":
             if not resolved.lower().startswith(wiki_real.lower() + os.sep):
@@ -158,7 +148,7 @@ def safe_wiki_filename(path: str, wm: WikiManager) -> str:
         raise ValueError(f"Path traversal detected in: {path!r}")
 
     # Validate the full resolved path stays within wiki dir
-    wiki_real = os.path.realpath(WIKI_DIR)
+    wiki_real = os.path.realpath(get_wiki_dir())
     resolved = os.path.realpath(os.path.join(wiki_real, subdir, filename))
 
     if os.name == "nt":
@@ -172,17 +162,17 @@ def safe_wiki_filename(path: str, wm: WikiManager) -> str:
 
 @router.post("/upload")
 async def upload_file(wm: WM, file: UploadFile = File(...), ingest: bool = Query(True)):
-    if not os.path.exists(SOURCES_DIR):
+    if not os.path.exists(get_sources_dir()):
         try:
-            os.makedirs(SOURCES_DIR, exist_ok=True)
+            os.makedirs(get_sources_dir(), exist_ok=True)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Could not create sources directory: {str(e)}")
 
-    if not os.access(SOURCES_DIR, os.W_OK):
+    if not os.access(get_sources_dir(), os.W_OK):
         raise HTTPException(status_code=500, detail="Sources directory is not writeable")
 
     safe_name = secure_filename(file.filename)
-    file_path = os.path.join(SOURCES_DIR, safe_name)
+    file_path = os.path.join(get_sources_dir(), safe_name)
 
     try:
         with open(file_path, "wb") as buffer:
@@ -213,8 +203,8 @@ async def paste_source(payload: dict):
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         filename = f"paste-{timestamp}.txt"
 
-    os.makedirs(SOURCES_DIR, exist_ok=True)
-    file_path = os.path.join(SOURCES_DIR, filename)
+    os.makedirs(get_sources_dir(), exist_ok=True)
+    file_path = os.path.join(get_sources_dir(), filename)
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
 
@@ -264,7 +254,7 @@ async def get_sources_metadata(wm: WM):
 async def ingest_source(wm: WM, filename: str):
     try:
         safe_name = os.path.basename(filename)
-        if not os.path.exists(os.path.join(SOURCES_DIR, safe_name)):
+        if not os.path.exists(os.path.join(get_sources_dir(), safe_name)):
             raise FileNotFoundError("Source file not found")
         asyncio.create_task(wm.ingest_source(safe_name))
         return {"message": f"Ingestion started for {safe_name}"}
@@ -279,7 +269,7 @@ async def bulk_ingest_sources(wm: WM, payload: BulkFilenames):
     skipped = []
     for filename in payload.filenames:
         safe_name = os.path.basename(filename)
-        if os.path.exists(os.path.join(SOURCES_DIR, safe_name)):
+        if os.path.exists(os.path.join(get_sources_dir(), safe_name)):
             asyncio.create_task(wm.ingest_source(safe_name))
             queued.append(safe_name)
         else:
@@ -304,7 +294,7 @@ async def download_page(wm: WM, path: str):
         safe_path = safe_wiki_filename(path, wm)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    full_path = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
+    full_path = os.path.join(get_wiki_dir(), safe_path.replace("/", os.sep))
     if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="Page not found")
     filename = safe_path.split("/")[-1]
@@ -516,8 +506,8 @@ async def bulk_move_pages(wm: WM, payload: BulkMove):
             continue
         filename = safe_path.split("/")[1]  # e.g. "acme.md"
         new_path = f"{payload.destination}/{filename}"
-        src = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
-        dst = os.path.join(WIKI_DIR, new_path.replace("/", os.sep))
+        src = os.path.join(get_wiki_dir(), safe_path.replace("/", os.sep))
+        dst = os.path.join(get_wiki_dir(), new_path.replace("/", os.sep))
         if os.path.exists(dst):
             errors.append({"path": path, "error": "destination already exists"})
             continue
@@ -527,7 +517,7 @@ async def bulk_move_pages(wm: WM, payload: BulkMove):
             path_map[safe_path] = new_path
         except OSError as e:
             errors.append({"path": path, "error": str(e)})
-    links_rewritten = rewrite_wikilinks(path_map) if path_map else {}
+    links_rewritten = rewrite_wikilinks(path_map, get_wiki_dir()) if path_map else {}
     return {"moved": moved, "errors": errors, "links_rewritten": links_rewritten}
 
 
@@ -539,7 +529,7 @@ async def bulk_download_pages(wm: WM, payload: BulkPaths):
             safe_path = safe_wiki_filename(path, wm)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-        full_path = os.path.join(WIKI_DIR, safe_path.replace("/", os.sep))
+        full_path = os.path.join(get_wiki_dir(), safe_path.replace("/", os.sep))
         if not os.path.exists(full_path):
             raise HTTPException(status_code=404, detail=f"Page not found: {path}")
         resolved.append((safe_path, full_path))
@@ -563,7 +553,7 @@ async def bulk_download_sources(payload: BulkFilenames):
     resolved = []
     for filename in payload.filenames:
         safe_name = os.path.basename(filename)
-        full_path = os.path.join(SOURCES_DIR, safe_name)
+        full_path = os.path.join(get_sources_dir(), safe_name)
         if not os.path.exists(full_path):
             raise HTTPException(status_code=404, detail=f"Source not found: {filename}")
         resolved.append((safe_name, full_path))
@@ -677,8 +667,8 @@ async def _crawl_and_save(url: str) -> None:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         filename = f"{domain}-{timestamp}.md"
 
-        os.makedirs(SOURCES_DIR, exist_ok=True)
-        file_path = os.path.join(SOURCES_DIR, filename)
+        os.makedirs(get_sources_dir(), exist_ok=True)
+        file_path = os.path.join(get_sources_dir(), filename)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(f"# Source: {url}\n\n{analysis}")
 
@@ -717,14 +707,14 @@ async def delete_archived_source_permanent(wm: WM, filename: str):
 @router.get("/sources/{filename}/download")
 async def download_source(filename: str):
     safe_name = os.path.basename(filename)
-    path = os.path.join(SOURCES_DIR, safe_name)
+    path = os.path.join(get_sources_dir(), safe_name)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Source not found")
     return FileResponse(path, filename=safe_name)
 
 @router.get("/search/index")
 async def get_search_index(wm: WM):
-    index_path = os.path.join(WIKI_DIR, "search-index.json")
+    index_path = os.path.join(get_wiki_dir(), "search-index.json")
     if not os.path.exists(index_path):
         wm._rebuild_search_index()
     try:
@@ -736,7 +726,7 @@ async def get_search_index(wm: WM):
 
 @router.get("/tags")
 async def get_tags(wm: WM):
-    index_path = os.path.join(WIKI_DIR, "search-index.json")
+    index_path = os.path.join(get_wiki_dir(), "search-index.json")
     if not os.path.exists(index_path):
         wm._rebuild_search_index()
     try:
@@ -772,7 +762,7 @@ async def update_page_tags(wm: WM, path: str, body: TagsUpdate):
 @router.patch("/sources/{filename}/tags")
 async def update_source_tags(wm: WM, filename: str, body: TagsUpdate):
     safe_name = os.path.basename(filename)
-    src_path = os.path.join(SOURCES_DIR, safe_name)
+    src_path = os.path.join(get_sources_dir(), safe_name)
     if not os.path.exists(src_path):
         raise HTTPException(status_code=404, detail="Source not found")
     try:

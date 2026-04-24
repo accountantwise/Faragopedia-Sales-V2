@@ -1,14 +1,20 @@
 import React from 'react';
 import { Book, MessageSquare, Layers, Archive, Activity, Settings } from 'lucide-react';
+import WorkspaceSwitcher from './WorkspaceSwitcher';
 
 interface SidebarProps {
   currentView: string;
   onViewChange: (view: string) => void;
   wikiName: string;
   onOpenSettings: () => void;
+  // new:
+  workspaces: { id: string; name: string }[];
+  activeWorkspaceId: string;
+  onSwitchWorkspace: (id: string) => void;
+  onNewWorkspace: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, wikiName, onOpenSettings }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, wikiName, onOpenSettings, workspaces, activeWorkspaceId, onSwitchWorkspace, onNewWorkspace }) => {
   const menuItems = [
     { name: 'Wiki', icon: <Book className="w-5 h-5" /> },
     { name: 'Sources', icon: <Layers className="w-5 h-5" /> },
@@ -19,12 +25,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, wikiName, 
 
   return (
     <div className="flex flex-col h-screen w-64 bg-gray-800 text-white shadow-xl">
-      <div className="p-6 text-2xl font-bold border-b border-gray-700 flex items-center">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg mr-3 flex items-center justify-center text-sm">
-          {wikiName.slice(0, 2).toUpperCase()}
-        </div>
-        {wikiName}
-      </div>
+      <WorkspaceSwitcher
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onSwitch={onSwitchWorkspace}
+        onNewWorkspace={onNewWorkspace}
+      />
 
       <nav className="flex-grow p-4">
         <ul className="space-y-2">

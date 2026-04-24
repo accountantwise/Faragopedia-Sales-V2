@@ -10,17 +10,10 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 
-from api.routes import (
-    ARCHIVE_DIR,
-    SNAPSHOTS_DIR,
-    SOURCES_DIR,
-    WIKI_DIR,
-    set_wiki_manager,
+from api.routes import set_wiki_manager
+from agent.workspace_manager import (
+    get_wiki_dir, get_sources_dir, get_archive_dir, get_snapshots_dir, get_schema_dir,
 )
-
-_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_BACKEND_DIR = os.path.dirname(_THIS_DIR)
-SCHEMA_DIR = os.path.join(_BACKEND_DIR, "schema")
 
 export_router = APIRouter()
 
@@ -48,11 +41,11 @@ def export_bundle_full():
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("manifest.json", json.dumps(manifest, indent=2))
             for dir_name, dir_str in [
-                ("schema", SCHEMA_DIR),
-                ("wiki", WIKI_DIR),
-                ("sources", SOURCES_DIR),
-                ("archive", ARCHIVE_DIR),
-                ("snapshots", SNAPSHOTS_DIR),
+                ("schema", get_schema_dir()),
+                ("wiki", get_wiki_dir()),
+                ("sources", get_sources_dir()),
+                ("archive", get_archive_dir()),
+                ("snapshots", get_snapshots_dir()),
             ]:
                 dir_path = Path(dir_str)
                 if not dir_path.exists():
@@ -84,13 +77,13 @@ def export_bundle_template():
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("manifest.json", json.dumps(manifest, indent=2))
-            schema_path = Path(SCHEMA_DIR)
+            schema_path = Path(get_schema_dir())
             if schema_path.exists():
                 for fp in sorted(schema_path.rglob("*")):
                     if fp.is_file():
                         rel = str(fp.relative_to(schema_path)).replace("\\", "/")
                         zf.write(fp, f"schema/{rel}")
-            wiki_path = Path(WIKI_DIR)
+            wiki_path = Path(get_wiki_dir())
             if wiki_path.exists():
                 for fp in sorted(wiki_path.rglob("_type.yaml")):
                     rel = str(fp.relative_to(wiki_path)).replace("\\", "/")
@@ -171,11 +164,11 @@ def _clear_dir(path: Path) -> None:
 
 def _restore_full(staging: Path) -> None:
     for dir_name, dir_str in [
-        ("schema", SCHEMA_DIR),
-        ("wiki", WIKI_DIR),
-        ("sources", SOURCES_DIR),
-        ("archive", ARCHIVE_DIR),
-        ("snapshots", SNAPSHOTS_DIR),
+        ("schema", get_schema_dir()),
+        ("wiki", get_wiki_dir()),
+        ("sources", get_sources_dir()),
+        ("archive", get_archive_dir()),
+        ("snapshots", get_snapshots_dir()),
     ]:
         target = Path(dir_str)
         source = staging / dir_name
@@ -185,7 +178,7 @@ def _restore_full(staging: Path) -> None:
             shutil.copytree(source, target, dirs_exist_ok=True)
 
     # Ensure sources/.metadata.json exists — if missing from bundle, write empty dict
-    sources_path = Path(SOURCES_DIR)
+    sources_path = Path(get_sources_dir())
     metadata_path = sources_path / ".metadata.json"
     if sources_path.exists() and not metadata_path.exists():
         metadata_path.write_text("{}")
@@ -193,7 +186,7 @@ def _restore_full(staging: Path) -> None:
 
 def _restore_template(staging: Path, wiki_config: dict) -> list:
     # Restore schema directory
-    schema_target = Path(SCHEMA_DIR)
+    schema_target = Path(get_schema_dir())
     schema_staging = staging / "schema"
     schema_target.mkdir(parents=True, exist_ok=True)
     _clear_dir(schema_target)
@@ -206,7 +199,7 @@ def _restore_template(staging: Path, wiki_config: dict) -> list:
         config_path.unlink()
 
     # Clear wiki, restore only _type.yaml files
-    wiki_target = Path(WIKI_DIR)
+    wiki_target = Path(get_wiki_dir())
     wiki_target.mkdir(parents=True, exist_ok=True)
     _clear_dir(wiki_target)
 
@@ -225,11 +218,11 @@ def _reinit_wiki_manager() -> None:
     from agent.wiki_manager import WikiManager
     try:
         wm = WikiManager(
-            sources_dir=SOURCES_DIR,
-            wiki_dir=WIKI_DIR,
-            archive_dir=ARCHIVE_DIR,
-            snapshots_dir=SNAPSHOTS_DIR,
-            schema_dir=SCHEMA_DIR,
+            sources_dir=get_sources_dir(),
+            wiki_dir=get_wiki_dir(),
+            archive_dir=get_archive_dir(),
+            snapshots_dir=get_snapshots_dir(),
+            schema_dir=get_schema_dir(),
         )
         set_wiki_manager(wm)
     except Exception:

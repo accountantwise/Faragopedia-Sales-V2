@@ -2,6 +2,7 @@ services:
   backend:
     build: ./backend
     volumes:
+      - ${DATA_DIR:-./}/workspaces:/app/workspaces
       - ${DATA_DIR:-./}/wiki:/app/wiki
       - ${DATA_DIR:-./}/sources:/app/sources
       - ${DATA_DIR:-./}/snapshots:/app/snapshots
