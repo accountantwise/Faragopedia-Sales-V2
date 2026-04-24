@@ -1164,11 +1164,11 @@ class WikiManager:
 
     def list_pages(self) -> List[str]:
         """List all entity pages as relative paths (e.g. 'clients/louis-vuitton.md').
-        Excludes index.md, log.md, and all _meta/ paths."""
+        Excludes index.md, log.md, all _meta/ paths, and all _-prefixed .md files."""
         pages = []
         for root, _dirs, files in os.walk(self.wiki_dir):
             for filename in sorted(files):
-                if not filename.endswith(".md"):
+                if not filename.endswith(".md") or filename.startswith("_"):
                     continue
                 rel_path = os.path.relpath(os.path.join(root, filename), self.wiki_dir)
                 # Normalize to forward slashes

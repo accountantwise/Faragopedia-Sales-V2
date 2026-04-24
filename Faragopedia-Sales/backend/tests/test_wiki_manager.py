@@ -1068,3 +1068,25 @@ def test_get_backlinks_excludes_meta(temp_dirs):
 
     backlinks = manager.get_backlinks("contacts/jane-doe.md")
     assert "_meta/index.md" not in backlinks
+
+
+def test_list_pages_excludes_underscore_prefixed_files(temp_dirs):
+    """_template.md and any _-prefixed .md files must not appear in list_pages."""
+    sources, wiki = temp_dirs
+    clients = os.path.join(wiki, "clients")
+    os.makedirs(clients, exist_ok=True)
+    # Write _type.yaml so entity type is valid
+    with open(os.path.join(clients, "_type.yaml"), "w") as f:
+        f.write("name: Clients\nsingular: client\nfields: []\nsections: []\n")
+    # Write a real page
+    with open(os.path.join(clients, "acme.md"), "w") as f:
+        f.write("---\ntype: client\nname: Acme\n---\n")
+    # Write a template file that should be hidden
+    with open(os.path.join(clients, "_template.md"), "w") as f:
+        f.write("---\ntype: client\nname: \n---\n")
+
+    manager = WikiManager(sources_dir=sources, wiki_dir=wiki)
+
+    pages = manager.list_pages()
+    assert "clients/acme.md" in pages
+    assert "clients/_template.md" not in pages
