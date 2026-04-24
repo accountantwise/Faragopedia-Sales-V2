@@ -173,3 +173,41 @@ def test_complete_setup_type_yaml_contents(tmp_path):
     assert type_data["name"] == "Clients"
     assert type_data["singular"] == "client"
     assert any(f["name"] == "name" for f in type_data["fields"])
+
+
+def test_complete_setup_writes_entity_templates(tmp_path):
+    schema_dir = tmp_path / "schema"
+    wiki_dir = tmp_path / "wiki"
+    schema_dir.mkdir()
+    wiki_dir.mkdir()
+
+    payload = SetupPayload(
+        wiki_name="TestWiki",
+        org_name="Test Org",
+        org_description="A test organisation",
+        entity_types=[
+            EntityTypeDefinition(
+                folder_name="clients",
+                display_name="Clients",
+                description="Client companies",
+                singular="client",
+                fields=[
+                    EntityTypeField(name="name", type="string", required=True),
+                    EntityTypeField(name="tier", type="enum", values=["A", "B", "C"]),
+                    EntityTypeField(name="tags", type="list"),
+                ],
+                sections=["Overview", "Notes"],
+            ),
+        ],
+    )
+    complete_setup(str(schema_dir), str(wiki_dir), payload)
+
+    template = wiki_dir / "clients" / "_template.md"
+    assert template.exists(), "_template.md was not created"
+    content = template.read_text()
+    assert "type: client" in content
+    assert "name: \n" in content
+    assert "tier:  # options: A, B, C" in content
+    assert "tags: []" in content
+    assert "## Overview" in content
+    assert "## Notes" in content

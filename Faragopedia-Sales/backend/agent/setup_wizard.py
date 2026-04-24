@@ -4,7 +4,7 @@ import re
 
 import yaml
 from pydantic import BaseModel, field_validator
-from agent.schema_builder import build_schema_md
+from agent.schema_builder import build_schema_md, write_entity_templates
 
 
 # ── Pydantic models (shared with setup_routes.py via import) ──────────────────
@@ -228,6 +228,18 @@ def complete_setup(schema_dir: str, wiki_dir: str, payload) -> None:
         yaml_path = os.path.join(folder_path, "_type.yaml")
         with open(yaml_path, "w", encoding="utf-8") as f:
             yaml.dump(type_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+    # 4b. Write _template.md for each entity type
+    entity_type_dicts = [
+        {
+            "folder_name": et.folder_name,
+            "singular": et.singular,
+            "fields": [_field_to_dict(f) for f in et.fields],
+            "sections": et.sections,
+        }
+        for et in payload.entity_types
+    ]
+    write_entity_templates(wiki_dir, entity_type_dicts)
 
     # 4. Build SCHEMA.md
     schema_md = build_schema_md(wiki_dir, template_path)
