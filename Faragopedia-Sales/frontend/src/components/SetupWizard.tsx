@@ -110,7 +110,7 @@ const FieldEditor: React.FC<{
           {field.type === 'enum' && (
             <div className="col-span-2">
               <label className="text-xs text-gray-500 block mb-1">Enum values (comma-separated)</label>
-              <input className="w-full border rounded px-2 py-1 text-sm" value={(field.values || []).join(', ')} onChange={e => onChange({ ...field, values: e.target.value.split(',').map(v => v.trim()).filter(Boolean) })} />
+              <input className="w-full border dark:border-gray-700 rounded px-2 py-1 text-sm dark:bg-gray-800 dark:text-white" value={(field.values || []).join(', ')} onChange={e => onChange({ ...field, values: e.target.value.split(',').map(v => v.trim()).filter(Boolean) })} />
             </div>
           )}
           <div className="col-span-2 flex items-center gap-2">
@@ -119,7 +119,7 @@ const FieldEditor: React.FC<{
           </div>
           <div className="col-span-2">
             <label className="text-xs text-gray-500 block mb-1">Description (optional)</label>
-            <input className="w-full border rounded px-2 py-1 text-sm" value={field.description || ''} onChange={e => onChange({ ...field, description: e.target.value })} />
+            <input className="w-full border dark:border-gray-700 rounded px-2 py-1 text-sm dark:bg-gray-800 dark:text-white" value={field.description || ''} onChange={e => onChange({ ...field, description: e.target.value })} />
           </div>
         </div>
       )}
@@ -139,25 +139,25 @@ const EntityCard: React.FC<{
   const [newSection, setNewSection] = useState('');
 
   return (
-    <div className="border border-gray-200 rounded-xl bg-white shadow-sm mb-3">
+    <div className="border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 shadow-sm mb-3">
       <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={() => setExpanded(e => !e)}>
         {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
         <div className="flex-1">
           <div className="text-xs text-gray-400 font-mono">folder: {et.folder_name || '—'}</div>
-          <div className="font-semibold text-gray-800">{et.display_name || <span className="text-gray-400 italic">Unnamed</span>}</div>
+          <div className="font-semibold text-gray-800 dark:text-gray-100">{et.display_name || <span className="text-gray-400 italic">Unnamed</span>}</div>
         </div>
-        {badge && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">{badge}</span>}
+        {badge && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{badge}</span>}
         {!expanded && <span className="text-xs text-gray-400">{et.fields.length} fields · {et.sections.length} sections</span>}
         <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
       </div>
 
       {expanded && (
-        <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-800 pt-3 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 block mb-1">Display Name</label>
               <input
-                className="w-full border rounded px-2 py-1.5 text-sm"
+                className="w-full border dark:border-gray-700 rounded px-2 py-1.5 text-sm dark:bg-gray-800 dark:text-white"
                 value={et.display_name}
                 onChange={e => {
                   const display_name = e.target.value;
@@ -167,12 +167,12 @@ const EntityCard: React.FC<{
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Folder slug (editable)</label>
-              <input className="w-full border rounded px-2 py-1.5 text-sm font-mono" value={et.folder_name} onChange={e => onChange({ ...et, folder_name: e.target.value })} />
+              <input className="w-full border dark:border-gray-700 rounded px-2 py-1.5 text-sm font-mono dark:bg-gray-800 dark:text-white" value={et.folder_name} onChange={e => onChange({ ...et, folder_name: e.target.value })} />
             </div>
           </div>
           <div>
             <label className="text-xs text-gray-500 block mb-1">Description</label>
-            <textarea className="w-full border rounded px-2 py-1.5 text-sm resize-none" rows={2} value={et.description} onChange={e => onChange({ ...et, description: e.target.value })} />
+            <textarea className="w-full border dark:border-gray-700 rounded px-2 py-1.5 text-sm resize-none dark:bg-gray-800 dark:text-white" rows={2} value={et.description} onChange={e => onChange({ ...et, description: e.target.value })} />
           </div>
 
           <div>
@@ -186,7 +186,7 @@ const EntityCard: React.FC<{
               />
             ))}
             <button
-              className="w-full mt-1 border border-dashed border-gray-300 rounded-lg py-1.5 text-sm text-gray-400 hover:text-gray-600 hover:border-gray-400 flex items-center justify-center gap-1"
+              className="w-full mt-1 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg py-1.5 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:border-gray-400 dark:hover:border-gray-600 flex items-center justify-center gap-1"
               onClick={() => onChange({ ...et, fields: [...et.fields, blankField()] })}
             >
               <Plus className="w-3 h-3" /> Add field
@@ -197,14 +197,14 @@ const EntityCard: React.FC<{
             <div className="text-xs text-gray-500 mb-2 uppercase tracking-wide">Sections</div>
             <div className="flex flex-wrap gap-2">
               {et.sections.map((s, i) => (
-                <span key={i} className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-3 py-1 text-sm">
+                <span key={i} className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-800 dark:text-gray-300 rounded-full px-3 py-1 text-sm">
                   {s}
                   <button onClick={() => onChange({ ...et, sections: et.sections.filter((_, idx) => idx !== i) })} className="text-gray-400 hover:text-red-500">×</button>
                 </span>
               ))}
               <form onSubmit={e => { e.preventDefault(); if (newSection.trim()) { onChange({ ...et, sections: [...et.sections, newSection.trim()] }); setNewSection(''); } }}>
                 <input
-                  className="border border-dashed border-gray-300 rounded-full px-3 py-1 text-sm w-28"
+                  className="border border-dashed border-gray-300 dark:border-gray-700 rounded-full px-3 py-1 text-sm w-28 dark:bg-gray-800 dark:text-white"
                   placeholder="+ section"
                   value={newSection}
                   onChange={e => setNewSection(e.target.value)}
@@ -435,7 +435,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
             {reconfigureMode && onCancel && (
               <button
                 onClick={onCancel}
-                className="mt-6 flex-1 border border-gray-300 text-gray-600 rounded-lg py-2.5 font-medium hover:bg-gray-50"
+                className="mt-6 flex-1 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 rounded-lg py-2.5 font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 Cancel
               </button>
