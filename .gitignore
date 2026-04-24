@@ -58,3 +58,4 @@ docker-data/
 *.tar.gz
 .cache/
 tmp/
+.worktrees/
