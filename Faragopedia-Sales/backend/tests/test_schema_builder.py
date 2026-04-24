@@ -6,6 +6,7 @@ from agent.schema_builder import (
     discover_entity_types,
     render_type_schema_section,
     build_schema_md,
+    generate_entity_template,
 )
 
 
@@ -110,3 +111,42 @@ def test_build_schema_md(wiki_with_types, tmp_path):
     assert "## Operations" in result
     assert "{{ENTITY_TYPES_DIRECTORY}}" not in result
     assert "{{ENTITY_TYPES_SCHEMAS}}" not in result
+
+
+def test_generate_entity_template_frontmatter():
+    fields = [
+        {"name": "type", "type": "string", "default": "client"},
+        {"name": "name", "type": "string"},
+        {"name": "tier", "type": "enum", "values": ["A", "B", "C"]},
+        {"name": "tags", "type": "list"},
+        {"name": "status", "type": "string", "default": "active"},
+    ]
+    result = generate_entity_template("clients", "client", fields, [])
+    assert result.startswith("---\ntype: client\n")
+    assert "name: \n" in result
+    assert "tier:  # options: A, B, C\n" in result
+    assert "tags: []\n" in result
+    assert "status: active\n" in result
+    assert result.count("type: client") == 1  # not duplicated
+
+
+def test_generate_entity_template_sections():
+    result = generate_entity_template(
+        "clients", "client", [],
+        ["Overview", "Key Contacts", "Notes"],
+    )
+    assert "## Overview\n_Add overview here..._" in result
+    assert "## Key Contacts\n_Add key contacts here..._" in result
+    assert "## Notes\n_Add notes here..._" in result
+
+
+def test_generate_entity_template_no_sections():
+    result = generate_entity_template("contacts", "contact", [{"name": "name", "type": "string"}], [])
+    assert "---\ntype: contact\nname: \n---" in result
+    assert "##" not in result
+
+
+def test_generate_entity_template_h1_blank():
+    result = generate_entity_template("clients", "client", [], ["Overview"])
+    # Body starts with a blank H1
+    assert "\n\n# \n" in result

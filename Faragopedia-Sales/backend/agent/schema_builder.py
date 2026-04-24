@@ -210,3 +210,34 @@ def build_schema_md(wiki_dir: str, template_path: str) -> str:
     result = template.replace("{{ENTITY_TYPES_DIRECTORY}}", directory_block)
     result = result.replace("{{ENTITY_TYPES_SCHEMAS}}", schemas_block)
     return result
+
+
+def generate_entity_template(
+    folder_name: str,
+    singular: str,
+    fields: list,
+    sections: list,
+) -> str:
+    """Generate a new entity instance template with frontmatter and sections."""
+    fm_lines = [f"type: {singular}"]
+    for field in fields:
+        fname = field.get("name", "")
+        if fname == "type":
+            continue  # already emitted as first line
+        ftype = field.get("type", "string")
+        if ftype == "list":
+            fm_lines.append(f"{fname}: []")
+        elif ftype == "enum":
+            values = field.get("values", [])
+            fm_lines.append(f"{fname}:  # options: {', '.join(str(v) for v in values)}")
+        elif "default" in field:
+            fm_lines.append(f"{fname}: {field['default']}")
+        else:
+            fm_lines.append(f"{fname}: ")
+
+    lines = ["---"] + fm_lines + ["---", "", "# ", ""]
+    for section in sections:
+        lines.append(f"## {section}")
+        lines.append(f"_Add {section.lower()} here..._")
+        lines.append("")
+    return "\n".join(lines)
