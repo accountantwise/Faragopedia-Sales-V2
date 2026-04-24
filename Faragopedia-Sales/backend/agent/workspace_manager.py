@@ -44,14 +44,14 @@ def _write_registry(data: dict) -> None:
 
 # ── Workspace path helper ─────────────────────────────────────────────────────
 
-def workspace_dirs(id: str) -> dict:
+def workspace_dirs(workspace_id: str) -> dict:
     """Return the path dict for a given workspace id."""
     return {
-        "wiki_dir":      os.path.join(WORKSPACES_BASE, id, "wiki"),
-        "sources_dir":   os.path.join(WORKSPACES_BASE, id, "sources"),
-        "archive_dir":   os.path.join(WORKSPACES_BASE, id, "archive"),
-        "snapshots_dir": os.path.join(WORKSPACES_BASE, id, "snapshots"),
-        "schema_dir":    os.path.join(WORKSPACES_BASE, id, "schema"),
+        "wiki_dir":      os.path.join(WORKSPACES_BASE, workspace_id, "wiki"),
+        "sources_dir":   os.path.join(WORKSPACES_BASE, workspace_id, "sources"),
+        "archive_dir":   os.path.join(WORKSPACES_BASE, workspace_id, "archive"),
+        "snapshots_dir": os.path.join(WORKSPACES_BASE, workspace_id, "snapshots"),
+        "schema_dir":    os.path.join(WORKSPACES_BASE, workspace_id, "schema"),
     }
 
 
@@ -69,6 +69,10 @@ def initialize_workspaces() -> None:
         # Registry already exists — load it and activate the stored workspace.
         registry = _read_registry()
         active_id = registry.get("active_workspace_id")
+        # Cross-validate: discard a stored active ID that no longer exists.
+        known_ids = {ws["id"] for ws in registry.get("workspaces", [])}
+        if active_id and active_id not in known_ids:
+            active_id = None
         _active_workspace_id = active_id
         if active_id:
             _active_dirs = workspace_dirs(active_id)
@@ -138,15 +142,19 @@ def get_active_workspace_info() -> dict | None:
 
 # ── Mutating operations ───────────────────────────────────────────────────────
 
-def set_active_workspace(id: str) -> None:
+def set_active_workspace(workspace_id: str) -> None:
     """Set the active workspace, update in-memory state, and persist to registry."""
     global _active_workspace_id, _active_dirs
 
-    _active_workspace_id = id
-    _active_dirs = workspace_dirs(id)
-
     registry = _read_registry()
-    registry["active_workspace_id"] = id
+    ids = {ws["id"] for ws in registry.get("workspaces", [])}
+    if workspace_id not in ids:
+        raise ValueError(f"Workspace '{workspace_id}' not found in registry.")
+
+    _active_workspace_id = workspace_id
+    _active_dirs = workspace_dirs(workspace_id)
+
+    registry["active_workspace_id"] = workspace_id
     _write_registry(registry)
 
 
@@ -189,28 +197,28 @@ def create_workspace(name: str) -> dict:
     return {"id": slug, "name": name, "setup_required": True}
 
 
-def update_workspace_name(id: str, name: str) -> None:
+def update_workspace_name(workspace_id: str, name: str) -> None:
     """Update the display name of a workspace in the registry."""
     registry = _read_registry()
     for ws in registry.get("workspaces", []):
-        if ws["id"] == id:
+        if ws["id"] == workspace_id:
             ws["name"] = name
-            break
-    _write_registry(registry)
+            _write_registry(registry)
+            return
+    raise ValueError(f"Workspace '{workspace_id}' not found.")
 
 
-def delete_workspace(id: str) -> None:
+def delete_workspace(workspace_id: str) -> None:
     """Delete a workspace's directories and remove it from the registry."""
-    dirs = workspace_dirs(id)
-    workspace_root = os.path.join(WORKSPACES_BASE, id)
+    workspace_root = os.path.join(WORKSPACES_BASE, workspace_id)
     if os.path.isdir(workspace_root):
         shutil.rmtree(workspace_root)
 
     registry = _read_registry()
-    registry["workspaces"] = [ws for ws in registry.get("workspaces", []) if ws["id"] != id]
+    registry["workspaces"] = [ws for ws in registry.get("workspaces", []) if ws["id"] != workspace_id]
 
     # If the deleted workspace was active, clear the active state.
-    if registry.get("active_workspace_id") == id:
+    if registry.get("active_workspace_id") == workspace_id:
         remaining = registry["workspaces"]
         registry["active_workspace_id"] = remaining[0]["id"] if remaining else None
 
@@ -218,7 +226,7 @@ def delete_workspace(id: str) -> None:
 
     # Sync in-memory state if needed.
     global _active_workspace_id, _active_dirs
-    if _active_workspace_id == id:
+    if _active_workspace_id == workspace_id:
         new_active = registry["active_workspace_id"]
         _active_workspace_id = new_active
         _active_dirs = workspace_dirs(new_active) if new_active else {}
