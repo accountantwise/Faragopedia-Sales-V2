@@ -201,10 +201,8 @@ class WikiManager:
     def _load_system_prompt(self) -> str:
         schema_path = os.path.join(self.schema_dir, "SCHEMA.md")
         profile_path = os.path.join(self.schema_dir, "company_profile.md")
-        if not os.path.exists(schema_path):
-            raise FileNotFoundError(f"SCHEMA.md not found at {schema_path}")
-        if not os.path.exists(profile_path):
-            raise FileNotFoundError(f"company_profile.md not found at {profile_path}")
+        if not os.path.exists(schema_path) or not os.path.exists(profile_path):
+            return "Wiki not yet configured. Setup required."
         with open(schema_path, "r", encoding="utf-8", errors="replace") as f:
             schema = f.read()
         with open(profile_path, "r", encoding="utf-8") as f:
@@ -269,12 +267,17 @@ class WikiManager:
                 tags = fm.get("tags", [])
                 if not isinstance(tags, list):
                     tags = []
+                def _json_safe(v):
+                    if isinstance(v, (datetime.date, datetime.datetime)):
+                        return v.isoformat()
+                    return v
+
                 pages.append({
                     "path": rel_path,
                     "title": str(title),
                     "entity_type": entity_type,
                     "tags": [str(t) for t in tags],
-                    "frontmatter": {k: v for k, v in fm.items() if k != "tags"},
+                    "frontmatter": {k: _json_safe(v) for k, v in fm.items() if k != "tags"},
                     "content_preview": self._strip_markdown(body)[:500],
                 })
             except Exception:
@@ -315,6 +318,61 @@ class WikiManager:
             except OSError:
                 pass
             raise
+        self._rebuild_index_md(pages, index["generated_at"])
+
+    def _rebuild_index_md(self, pages: list[dict], generated_at: str) -> None:
+        """Write wiki/_meta/index.md from the in-memory pages list.
+
+        Called immediately after search-index.json is written so both files
+        share the same page data without extra I/O. `pages` is the list of
+        page dicts built in `_rebuild_search_index()`; `generated_at` is the
+        ISO-8601 UTC timestamp from the index header.
+        """
+        meta_dir = os.path.join(self.wiki_dir, "_meta")
+        os.makedirs(meta_dir, exist_ok=True)
+
+        by_type: dict = {}
+        for page in pages:
+            by_type.setdefault(page["entity_type"], []).append(page)
+
+        lines = [
+            "---",
+            "system: true",
+            f"generated_at: {generated_at}",
+            "---",
+            "",
+            "# Wiki Index",
+            "",
+            "## By Type",
+            "",
+        ]
+
+        for et in sorted(by_type.keys()):
+            heading = et.replace("-", " ").replace("_", " ").title()
+            lines.append(f"### {heading}")
+            for page in sorted(by_type[et], key=lambda p: p["title"].lower()):
+                path_no_ext = page["path"].removesuffix(".md")
+                tag_str = " ".join(f"`#{t}`" for t in page["tags"]) if page["tags"] else ""
+                entry = f"- [[{path_no_ext}]] — {page['title']}"
+                if tag_str:
+                    entry += f" {tag_str}"
+                lines.append(entry)
+            lines.append("")
+
+        lines += [
+            "---",
+            "",
+            "## All Pages (A–Z)",
+            "",
+        ]
+
+        for page in sorted(pages, key=lambda p: p["title"].lower()):
+            path_no_ext = page["path"].removesuffix(".md")
+            lines.append(f"- [[{path_no_ext}]] — {page['title']}")
+
+        index_md_path = os.path.join(meta_dir, "index.md")
+        with open(index_md_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
 
     async def update_page_tags(self, page_path: str, tags: list[str], _rebuild: bool = True) -> None:
         """Replace the tags list on a wiki page's YAML frontmatter and rebuild index."""
@@ -584,7 +642,7 @@ class WikiManager:
 
         return result
 
-    async def _run_query_llm(self, user_query: str, index_content: str, context: str) -> str:
+    async def _run_query_llm(self, user_query: str, context: str) -> str:
         """Run the answer LLM call. Extracted for testability."""
         prompt = ChatPromptTemplate.from_messages([
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
@@ -599,12 +657,38 @@ class WikiManager:
         return response.content
 
     async def query(self, user_query: str) -> str:
-        index_path = os.path.join(self.wiki_dir, "index.md")
-        if not os.path.exists(index_path):
+        # Build page catalog from the actual filesystem so we're never dependent
+        # on index.md being up to date.
+        page_list = self.list_pages()
+        if not page_list:
             return "No wiki content available yet. Please ingest some sources first."
 
-        with open(index_path, "r", encoding="utf-8") as f:
-            index_content = f.read()
+        # Enrich catalog with titles and previews from the search index if available.
+        search_index_path = os.path.join(self.wiki_dir, "search-index.json")
+        page_meta: dict = {}
+        if os.path.exists(search_index_path):
+            try:
+                with open(search_index_path, "r", encoding="utf-8") as f:
+                    si = json.load(f)
+                for entry in si.get("pages", []):
+                    page_meta[entry["path"]] = entry
+            except Exception:
+                pass
+
+        catalog_lines = []
+        for path in page_list:
+            meta = page_meta.get(path, {})
+            title = meta.get("title", path)
+            tags = ", ".join(meta.get("tags", []))
+            preview = meta.get("content_preview", "")[:200]
+            line = f"- {path} | {title}"
+            if tags:
+                line += f" | tags: {tags}"
+            if preview:
+                line += f" | {preview}"
+            catalog_lines.append(line)
+
+        catalog = "\n".join(catalog_lines)
 
         # Step 1: Find relevant pages using the LLM
         relevance_prompt = ChatPromptTemplate.from_messages([
@@ -614,7 +698,7 @@ class WikiManager:
         relevance_chain = relevance_prompt | self.llm
         relevance_resp = await relevance_chain.ainvoke({
             "system_prompt": self.system_prompt,
-            "index": index_content,
+            "index": catalog,
             "query": user_query,
         })
 
@@ -627,12 +711,9 @@ class WikiManager:
 
         page_paths = [p.strip() for p in page_names_str.split(",") if p.strip()]
 
-        # If LLM returned no usable paths, fall back to all pages listed in the index
+        # If LLM returned no usable paths, fall back to all pages
         if not page_paths:
-            wikilink_pattern_idx = re.compile(r"\[\[([^\]]+)\]\]")
-            page_paths = [
-                f"{m}.md" for m in wikilink_pattern_idx.findall(index_content)
-            ]
+            page_paths = page_list
 
         # Step 2: Read relevant pages
         context = ""
@@ -649,7 +730,7 @@ class WikiManager:
             return "I found relevant page names but the pages appear to be missing."
 
         # Step 3: Synthesize answer
-        answer = await self._run_query_llm(user_query, index_content, context)
+        answer = await self._run_query_llm(user_query, context)
         self._append_to_log("query", f"Answered: {user_query}")
         return answer
 
@@ -1083,7 +1164,7 @@ class WikiManager:
 
     def list_pages(self) -> List[str]:
         """List all entity pages as relative paths (e.g. 'clients/louis-vuitton.md').
-        Excludes index.md and log.md."""
+        Excludes index.md, log.md, and all _meta/ paths."""
         pages = []
         for root, _dirs, files in os.walk(self.wiki_dir):
             for filename in sorted(files):
@@ -1092,7 +1173,7 @@ class WikiManager:
                 rel_path = os.path.relpath(os.path.join(root, filename), self.wiki_dir)
                 # Normalize to forward slashes
                 rel_path = rel_path.replace(os.sep, "/")
-                if rel_path in ("index.md", "log.md"):
+                if rel_path in ("index.md", "log.md") or rel_path.startswith("_meta/"):
                     continue
                 pages.append(rel_path)
         return pages
@@ -1151,7 +1232,7 @@ class WikiManager:
                 if not filename.endswith(".md"):
                     continue
                 rel = os.path.relpath(os.path.join(root, filename), self.wiki_dir).replace(os.sep, "/")
-                if rel == page_path or rel in ("index.md", "log.md"):
+                if rel == page_path or rel in ("index.md", "log.md") or rel.startswith("_meta/"):
                     continue
                 full_path = os.path.join(root, filename)
                 with open(full_path, "r", encoding="utf-8") as f:

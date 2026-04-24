@@ -55,6 +55,26 @@ docker-data/
 .claude/
 .gemini/
 
+# -- Python --
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# -- Runtime Data --
+wiki/
+sources/
+snapshots/
+archive/
+schema/wiki_config.json
+schema/company_profile.md
+schema/SCHEMA.md
+schema/SCHEMA_TEMPLATE.md
+
 # -- Misc --
 *.tgz
 *.tar.gz

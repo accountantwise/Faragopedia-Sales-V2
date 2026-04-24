@@ -321,11 +321,10 @@ def test_system_prompt_loaded_from_schema_dir(tmp_path):
     assert "PROFILE CONTENT" in manager.system_prompt
 
 
-def test_system_prompt_raises_if_schema_missing(tmp_path):
+def test_system_prompt_returns_stub_if_schema_missing(tmp_path):
     schema_dir = tmp_path / "schema"
     schema_dir.mkdir()
-    # Only create SCHEMA.md, not company_profile.md
-    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    # Only create SCHEMA.md, not company_profile.md — should return stub, not raise
 
     sources = tmp_path / "sources"
     wiki = tmp_path / "wiki"
@@ -333,12 +332,12 @@ def test_system_prompt_raises_if_schema_missing(tmp_path):
     wiki.mkdir()
 
     with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
-        with pytest.raises(FileNotFoundError):
-            WikiManager(
-                sources_dir=str(sources),
-                wiki_dir=str(wiki),
-                schema_dir=str(schema_dir)
-            )
+        wm = WikiManager(
+            sources_dir=str(sources),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir)
+        )
+    assert "Setup required" in wm.system_prompt
 
 
 def test_list_pages_returns_subdirectory_paths(tmp_path):
@@ -448,35 +447,48 @@ from api.routes import safe_wiki_filename
 
 
 def test_safe_wiki_filename_allows_known_subdirs():
+    from unittest.mock import MagicMock
     known = {"clients", "prospects", "contacts", "photographers", "productions"}
     entity_types = {sub: {"name": sub.capitalize()} for sub in known}
-    with patch('api.routes.wiki_manager') as mock_wm:
-        mock_wm.get_entity_types.return_value = entity_types
-        for sub in known:
-            result = safe_wiki_filename(f"{sub}/some-page.md")
-            assert result == f"{sub}/some-page.md"
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = entity_types
+    for sub in known:
+        result = safe_wiki_filename(f"{sub}/some-page.md", mock_wm)
+        assert result == f"{sub}/some-page.md"
 
 
 def test_safe_wiki_filename_rejects_unknown_subdir():
+    from unittest.mock import MagicMock
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = {}
     with pytest.raises(ValueError, match="Invalid entity subdirectory"):
-        safe_wiki_filename("evil/foo.md")
+        safe_wiki_filename("evil/foo.md", mock_wm)
 
 
 def test_safe_wiki_filename_rejects_flat_path():
+    from unittest.mock import MagicMock
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = {}
     with pytest.raises(ValueError, match="Invalid entity subdirectory"):
-        safe_wiki_filename("louis-vuitton.md")
+        safe_wiki_filename("louis-vuitton.md", mock_wm)
 
 
 def test_safe_wiki_filename_rejects_traversal():
+    from unittest.mock import MagicMock
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = {}
     with pytest.raises(ValueError):
-        safe_wiki_filename("../etc/passwd.md")
+        safe_wiki_filename("../etc/passwd.md", mock_wm)
     with pytest.raises(ValueError):
-        safe_wiki_filename("clients/../secrets.md")
+        safe_wiki_filename("clients/../secrets.md", mock_wm)
 
 
 def test_safe_wiki_filename_rejects_non_md():
+    from unittest.mock import MagicMock
+    mock_wm = MagicMock()
+    mock_wm.get_entity_types.return_value = {"clients": {}}
     with pytest.raises(ValueError, match=".md"):
-        safe_wiki_filename("clients/foo.txt")
+        safe_wiki_filename("clients/foo.txt", mock_wm)
 
 
 @pytest.mark.asyncio
@@ -635,10 +647,9 @@ async def test_query_uses_system_prompt(tmp_path):
 
     captured_calls = []
 
-    async def mock_run_query(user_query, index_content, context):
+    async def mock_run_query(user_query, context):
         captured_calls.append({
             "query": user_query,
-            "index": index_content,
             "context": context,
         })
         return "Louis Vuitton is an A-tier client. [[clients/louis-vuitton]]"
@@ -955,3 +966,105 @@ async def test_fix_lint_findings(tmp_path):
     assert (wiki / "concepts" / "e-sign.md").exists()
     log_content = (wiki / "log.md").read_text()
     assert "lint-fix" in log_content
+
+
+def test_rebuild_search_index_creates_index_md(temp_dirs):
+    """_rebuild_search_index() must write wiki/_meta/index.md."""
+    sources, wiki = temp_dirs
+    manager = WikiManager(sources_dir=sources, wiki_dir=wiki)
+
+    # Create a page so index has content
+    contacts_dir = os.path.join(wiki, "contacts")
+    os.makedirs(contacts_dir, exist_ok=True)
+    type_yaml = os.path.join(contacts_dir, "_type.yaml")
+    with open(type_yaml, "w") as f:
+        f.write("name: contacts\n")
+    page_path = os.path.join(contacts_dir, "jane-doe.md")
+    with open(page_path, "w") as f:
+        f.write("---\nname: Jane Doe\ntags:\n  - prospect\n---\n# Jane Doe\n")
+
+    manager._rebuild_search_index()
+
+    index_md = os.path.join(wiki, "_meta", "index.md")
+    assert os.path.exists(index_md), "_meta/index.md was not created"
+
+
+def test_index_md_content(temp_dirs):
+    """_meta/index.md must contain frontmatter, by-type sections, and A-Z list."""
+    sources, wiki = temp_dirs
+    manager = WikiManager(sources_dir=sources, wiki_dir=wiki)
+
+    contacts_dir = os.path.join(wiki, "contacts")
+    os.makedirs(contacts_dir, exist_ok=True)
+    with open(os.path.join(contacts_dir, "_type.yaml"), "w") as f:
+        f.write("name: contacts\n")
+    with open(os.path.join(contacts_dir, "jane-doe.md"), "w") as f:
+        f.write("---\nname: Jane Doe\ntags:\n  - prospect\n---\n# Jane\n")
+    with open(os.path.join(contacts_dir, "adam-smith.md"), "w") as f:
+        f.write("---\nname: Adam Smith\ntags: []\n---\n# Adam\n")
+
+    manager._rebuild_search_index()
+
+    index_md = os.path.join(wiki, "_meta", "index.md")
+    with open(index_md, "r", encoding="utf-8") as f:
+        text = f.read()
+
+    # Frontmatter
+    assert "system: true" in text
+    assert "generated_at:" in text
+
+    # By-type section
+    assert "## By Type" in text
+    assert "### Contacts" in text
+    assert "[[contacts/jane-doe]]" in text
+    assert "`#prospect`" in text
+
+    # A-Z section: Adam should appear before Jane
+    assert "## All Pages (A" in text
+    adam_pos = text.index("adam-smith")
+    jane_pos = text.index("jane-doe")
+    assert adam_pos < jane_pos, "A-Z list is not sorted alphabetically by title"
+
+
+def test_list_pages_excludes_meta(temp_dirs):
+    """list_pages() must not include _meta/index.md."""
+    sources, wiki = temp_dirs
+    manager = WikiManager(sources_dir=sources, wiki_dir=wiki)
+
+    meta_dir = os.path.join(wiki, "_meta")
+    os.makedirs(meta_dir, exist_ok=True)
+    with open(os.path.join(meta_dir, "index.md"), "w") as f:
+        f.write("---\nsystem: true\n---\n# Index\n")
+
+    contacts_dir = os.path.join(wiki, "contacts")
+    os.makedirs(contacts_dir, exist_ok=True)
+    with open(os.path.join(contacts_dir, "_type.yaml"), "w") as f:
+        f.write("name: contacts\n")
+    with open(os.path.join(contacts_dir, "jane-doe.md"), "w") as f:
+        f.write("---\nname: Jane Doe\n---\n# Jane\n")
+
+    pages = manager.list_pages()
+    assert "_meta/index.md" not in pages
+    assert "contacts/jane-doe.md" in pages
+
+
+def test_get_backlinks_excludes_meta(temp_dirs):
+    """_meta/index.md must not appear as a backlink source."""
+    sources, wiki = temp_dirs
+    manager = WikiManager(sources_dir=sources, wiki_dir=wiki)
+
+    contacts_dir = os.path.join(wiki, "contacts")
+    os.makedirs(contacts_dir, exist_ok=True)
+    with open(os.path.join(contacts_dir, "_type.yaml"), "w") as f:
+        f.write("name: contacts\n")
+    with open(os.path.join(contacts_dir, "jane-doe.md"), "w") as f:
+        f.write("---\nname: Jane Doe\n---\n# Jane\n")
+
+    # Write a _meta/index.md that contains a wikilink to jane-doe
+    meta_dir = os.path.join(wiki, "_meta")
+    os.makedirs(meta_dir, exist_ok=True)
+    with open(os.path.join(meta_dir, "index.md"), "w") as f:
+        f.write("---\nsystem: true\n---\n\n- [[contacts/jane-doe]]\n")
+
+    backlinks = manager.get_backlinks("contacts/jane-doe.md")
+    assert "_meta/index.md" not in backlinks

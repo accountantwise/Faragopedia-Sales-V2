@@ -17,6 +17,8 @@ Faragopedia-Sales implements the **LLM Wiki** methodology. Unlike traditional RA
 
 ## Getting Started
 
+Detailed setup and deployment instructions can be found in the [Deployment Guide](docs/deployment.md).
+
 ### Prerequisites
 - [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
 - An API Key for one of the supported providers (OpenAI, Anthropic, Google, or OpenRouter)

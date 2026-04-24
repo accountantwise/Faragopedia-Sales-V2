@@ -6,8 +6,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '../')
   
   // Extract hostname if a full URL is provided for allowedHosts
-  const allowedHost = env.VITE_ALLOWED_HOST 
-    ? env.VITE_ALLOWED_HOST.replace(/^https?:\/\//, '').split('/')[0]
+  const rawAllowedHost = env.VITE_ALLOWED_HOST || process.env.VITE_ALLOWED_HOST;
+  const allowedHost = rawAllowedHost 
+    ? rawAllowedHost.replace(/^https?:\/\//, '').split('/')[0]
     : null
 
   return {
@@ -15,7 +16,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: 5173,
-      allowedHosts: allowedHost ? [allowedHost] : [],
+      allowedHosts: true,
       proxy: {
         // This proxies all requests starting with /api to the backend container
         '/api': {

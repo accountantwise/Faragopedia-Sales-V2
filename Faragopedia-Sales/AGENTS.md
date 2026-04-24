@@ -13,7 +13,7 @@
 | ------------ | -------------------------------------------------------- |
 | **Name**     | Faragopedia-Sales                                        |
 | **Repo**     | `github.com/accountantwise/Faragopedia-Sales`            |
-| **Phase**    | 🟡 MVP Development / Prototype Complete                  |
+| **Phase**    | 🟡 MVP Development / Settings Section planned, ready to implement (branch: `setup-wizard`) |
 | **Stack**    | Python/FastAPI + React/Vite                              |
 | **Deploy**   | Docker container → Portainer on Ubuntu server            |
 
@@ -43,6 +43,9 @@ current direction.
 | Multi-Model Support| OpenAI, Anthropic, Gemini, OpenRouter | —        |
 | Database           | File-based (Wiki MD) | —        |
 | File Management    | Archive/Trash System | [ADR 0001](docs/decisions/0001-file-management-and-ingestion.md) |
+| Search Engine      | Client-side JSON Index| —        |
+| Linting System     | AI-powered + Snapshots| —        |
+| Tagging System     | Frontmatter + Shared  | —        |
 
 ---
 
@@ -73,7 +76,7 @@ current direction.
 ## Current Status
 
 > See [`docs/status.md`](docs/status.md) for the detailed living status document.
-| Phase        | 🟡 MVP Development / Prototype Functional              |
+| Phase        | 🟡 MVP Development / Feature Complete                  |
 
 ...
 
@@ -93,10 +96,19 @@ current direction.
 12. ~~Refine AI maintenance logic (semantic linting)~~ → Superseded by Wiki-Concept Integration
 13. ~~Execute Wiki-Concept Integration Plan~~ ✅ — All 12 tasks complete on `big-refactor`; see `docs/superpowers/plans/2026-04-15-wiki-integration-claude.md`
 14. ~~Create GitHub repository and push initial commit~~ ✅
-15. **Merge `big-refactor` to `main`** 👈
-16. ~~Execute Dynamic Folders plan~~ ✅ — all 7 tasks complete on `dynamic-folders` branch; 87 tests passing
-17. **Merge `dynamic-folders` to `main`**
-18. **Execute Search & Tags plan** — branch `search-and-tags`; spec + 8-task plan written; ready to implement
+| 15. ~~Merge `big-refactor` to `main`~~ ✅
+16. ~~Execute Dynamic Folders plan~~ ✅ — all 7 tasks complete; 87 tests passing
+17. ~~Merge `dynamic-folders` to `main`~~ ✅
+18. ~~Execute Search & Tags plan~~ ✅ — all 8 tasks complete; 111 tests passing
+19. ~~Execute Bulk Actions plan (Move, Download)~~ ✅ — 7 tasks complete; 12 tests passing
+20. ~~Execute Actionable Lint system (Snapshot, Bulk Fix)~~ ✅ — 7 tasks complete; verified
+21. ~~Desktop UI/UX Polish (Consistency, Layout fixes)~~ ✅
+22. ~~Setup Wizard (3-step wizard, LLM schema suggestion, reconfigure flow)~~ ✅ (2026-04-21)
+23. **Execute Settings Section plan (Tasks 1–13)** 👈 — spec + plan in `docs/superpowers/`; backend → Claude, frontend → Gemini
+24. **Add "estimated time remaining" to Lint View**
+25. **Monitor snapshot storage / add auto-pruning**
+26. **Implement Graph View**
+
 
 
 ---

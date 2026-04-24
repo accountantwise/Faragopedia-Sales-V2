@@ -339,7 +339,7 @@ def client(wiki_env, monkeypatch):
     r.SOURCES_DIR = sources
     r.WIKI_DIR = wiki
     r.ARCHIVE_DIR = archive
-    r.wiki_manager = WikiManager(sources_dir=sources, wiki_dir=wiki, archive_dir=archive)
+    r.set_wiki_manager(WikiManager(sources_dir=sources, wiki_dir=wiki, archive_dir=archive))
 
     from fastapi import FastAPI
     app = FastAPI()
@@ -352,7 +352,7 @@ def test_get_search_index(client, wiki_env):
     write_page(wiki, "clients/test.md",
                "---\nname: Test\ntags:\n- foo\n---\n\n# Test\n\nContent.")
     import api.routes as r
-    r.wiki_manager._rebuild_search_index()
+    r._wiki_manager._rebuild_search_index()
 
     resp = client.get("/search/index")
     assert resp.status_code == 200
@@ -366,7 +366,7 @@ def test_get_tags(client, wiki_env):
     write_page(wiki, "clients/test.md",
                "---\nname: Test\ntags:\n- foo\n- bar\n---\n\n# Test\n\nContent.")
     import api.routes as r
-    r.wiki_manager._rebuild_search_index()
+    r._wiki_manager._rebuild_search_index()
 
     resp = client.get("/tags")
     assert resp.status_code == 200
@@ -383,8 +383,8 @@ def test_patch_page_tags(client, wiki_env):
     resp = client.patch("/pages/clients/test.md/tags", json={"tags": ["wedding", "VIP"]})
     assert resp.status_code == 200
     import api.routes as r
-    fm, _ = r.wiki_manager._parse_frontmatter(
-        r.wiki_manager.get_page_content("clients/test.md")
+    fm, _ = r._wiki_manager._parse_frontmatter(
+        r._wiki_manager.get_page_content("clients/test.md")
     )
     assert fm["tags"] == ["wedding", "vip"]
 
@@ -398,7 +398,7 @@ def test_patch_source_tags(client, wiki_env):
     resp = client.patch("/sources/file.txt/tags", json={"tags": ["brief"]})
     assert resp.status_code == 200
     import api.routes as r
-    meta = r.wiki_manager._load_metadata()
+    meta = r._wiki_manager._load_metadata()
     assert meta["file.txt"]["tags"] == ["brief"]
 
 
@@ -411,7 +411,7 @@ def test_put_page_returns_suggested_tags(client, wiki_env):
     import api.routes as r
     mock_resp = MagicMock()
     mock_resp.content = '["wedding"]'
-    r.wiki_manager.llm.ainvoke = AsyncMock(return_value=mock_resp)
+    r._wiki_manager.llm.ainvoke = AsyncMock(return_value=mock_resp)
 
     resp = client.put("/pages/clients/test.md",
                       json={"content": "---\nname: Test\ntags: []\n---\n\n# Test\n\nNew."})
