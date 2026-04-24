@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
-import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, FilePlus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, ListChecks, MoveRight } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, FilePlus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, ListChecks, MoveRight, List } from 'lucide-react';
 
 import ChatPanel from './ChatPanel';
 
@@ -870,6 +870,17 @@ const WikiView: React.FC = () => {
           <p className="text-gray-500 text-sm">No pages found. Ingest some data first!</p>
         ) : (
           <div className="space-y-1">
+            <button
+              onClick={() => fetchPageContent('_meta/index.md')}
+              className={`w-full text-left px-2 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${
+                selectedPage === '_meta/index.md'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold'
+                  : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              <List className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-xs font-semibold uppercase tracking-wider">Index</span>
+            </button>
             {Object.entries(entityTypes).map(([section, typeData]) => {
               const sectionPages = pageTree[section] || [];
               return (
