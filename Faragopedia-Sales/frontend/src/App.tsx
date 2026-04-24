@@ -369,7 +369,7 @@ const App: React.FC = () => {
       </div>
 
       <main className="flex-grow flex flex-col overflow-hidden relative w-full">
-        <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 h-[72px] flex items-center shrink-0 z-30 relative shadow-sm">
+        <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-4 flex items-center shrink-0 z-30 relative shadow-sm">
           <button
             onClick={() => {
               if (window.innerWidth < 768) setMobileMenuOpen(true);

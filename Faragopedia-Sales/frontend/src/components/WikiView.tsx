@@ -707,7 +707,7 @@ const WikiView: React.FC = () => {
   return (
     <div className="flex flex-col h-full relative">
       {/* Search bar — full width above sidebar+content */}
-      <div className="border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 h-14 flex items-center gap-3 shrink-0">
+      <div className="border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 flex items-center gap-3">
         <Search className="w-4 h-4 text-gray-400 shrink-0" />
         <input
           type="text"
