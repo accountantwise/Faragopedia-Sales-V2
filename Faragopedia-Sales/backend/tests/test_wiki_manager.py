@@ -1090,3 +1090,63 @@ def test_list_pages_excludes_underscore_prefixed_files(temp_dirs):
     pages = manager.list_pages()
     assert "clients/acme.md" in pages
     assert "clients/_template.md" not in pages
+
+
+@pytest.mark.asyncio
+async def test_create_new_page_uses_template_when_present(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    template_content = (
+        "---\ntype: client\nname: \ntier:  # options: A, B, C\n---\n\n# \n\n"
+        "## Overview\n_Add overview here..._\n"
+    )
+    (wiki / "clients" / "_template.md").write_text(template_content)
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    filename = await manager.create_new_page(entity_type="clients")
+    assert filename == "clients/Untitled.md"
+    written = (wiki / "clients" / "Untitled.md").read_text()
+    assert written == template_content
+
+
+@pytest.mark.asyncio
+async def test_create_new_page_falls_back_when_no_template(tmp_path):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    (wiki / "clients").mkdir()
+    (wiki / "clients" / "_type.yaml").write_text(
+        "name: Clients\nsingular: client\nfields: []\nsections: []\n"
+    )
+    # No _template.md present
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=MagicMock()):
+        manager = WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+    filename = await manager.create_new_page(entity_type="clients")
+    written = (wiki / "clients" / "Untitled.md").read_text()
+    assert "type: client" in written
+    assert "name: " in written

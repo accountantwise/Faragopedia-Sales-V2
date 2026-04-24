@@ -905,7 +905,12 @@ class WikiManager:
                 count += 1
 
             singular = entity_types[entity_type].get("singular", entity_type.rstrip("s"))
-            content = f"---\ntype: {singular}\nname: \n---\n\n# Untitled\n\nNew page content here.\n"
+            template_path = os.path.join(sub_dir, "_template.md")
+            if os.path.exists(template_path):
+                with open(template_path, "r", encoding="utf-8") as _tf:
+                    content = _tf.read()
+            else:
+                content = f"---\ntype: {singular}\nname: \n---\n\n# Untitled\n\nNew page content here.\n"
             with open(os.path.join(self.wiki_dir, rel_path.replace("/", os.sep)), "w", encoding="utf-8") as f:
                 f.write(content)
 
