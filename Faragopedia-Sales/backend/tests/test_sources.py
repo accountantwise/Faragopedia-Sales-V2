@@ -51,7 +51,7 @@ def test_get_source_not_found():
 # ── Paste endpoint ────────────────────────────────────────────────────────────
 
 def test_paste_source_happy_path(tmp_path):
-    with patch("api.routes.SOURCES_DIR", str(tmp_path)):
+    with patch("api.routes.get_sources_dir", return_value=str(tmp_path)):
         response = client.post("/api/paste", json={"content": "Hello world"})
     assert response.status_code == 200
     data = response.json()
@@ -62,7 +62,7 @@ def test_paste_source_happy_path(tmp_path):
 
 
 def test_paste_source_with_custom_name(tmp_path):
-    with patch("api.routes.SOURCES_DIR", str(tmp_path)):
+    with patch("api.routes.get_sources_dir", return_value=str(tmp_path)):
         response = client.post("/api/paste", json={"content": "Notes", "name": "my notes"})
     assert response.status_code == 200
     data = response.json()

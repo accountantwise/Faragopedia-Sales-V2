@@ -49,12 +49,15 @@ def dirs(tmp_path):
 
 
 def _make_client(dirs):
-    import backend.api.export_routes as er
-    er.WIKI_DIR = str(dirs / "wiki")
-    er.SOURCES_DIR = str(dirs / "sources")
-    er.ARCHIVE_DIR = str(dirs / "archive")
-    er.SNAPSHOTS_DIR = str(dirs / "snapshots")
-    er.SCHEMA_DIR = str(dirs / "schema")
+    import api.export_routes as er
+    import agent.workspace_manager as wm_module
+    wm_module._active_dirs = {
+        "wiki_dir": str(dirs / "wiki"),
+        "sources_dir": str(dirs / "sources"),
+        "archive_dir": str(dirs / "archive"),
+        "snapshots_dir": str(dirs / "snapshots"),
+        "schema_dir": str(dirs / "schema"),
+    }
 
     app = FastAPI()
     app.include_router(er.export_router)
