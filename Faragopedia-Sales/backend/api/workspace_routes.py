@@ -67,3 +67,65 @@ def delete_workspace_endpoint(workspace_id: str):
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Workspace '{workspace_id}' not found")
     return {"success": True}
+
+
+class DuplicateWorkspaceRequest(BaseModel):
+    name: str
+    mode: str  # "full" or "template"
+
+
+@workspace_router.post("/{workspace_id}/archive")
+def archive_workspace_endpoint(workspace_id: str):
+    if workspace_id == workspace_manager.get_active_workspace_id():
+        raise HTTPException(status_code=400, detail="Cannot archive the active workspace")
+    try:
+        workspace = workspace_manager.archive_workspace(workspace_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Workspace '{workspace_id}' not found")
+    return workspace
+
+
+@workspace_router.post("/{workspace_id}/unarchive")
+def unarchive_workspace_endpoint(workspace_id: str):
+    try:
+        workspace = workspace_manager.unarchive_workspace(workspace_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Workspace '{workspace_id}' not found")
+    return workspace
+
+
+@workspace_router.post("/{workspace_id}/duplicate")
+def duplicate_workspace_endpoint(workspace_id: str, payload: DuplicateWorkspaceRequest):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="name is required")
+    if payload.mode not in ("full", "template"):
+        raise HTTPException(status_code=422, detail="mode must be 'full' or 'template'")
+    try:
+        result = workspace_manager.duplicate_workspace(workspace_id, name, payload.mode)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if not result["setup_required"]:
+        from agent.setup_wizard import is_setup_complete
+        schema_dir = workspace_manager.get_schema_dir()
+        if is_setup_complete(schema_dir):
+            from agent.wiki_manager import WikiManager
+            from agent.setup_wizard import get_wiki_config
+            try:
+                wm = WikiManager(
+                    sources_dir=workspace_manager.get_sources_dir(),
+                    wiki_dir=workspace_manager.get_wiki_dir(),
+                    archive_dir=workspace_manager.get_archive_dir(),
+                    snapshots_dir=workspace_manager.get_snapshots_dir(),
+                    schema_dir=schema_dir,
+                )
+                set_wiki_manager(wm)
+            except Exception:
+                set_wiki_manager(None)
+        else:
+            set_wiki_manager(None)
+    else:
+        set_wiki_manager(None)
+
+    return result

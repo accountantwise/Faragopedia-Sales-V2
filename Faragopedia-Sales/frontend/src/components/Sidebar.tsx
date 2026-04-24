@@ -7,14 +7,21 @@ interface SidebarProps {
   onViewChange: (view: string) => void;
   wikiName: string;
   onOpenSettings: () => void;
-  // new:
-  workspaces: { id: string; name: string }[];
+  workspaces: { id: string; name: string; archived?: boolean }[];
   activeWorkspaceId: string;
   onSwitchWorkspace: (id: string) => void;
   onNewWorkspace: () => void;
+  onArchiveWorkspace: (id: string) => void;
+  onUnarchiveWorkspace: (id: string) => void;
+  onDuplicateWorkspace: (id: string, name: string, mode: 'full' | 'template') => Promise<void>;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, wikiName, onOpenSettings, workspaces, activeWorkspaceId, onSwitchWorkspace, onNewWorkspace }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  currentView, onViewChange, wikiName, onOpenSettings,
+  workspaces, activeWorkspaceId,
+  onSwitchWorkspace, onNewWorkspace,
+  onArchiveWorkspace, onUnarchiveWorkspace, onDuplicateWorkspace,
+}) => {
   const menuItems = [
     { name: 'Wiki', icon: <Book className="w-5 h-5" /> },
     { name: 'Sources', icon: <Layers className="w-5 h-5" /> },
@@ -30,6 +37,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, wikiName, 
         activeWorkspaceId={activeWorkspaceId}
         onSwitch={onSwitchWorkspace}
         onNewWorkspace={onNewWorkspace}
+        onArchive={onArchiveWorkspace}
+        onUnarchive={onUnarchiveWorkspace}
+        onDuplicate={onDuplicateWorkspace}
       />
 
       <nav className="flex-grow p-4">

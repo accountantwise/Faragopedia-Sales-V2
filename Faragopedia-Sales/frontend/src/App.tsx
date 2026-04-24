@@ -25,7 +25,7 @@ const App: React.FC = () => {
   const prevMetadataRef = useRef<Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }>>({});
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([]);
+  const [workspaces, setWorkspaces] = useState<{ id: string; name: string; archived?: boolean }[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState('');
 
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
@@ -173,6 +173,41 @@ const App: React.FC = () => {
     setSetupState('required');
     setReconfigureMode(false);
     setExistingFolders([]);
+    fetchWorkspaces();
+  };
+
+  const handleArchiveWorkspace = async (id: string) => {
+    await fetch(`${API_BASE}/workspaces/${id}/archive`, { method: 'POST' });
+    fetchWorkspaces();
+  };
+
+  const handleUnarchiveWorkspace = async (id: string) => {
+    await fetch(`${API_BASE}/workspaces/${id}/unarchive`, { method: 'POST' });
+    fetchWorkspaces();
+  };
+
+  const handleDuplicateWorkspace = async (id: string, name: string, mode: 'full' | 'template') => {
+    const res = await fetch(`${API_BASE}/workspaces/${id}/duplicate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mode }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail ?? 'Duplicate failed');
+    }
+    const data = await res.json();
+    setActiveWorkspaceId(data.id);
+    setChatHistory([]);
+    setCurrentView('Wiki');
+    setSourcesMetadata({});
+    if (data.setup_required) {
+      setReconfigureMode(false);
+      setExistingFolders([]);
+      setSetupState('required');
+    } else {
+      setSetupState('ready');
+    }
     fetchWorkspaces();
   };
 
@@ -358,6 +393,9 @@ const App: React.FC = () => {
             activeWorkspaceId={activeWorkspaceId}
             onSwitchWorkspace={handleSwitchWorkspace}
             onNewWorkspace={handleNewWorkspace}
+            onArchiveWorkspace={handleArchiveWorkspace}
+            onUnarchiveWorkspace={handleUnarchiveWorkspace}
+            onDuplicateWorkspace={handleDuplicateWorkspace}
           />
           <button
             className="md:hidden absolute top-4 right-4 text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/80"
