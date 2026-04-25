@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, Plus, Trash2, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { API_BASE } from '../config';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -374,7 +374,16 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
   if (step === 0) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-6">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-full max-w-md border border-gray-200 dark:border-gray-800">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-full max-w-md border border-gray-200 dark:border-gray-800 relative">
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              aria-label="Cancel setup"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Get Started</h1>
           <p className="text-gray-500 dark:text-gray-400 mb-8">Set up your wiki from scratch or restore from a backup.</p>
 
@@ -412,7 +421,16 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
   if (step === 1) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-8">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 w-full max-w-lg p-8">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 w-full max-w-lg p-8 relative">
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              aria-label="Cancel setup"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">{reconfigureMode ? 'Reconfigure Wiki' : 'Welcome — Set up your wiki'}</h1>
           <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">Tell us about your organisation. We'll generate a schema tailored to what you track.</p>
 
@@ -459,7 +477,16 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
     const matchedFolders = new Set(entityTypes.map(et => et.folder_name));
 
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-8 relative">
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+            aria-label="Cancel setup"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
         <div className="max-w-4xl mx-auto">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">Review your schema</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">Edit entity types, fields, and sections. Add or remove types as needed.</p>
@@ -551,7 +578,16 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onCancel, reconfi
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-8">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 w-full max-w-lg p-8">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 w-full max-w-lg p-8 relative">
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+            aria-label="Cancel setup"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Ready to launch</h1>
         <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">Review what will be created, then click Launch Wiki.</p>
 
