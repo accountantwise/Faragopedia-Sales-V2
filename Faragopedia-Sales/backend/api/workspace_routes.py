@@ -10,6 +10,10 @@ class CreateWorkspaceRequest(BaseModel):
     name: str
 
 
+class RenameWorkspaceRequest(BaseModel):
+    name: str
+
+
 @workspace_router.get("")
 def list_workspaces_endpoint():
     return {
@@ -92,6 +96,20 @@ def unarchive_workspace_endpoint(workspace_id: str):
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Workspace '{workspace_id}' not found")
     return workspace
+
+
+@workspace_router.patch("/{workspace_id}")
+def rename_workspace_endpoint(workspace_id: str, payload: RenameWorkspaceRequest):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="name is required")
+    try:
+        workspace_manager.update_workspace_name(workspace_id, name)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Workspace '{workspace_id}' not found")
+    registry = workspace_manager.list_workspaces()
+    entry = next((ws for ws in registry if ws["id"] == workspace_id), None)
+    return entry
 
 
 @workspace_router.post("/{workspace_id}/duplicate")

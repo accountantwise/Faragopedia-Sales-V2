@@ -27,6 +27,7 @@ const App: React.FC = () => {
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string; archived?: boolean }[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState('');
+  const [previousActiveWorkspaceId, setPreviousActiveWorkspaceId] = useState('');
 
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
     try { return (localStorage.getItem('faragopedia-theme') as 'light' | 'dark' | 'system') ?? 'system'; } catch (_) { return 'system'; }
@@ -119,6 +120,7 @@ const App: React.FC = () => {
       setWikiName(data.wiki_name);
     }
     setReconfigureMode(false);
+    setPreviousActiveWorkspaceId('');
     setSetupState('ready');
   };
 
@@ -159,6 +161,7 @@ const App: React.FC = () => {
   };
 
   const handleNewWorkspace = async () => {
+    setPreviousActiveWorkspaceId(activeWorkspaceId);
     const res = await fetch(`${API_BASE}/workspaces`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -183,6 +186,28 @@ const App: React.FC = () => {
 
   const handleUnarchiveWorkspace = async (id: string) => {
     await fetch(`${API_BASE}/workspaces/${id}/unarchive`, { method: 'POST' });
+    fetchWorkspaces();
+  };
+
+  const handleDeleteWorkspace = async (id: string) => {
+    const res = await fetch(`${API_BASE}/workspaces/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail ?? 'Delete failed');
+    }
+    fetchWorkspaces();
+  };
+
+  const handleRenameWorkspace = async (id: string, name: string) => {
+    const res = await fetch(`${API_BASE}/workspaces/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail ?? 'Rename failed');
+    }
     fetchWorkspaces();
   };
 
@@ -360,7 +385,16 @@ const App: React.FC = () => {
     return (
       <SetupWizard
         onComplete={handleSetupComplete}
-        onCancel={handleSetupCancel}
+        onCancel={
+          reconfigureMode
+            ? handleSetupCancel
+            : previousActiveWorkspaceId
+              ? () => {
+                  handleSwitchWorkspace(previousActiveWorkspaceId);
+                  setPreviousActiveWorkspaceId('');
+                }
+              : undefined
+        }
         reconfigureMode={reconfigureMode}
         existingFolders={existingFolders}
       />
@@ -396,6 +430,8 @@ const App: React.FC = () => {
             onArchiveWorkspace={handleArchiveWorkspace}
             onUnarchiveWorkspace={handleUnarchiveWorkspace}
             onDuplicateWorkspace={handleDuplicateWorkspace}
+            onDeleteWorkspace={handleDeleteWorkspace}
+            onRenameWorkspace={handleRenameWorkspace}
           />
           <button
             className="md:hidden absolute top-4 right-4 text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/80"

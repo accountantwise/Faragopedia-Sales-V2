@@ -14,6 +14,8 @@ interface SidebarProps {
   onArchiveWorkspace: (id: string) => void;
   onUnarchiveWorkspace: (id: string) => void;
   onDuplicateWorkspace: (id: string, name: string, mode: 'full' | 'template') => Promise<void>;
+  onDeleteWorkspace: (id: string) => Promise<void>;
+  onRenameWorkspace: (id: string, name: string) => Promise<void>;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -21,6 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   workspaces, activeWorkspaceId,
   onSwitchWorkspace, onNewWorkspace,
   onArchiveWorkspace, onUnarchiveWorkspace, onDuplicateWorkspace,
+  onDeleteWorkspace, onRenameWorkspace,
 }) => {
   const menuItems = [
     { name: 'Wiki', icon: <Book className="w-5 h-5" /> },
@@ -40,6 +43,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         onArchive={onArchiveWorkspace}
         onUnarchive={onUnarchiveWorkspace}
         onDuplicate={onDuplicateWorkspace}
+        onDelete={onDeleteWorkspace}
+        onRename={onRenameWorkspace}
       />
 
       <nav className="flex-grow p-4">
