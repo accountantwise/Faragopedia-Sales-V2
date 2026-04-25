@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check, Plus, MoreHorizontal, Copy, Archive, RotateCcw, ChevronRight } from 'lucide-react';
+import { ChevronDown, Check, Plus, MoreHorizontal, Copy, Archive, RotateCcw, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import DuplicateWorkspaceModal from './DuplicateWorkspaceModal';
+import DeleteWorkspaceModal from './DeleteWorkspaceModal';
+import RenameWorkspaceModal from './RenameWorkspaceModal';
 
 interface Workspace {
   id: string;
@@ -16,6 +18,8 @@ interface WorkspaceSwitcherProps {
   onArchive: (id: string) => void;
   onUnarchive: (id: string) => void;
   onDuplicate: (id: string, name: string, mode: 'full' | 'template') => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onRename: (id: string, name: string) => Promise<void>;
 }
 
 const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
@@ -26,11 +30,15 @@ const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
   onArchive,
   onUnarchive,
   onDuplicate,
+  onDelete,
+  onRename,
 }) => {
   const [open, setOpen] = useState(false);
   const [contextMenuId, setContextMenuId] = useState<string | null>(null);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [duplicateSource, setDuplicateSource] = useState<Workspace | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
+  const [renameTarget, setRenameTarget] = useState<Workspace | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -103,6 +111,18 @@ const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
                     <button
                       onClick={e => {
                         e.stopPropagation();
+                        setRenameTarget(ws);
+                        setContextMenuId(null);
+                        setOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-700 transition-colors"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Rename
+                    </button>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
                         setDuplicateSource(ws);
                         setContextMenuId(null);
                         setOpen(false);
@@ -172,6 +192,19 @@ const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
                           <RotateCcw className="w-4 h-4" />
                           Restore
                         </button>
+                        <div className="border-t border-gray-700 my-1" />
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setDeleteTarget(ws);
+                            setContextMenuId(null);
+                            setOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete permanently
+                        </button>
                       </div>
                     )}
                   </div>
@@ -201,6 +234,28 @@ const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
           onConfirm={async (name, mode) => {
             await onDuplicate(duplicateSource.id, name, mode);
             setDuplicateSource(null);
+          }}
+        />
+      )}
+
+      {renameTarget && (
+        <RenameWorkspaceModal
+          currentName={renameTarget.name}
+          onClose={() => setRenameTarget(null)}
+          onConfirm={async (name) => {
+            await onRename(renameTarget.id, name);
+            setRenameTarget(null);
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteWorkspaceModal
+          workspaceName={deleteTarget.name}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={async () => {
+            await onDelete(deleteTarget.id);
+            setDeleteTarget(null);
           }}
         />
       )}
