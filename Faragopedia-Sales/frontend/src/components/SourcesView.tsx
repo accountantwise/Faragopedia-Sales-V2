@@ -587,7 +587,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
       {/* Main Content - Source View */}
       <div className={`flex-grow overflow-y-auto bg-white dark:bg-gray-900 flex-col ${!isDesktop && showMobileList ? 'hidden' : 'flex'}`}>
         {/* Navigation Header */}
-        <div className="hidden lg:flex border-b dark:border-gray-800 px-8 h-[72px] items-center justify-between sticky top-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10">
+        <div className="hidden lg:flex border-b dark:border-gray-800 px-8 py-4 items-center justify-between sticky top-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-2">
             <button
               onClick={handleBack}
