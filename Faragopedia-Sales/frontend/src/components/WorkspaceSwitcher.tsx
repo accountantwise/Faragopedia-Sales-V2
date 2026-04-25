@@ -60,7 +60,7 @@ const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
         {/* Trigger button */}
         <button
           onClick={() => { setOpen(prev => !prev); setContextMenuId(null); }}
-          className="w-full flex items-center gap-3 px-6 py-4 text-left hover:bg-gray-700 transition-colors border-b border-gray-700"
+          className="w-full flex items-center gap-3 px-6 h-[72px] text-left hover:bg-gray-700 transition-colors border-b border-gray-700"
         >
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-sm font-bold shrink-0">
             {displayName.slice(0, 2).toUpperCase()}
