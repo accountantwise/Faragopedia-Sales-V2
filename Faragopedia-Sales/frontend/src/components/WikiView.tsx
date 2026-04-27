@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
-import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, FilePlus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, ListChecks, MoveRight, List } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, FilePlus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, ListChecks, MoveRight, List, Upload } from 'lucide-react';
 
 import ChatPanel from './ChatPanel';
+import ImportWikiModal from './ImportWikiModal';
 
 import { API_BASE } from '../config';
 import { formatPageName } from '../utils/formatPageName';
@@ -35,6 +36,8 @@ type SearchIndex = {
 const WikiView: React.FC = () => {
   const [pageTree, setPageTree] = useState<PageTree>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [entityTypes, setEntityTypes] = useState<Record<string, { name: string; description?: string; singular?: string }>>({});
   const [selectedPage, setSelectedPage] = useState<string | null>(null);
   const [content, setContent] = useState<string | null>(null);
@@ -922,8 +925,12 @@ const WikiView: React.FC = () => {
                 <div key={section}>
                   <div className="flex items-center group">
                     <button
-                      onClick={() => toggleSection(section)}
-                      className="flex-1 text-left px-2 py-2 flex items-center justify-between text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
+                      onClick={() => { toggleSection(section); setSelectedFolder(section) }}
+                      className={`flex-1 text-left px-2 py-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider rounded-md transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                        selectedFolder === section
+                          ? 'text-blue-600 dark:text-blue-400'
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`}
                     >
                       <span>{typeData.name || section}</span>
                       <ChevronRight className={`w-3 h-3 transition-transform duration-150 ${expandedSections[section] ? 'rotate-90' : ''}`} />
@@ -1614,6 +1621,14 @@ const WikiView: React.FC = () => {
           confirmLabel="Archive"
           onConfirm={handleBulkArchivePages}
           onCancel={() => setShowConfirm(false)}
+        />
+      )}
+
+      {showImportModal && selectedFolder && (
+        <ImportWikiModal
+          folder={selectedFolder}
+          onClose={() => setShowImportModal(false)}
+          onImported={fetchPages}
         />
       )}
       </div>
