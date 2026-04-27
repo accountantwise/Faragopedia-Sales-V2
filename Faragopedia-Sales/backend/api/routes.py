@@ -826,6 +826,8 @@ async def import_wiki_files(
     conflict_resolutions: str = Form(default="{}"),
 ):
     folder_path = os.path.join(wm.wiki_dir, folder)
+    if not os.path.realpath(folder_path).startswith(os.path.realpath(wm.wiki_dir) + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid folder path")
     if not os.path.isdir(folder_path):
         raise HTTPException(status_code=404, detail=f"Folder '{folder}' not found")
 
