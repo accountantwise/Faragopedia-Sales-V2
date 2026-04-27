@@ -104,3 +104,79 @@ def test_import_pages_no_rebuild_when_all_skipped(wm, tmp_path):
     with patch.object(wm, "_rebuild_search_index") as mock_rebuild:
         run(wm.import_pages("clients", files, {"acme.md": "skip"}))
     mock_rebuild.assert_not_called()
+
+
+import io
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture
+def client(tmp_path, mock_env):
+    # Create directories
+    wiki_dir = str(tmp_path / "wiki")
+    sources_dir = str(tmp_path / "sources")
+    archive_dir = str(tmp_path / "archive")
+    snapshots_dir = str(tmp_path / "snapshots")
+    os.makedirs(os.path.join(wiki_dir, "clients"), exist_ok=True)
+    os.makedirs(sources_dir, exist_ok=True)
+    os.makedirs(archive_dir, exist_ok=True)
+    os.makedirs(snapshots_dir, exist_ok=True)
+
+    # Import routes and set up wiki_manager
+    from api import routes as r
+    from agent.wiki_manager import WikiManager
+
+    # Create and set wiki manager
+    wm = WikiManager(
+        sources_dir=sources_dir,
+        wiki_dir=wiki_dir,
+        archive_dir=archive_dir,
+        snapshots_dir=snapshots_dir,
+        llm=None,
+    )
+    r.set_wiki_manager(wm)
+
+    # Create a fresh app with just the router
+    app = FastAPI()
+    app.include_router(r.router, prefix="/api")
+    return TestClient(app)
+
+
+def test_route_import_success(client):
+    file_content = b"# Acme\nname: Acme Corp"
+    response = client.post(
+        "/api/wiki/import",
+        data={"folder": "clients", "conflict_resolutions": "{}"},
+        files=[("files", ("acme.md", io.BytesIO(file_content), "text/markdown"))],
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "clients/acme.md" in data["imported"]
+
+
+def test_route_import_folder_not_found(client):
+    response = client.post(
+        "/api/wiki/import",
+        data={"folder": "nonexistent", "conflict_resolutions": "{}"},
+        files=[("files", ("acme.md", io.BytesIO(b"content"), "text/markdown"))],
+    )
+    assert response.status_code == 404
+
+
+def test_route_import_non_md_file_rejected(client):
+    response = client.post(
+        "/api/wiki/import",
+        data={"folder": "clients", "conflict_resolutions": "{}"},
+        files=[("files", ("report.pdf", io.BytesIO(b"content"), "application/pdf"))],
+    )
+    assert response.status_code == 400
+
+
+def test_route_import_invalid_resolutions_json(client):
+    response = client.post(
+        "/api/wiki/import",
+        data={"folder": "clients", "conflict_resolutions": "not-json"},
+        files=[("files", ("acme.md", io.BytesIO(b"content"), "text/markdown"))],
+    )
+    assert response.status_code == 400

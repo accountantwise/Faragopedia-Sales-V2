@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query, BackgroundTasks, Depends
 from datetime import datetime
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, validator
@@ -816,3 +816,39 @@ async def update_page(wm: WM, path: str, payload: dict):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating page: {str(e)}")
+
+
+@router.post("/wiki/import")
+async def import_wiki_files(
+    wm: WM,
+    folder: str = Form(...),
+    files: list[UploadFile] = File(...),
+    conflict_resolutions: str = Form(default="{}"),
+):
+    folder_path = os.path.join(wm.wiki_dir, folder)
+    if not os.path.isdir(folder_path):
+        raise HTTPException(status_code=404, detail=f"Folder '{folder}' not found")
+
+    for f in files:
+        if not (f.filename or "").endswith(".md"):
+            raise HTTPException(status_code=400, detail=f"File '{f.filename}' is not a .md file")
+
+    try:
+        resolutions = json.loads(conflict_resolutions)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid conflict_resolutions JSON")
+
+    file_data: list[tuple[str, bytes]] = []
+    for f in files:
+        safe_name = secure_filename(f.filename or "unnamed.md")
+        if not safe_name:
+            raise HTTPException(status_code=400, detail=f"Invalid filename '{f.filename}'")
+        content = await f.read()
+        file_data.append((safe_name, content))
+
+    try:
+        result = await wm.import_pages(folder, file_data, resolutions)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return result
