@@ -345,6 +345,16 @@ async def get_entity_types(wm: WM):
         raise HTTPException(status_code=500, detail=f"Error listing entity types: {str(e)}")
 
 
+@router.get("/entity-types/{entity_type}/field-schema")
+async def get_field_schema(wm: WM, entity_type: str):
+    if entity_type not in get_valid_entity_subdirs(wm):
+        raise HTTPException(status_code=404, detail=f"Unknown entity type: {entity_type}")
+    try:
+        return {"schema": wm.get_field_schema(entity_type)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/folders")
 async def create_folder(wm: WM, payload: dict):
     name = payload.get("name", "").strip()

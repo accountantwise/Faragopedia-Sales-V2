@@ -47,6 +47,10 @@ def client(tmp_path):
         "photographers": {"name": "Photographers", "singular": "photographer"},
         "productions": {"name": "Productions", "singular": "production"},
     }
+    mock_wm.get_field_schema.return_value = {
+        "status": ["Active", "Dormant"],
+        "relationship": ["Cold", "Warm", "Hot"],
+    }
     mock_wm.create_folder = AsyncMock()
     mock_wm.delete_folder = AsyncMock()
     mock_wm.rename_folder = AsyncMock()
@@ -245,3 +249,16 @@ def test_get_meta_index_file(client):
     data = response.json()
     assert "content" in data
     assert "system" in data["content"]
+
+
+def test_get_field_schema_returns_schema(client):
+    response = client.get("/api/entity-types/contacts/field-schema")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["schema"]["status"] == ["Active", "Dormant"]
+    assert data["schema"]["relationship"] == ["Cold", "Warm", "Hot"]
+
+
+def test_get_field_schema_unknown_type(client):
+    response = client.get("/api/entity-types/nonexistent/field-schema")
+    assert response.status_code == 404
