@@ -123,7 +123,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-0">
@@ -151,7 +151,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5">
+        <div className="px-6 py-5 overflow-y-auto flex-1 min-h-0">
 
           {error && (
             <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
@@ -180,7 +180,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
               </div>
 
               {selectedFiles.length > 0 && (
-                <ul className="mt-3 space-y-1">
+                <ul className="mt-3 space-y-1 max-h-48 overflow-y-auto">
                   {selectedFiles.map((file, i) => (
                     <li key={i} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-md text-sm text-gray-700">
                       <FileText className="w-4 h-4 text-gray-400 shrink-0" />
