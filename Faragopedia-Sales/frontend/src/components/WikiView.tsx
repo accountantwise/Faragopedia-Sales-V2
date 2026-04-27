@@ -653,6 +653,42 @@ const WikiView: React.FC = () => {
     });
   };
 
+  const renderFrontmatterValue = (raw: string): React.ReactNode => {
+    const value = raw.replace(/^["']|["']$/g, '');
+    const parts: React.ReactNode[] = [];
+    const regex = /\[\[(.*?)\]\]/g;
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(value)) !== null) {
+      if (match.index > lastIndex) parts.push(value.slice(lastIndex, match.index));
+      const trimmed = match[1].trim();
+      let pagePath: string;
+      let displayText: string;
+      if (trimmed.includes('/')) {
+        displayText = trimmed.split('/').pop()?.replace(/-/g, ' ') || trimmed;
+        pagePath = trimmed + '.md';
+      } else {
+        displayText = trimmed;
+        const slug = trimmed.toLowerCase().replace(/\s+/g, '-');
+        pagePath = slug + '.md';
+        for (const [, pages] of Object.entries(pageTree)) {
+          const found = pages.find(p => p.endsWith(`/${slug}.md`));
+          if (found) { pagePath = found; break; }
+        }
+      }
+      const path = pagePath;
+      parts.push(
+        <button key={match.index} onClick={() => fetchPageContent(path)}
+          className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-medium">
+          {displayText}
+        </button>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < value.length) parts.push(value.slice(lastIndex));
+    return parts.length ? <>{parts}</> : value;
+  };
+
   const parseFrontmatter = (text: string) => {
     const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
     if (match) {
@@ -1257,7 +1293,7 @@ const WikiView: React.FC = () => {
                          {tags.map((t, idx) => (
                            <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 shadow-sm uppercase tracking-wider">
                              <span className="text-gray-400 dark:text-gray-500 mr-2 text-[10px]">{t.key}:</span>
-                             <span className="text-blue-600 dark:text-blue-400 font-bold">{t.value}</span>
+                             <span className="text-blue-600 dark:text-blue-400 font-bold">{renderFrontmatterValue(t.value)}</span>
                            </span>
                          ))}
                        </div>
