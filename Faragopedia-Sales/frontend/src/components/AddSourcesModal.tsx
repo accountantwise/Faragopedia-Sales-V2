@@ -151,23 +151,23 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 overflow-y-auto flex-1 min-h-0">
+        <div className="px-6 py-5 flex flex-col flex-1 min-h-0">
 
           {error && (
-            <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700 shrink-0">
               {error}
             </div>
           )}
 
           {/* ── Files tab ── */}
           {activeTab === 'files' && (
-            <div>
+            <div className="flex flex-col flex-1 min-h-0">
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                className={`shrink-0 border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
                   isDragging
                     ? 'border-blue-400 bg-blue-50'
                     : 'border-gray-300 hover:border-gray-400 bg-gray-50'
@@ -180,7 +180,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
               </div>
 
               {selectedFiles.length > 0 && (
-                <ul className="mt-3 space-y-1 max-h-48 overflow-y-auto">
+                <ul className="mt-3 space-y-1 overflow-y-auto flex-1 min-h-0">
                   {selectedFiles.map((file, i) => (
                     <li key={i} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-md text-sm text-gray-700">
                       <FileText className="w-4 h-4 text-gray-400 shrink-0" />
@@ -196,7 +196,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
               <button
                 onClick={handleFilesSubmit}
                 disabled={selectedFiles.length === 0 || uploading}
-                className="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                className="mt-4 shrink-0 w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
               >
                 {uploading
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
