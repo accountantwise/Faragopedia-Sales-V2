@@ -243,7 +243,21 @@ class WikiManager:
         return {}, content
 
     def _render_frontmatter(self, frontmatter: dict, body: str) -> str:
-        fm_str = yaml.dump(frontmatter, default_flow_style=False,
+        class _WikilinkSafeDumper(yaml.Dumper):
+            pass
+
+        def _str_representer(dumper, data):
+            if '\n' in data:
+                return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+            # Force double-quote style for wikilinks so [[Name]] is never
+            # single-quote escaped to '[[Name]]' or '[[L''Oreal]]'
+            if data.startswith('[['):
+                return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='"')
+            return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+
+        _WikilinkSafeDumper.add_representer(str, _str_representer)
+
+        fm_str = yaml.dump(frontmatter, Dumper=_WikilinkSafeDumper, default_flow_style=False,
                            allow_unicode=True, sort_keys=False).rstrip()
         return f"---\n{fm_str}\n---\n{body}"
 

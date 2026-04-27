@@ -734,8 +734,21 @@ const WikiView: React.FC = () => {
     }
   };
 
+  // Decode a raw YAML scalar string: strip outer quotes and unescape
+  // single-quote sequences ('') so [[L''Oreal]] → [[L'Oreal]].
+  const decodeYamlScalar = (raw: string): string => {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2) {
+      return trimmed.slice(1, -1).replace(/''/g, "'");
+    }
+    if (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) {
+      return trimmed.slice(1, -1);
+    }
+    return trimmed;
+  };
+
   const renderFrontmatterValue = (raw: string): React.ReactNode => {
-    const value = raw.replace(/^["']|["']$/g, '').trim();
+    const value = decodeYamlScalar(raw);
 
     // Handle inline array values: ["a", "b"] or [] — but not [[wikilinks]]
     if (value.startsWith('[') && !value.startsWith('[[') && value.endsWith(']')) {
@@ -831,7 +844,7 @@ const WikiView: React.FC = () => {
   };
 
   const FrontmatterValue: React.FC<{ fieldKey: string; raw: string }> = ({ fieldKey, raw }) => {
-    const value = raw.replace(/^["']|["']$/g, '').trim();
+    const value = decodeYamlScalar(raw);
     const isSaving = savingField === fieldKey;
     const isSaved = savedField === fieldKey;
     const isReadOnly = READ_ONLY_FM_FIELDS.has(fieldKey);
