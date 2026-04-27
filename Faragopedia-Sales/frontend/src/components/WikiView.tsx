@@ -771,6 +771,65 @@ const WikiView: React.FC = () => {
 
   const READ_ONLY_FM_FIELDS = new Set(['type', 'name']);
 
+  const EnumFrontmatterValue: React.FC<{
+    fieldKey: string;
+    value: string;
+    options: string[];
+    indicator: React.ReactNode;
+    isSaving: boolean;
+    onSave: (field: string, value: string) => Promise<void>;
+  }> = ({ fieldKey, value, options, indicator, isSaving, onSave }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLSpanElement>(null);
+
+    useEffect(() => {
+      if (!open) return;
+      const handler = (e: MouseEvent) => {
+        if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      };
+      document.addEventListener('mousedown', handler);
+      return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
+
+    const select = (opt: string) => {
+      setOpen(false);
+      if (opt !== value) onSave(fieldKey, opt);
+    };
+
+    return (
+      <span ref={ref} className="inline-flex items-center relative">
+        <button
+          disabled={isSaving}
+          onClick={() => setOpen(o => !o)}
+          className="text-blue-600 dark:text-blue-400 font-bold text-xs cursor-pointer hover:underline focus:underline outline-none bg-transparent border-none p-0"
+          style={{ fontFamily: 'inherit' }}
+        >
+          {value || '—'}
+        </button>
+        {indicator}
+        {open && (
+          <span className="absolute left-0 top-full mt-1 z-50 min-w-[120px] rounded shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-1 flex flex-col">
+            <button
+              onClick={() => select('')}
+              className="text-left px-3 py-1 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              —
+            </button>
+            {options.map(opt => (
+              <button
+                key={opt}
+                onClick={() => select(opt)}
+                className={`text-left px-3 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${opt === value ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-800 dark:text-gray-200'}`}
+              >
+                {opt}
+              </button>
+            ))}
+          </span>
+        )}
+      </span>
+    );
+  };
+
   const FrontmatterValue: React.FC<{ fieldKey: string; raw: string }> = ({ fieldKey, raw }) => {
     const value = raw.replace(/^["']|["']$/g, '').trim();
     const isSaving = savingField === fieldKey;
@@ -792,23 +851,7 @@ const WikiView: React.FC = () => {
       : null;
 
     if (fieldSchema[fieldKey]) {
-      return (
-        <span className="inline-flex items-center">
-          <select
-            value={value}
-            disabled={isSaving}
-            onChange={e => patchFrontmatterField(fieldKey, e.target.value)}
-            className="text-blue-600 dark:text-blue-400 font-bold text-xs bg-transparent border-none outline-none cursor-pointer appearance-none pr-3 hover:underline focus:underline"
-            style={{ fontFamily: 'inherit' }}
-          >
-            {!value && <option value="">—</option>}
-            {fieldSchema[fieldKey].map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-          {indicator}
-        </span>
-      );
+      return <EnumFrontmatterValue fieldKey={fieldKey} value={value} options={fieldSchema[fieldKey]} indicator={indicator} onSave={patchFrontmatterField} isSaving={isSaving} />;
     }
 
     return <TextFrontmatterValue fieldKey={fieldKey} value={value} indicator={indicator} onSave={patchFrontmatterField} />;
