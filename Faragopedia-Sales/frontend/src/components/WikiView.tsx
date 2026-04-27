@@ -690,8 +690,8 @@ const WikiView: React.FC = () => {
   const renderFrontmatterValue = (raw: string): React.ReactNode => {
     const value = raw.replace(/^["']|["']$/g, '').trim();
 
-    // Handle inline array values: ["a", "b"] or []
-    if (value.startsWith('[') && value.endsWith(']')) {
+    // Handle inline array values: ["a", "b"] or [] — but not [[wikilinks]]
+    if (value.startsWith('[') && !value.startsWith('[[') && value.endsWith(']')) {
       const inner = value.slice(1, -1).trim();
       if (!inner) return <span className="text-gray-400 dark:text-gray-500 italic text-xs">none</span>;
       const items = (inner.match(/"[^"]*?"|'[^']*?'|\[\[.*?\]\]|[^,]+/g) ?? [])
