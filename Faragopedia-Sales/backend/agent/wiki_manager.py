@@ -1277,6 +1277,50 @@ class WikiManager:
                 pages.append(rel_path)
         return pages
 
+    async def import_pages(
+        self,
+        folder: str,
+        files: list[tuple[str, bytes]],
+        resolutions: dict[str, str | dict],
+    ) -> dict:
+        folder_path = os.path.join(self.wiki_dir, folder)
+        if not os.path.isdir(folder_path):
+            raise FileNotFoundError(f"Folder '{folder}' does not exist")
+
+        imported: list[str] = []
+        skipped: list[str] = []
+        errors: dict[str, str] = {}
+
+        for filename, content in files:
+            resolution = resolutions.get(filename, "overwrite")
+
+            if resolution == "skip":
+                skipped.append(filename)
+                continue
+
+            if isinstance(resolution, dict) and "rename" in resolution:
+                target_name = resolution["rename"]
+            else:
+                target_name = filename
+
+            target_path = os.path.join(folder_path, target_name)
+
+            if isinstance(resolution, dict) and "rename" in resolution and os.path.exists(target_path):
+                errors[filename] = f"Rename target '{target_name}' already exists"
+                continue
+
+            try:
+                with open(target_path, "wb") as fh:
+                    fh.write(content)
+                imported.append(f"{folder}/{target_name}")
+            except OSError as e:
+                errors[filename] = str(e)
+
+        if imported:
+            self._rebuild_search_index()
+
+        return {"imported": imported, "skipped": skipped, "errors": errors}
+
     def list_sources(self) -> List[str]:
         """List all files in the sources directory."""
         return [f for f in os.listdir(self.sources_dir) if os.path.isfile(os.path.join(self.sources_dir, f)) and f != ".gitkeep" and not f.startswith(".")]
