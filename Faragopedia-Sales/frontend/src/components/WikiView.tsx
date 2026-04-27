@@ -757,6 +757,14 @@ const WikiView: React.FC = () => {
               >
                 <FolderPlus className="w-4 h-4" />
               </button>
+              <button
+                onClick={() => setShowImportModal(true)}
+                disabled={!selectedFolder}
+                className="p-1.5 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title={selectedFolder ? `Import markdown files into ${selectedFolder}` : 'Select a folder first'}
+              >
+                <Upload className="w-4 h-4" />
+              </button>
               <div className="relative">
                 <button
                   onClick={() => setShowNewPageMenu(prev => !prev)}
