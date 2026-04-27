@@ -653,36 +653,69 @@ const WikiView: React.FC = () => {
     });
   };
 
+  const resolvePageLink = (name: string): string | null => {
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
+    for (const [, pages] of Object.entries(pageTree)) {
+      const found = pages.find(p => p.endsWith(`/${slug}.md`));
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const renderWikiToken = (text: string, key: string | number): React.ReactNode => {
+    const wikiMatch = text.match(/^\[\[(.*?)\]\]$/);
+    const name = wikiMatch ? wikiMatch[1].trim() : text.trim();
+    let pagePath: string;
+    let displayText: string;
+    if (name.includes('/')) {
+      displayText = name.split('/').pop()?.replace(/-/g, ' ') || name;
+      pagePath = name + '.md';
+    } else {
+      displayText = name;
+      pagePath = resolvePageLink(name) ?? (name.toLowerCase().replace(/\s+/g, '-') + '.md');
+    }
+    const path = pagePath;
+    const isLinked = wikiMatch || resolvePageLink(name) !== null;
+    if (isLinked) {
+      return (
+        <button key={key} onClick={() => fetchPageContent(path)}
+          className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-medium">
+          {displayText}
+        </button>
+      );
+    }
+    return <span key={key}>{displayText}</span>;
+  };
+
   const renderFrontmatterValue = (raw: string): React.ReactNode => {
-    const value = raw.replace(/^["']|["']$/g, '');
+    const value = raw.replace(/^["']|["']$/g, '').trim();
+
+    // Handle inline array values: ["a", "b"] or []
+    if (value.startsWith('[') && value.endsWith(']')) {
+      const inner = value.slice(1, -1).trim();
+      if (!inner) return <span className="text-gray-400 dark:text-gray-500 italic text-xs">none</span>;
+      const items = (inner.match(/"[^"]*?"|'[^']*?'|\[\[.*?\]\]|[^,]+/g) ?? [])
+        .map(s => s.replace(/^["'\s]+|["'\s]+$/g, '').trim())
+        .filter(Boolean);
+      return (
+        <span className="flex flex-wrap gap-1">
+          {items.map((item, i) => (
+            <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 text-xs">
+              {renderWikiToken(item, i)}
+            </span>
+          ))}
+        </span>
+      );
+    }
+
+    // Handle scalar values with optional [[wikilinks]] inline
     const parts: React.ReactNode[] = [];
     const regex = /\[\[(.*?)\]\]/g;
     let lastIndex = 0;
     let match;
     while ((match = regex.exec(value)) !== null) {
       if (match.index > lastIndex) parts.push(value.slice(lastIndex, match.index));
-      const trimmed = match[1].trim();
-      let pagePath: string;
-      let displayText: string;
-      if (trimmed.includes('/')) {
-        displayText = trimmed.split('/').pop()?.replace(/-/g, ' ') || trimmed;
-        pagePath = trimmed + '.md';
-      } else {
-        displayText = trimmed;
-        const slug = trimmed.toLowerCase().replace(/\s+/g, '-');
-        pagePath = slug + '.md';
-        for (const [, pages] of Object.entries(pageTree)) {
-          const found = pages.find(p => p.endsWith(`/${slug}.md`));
-          if (found) { pagePath = found; break; }
-        }
-      }
-      const path = pagePath;
-      parts.push(
-        <button key={match.index} onClick={() => fetchPageContent(path)}
-          className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-medium">
-          {displayText}
-        </button>
-      );
+      parts.push(renderWikiToken(match[0], match.index));
       lastIndex = match.index + match[0].length;
     }
     if (lastIndex < value.length) parts.push(value.slice(lastIndex));
