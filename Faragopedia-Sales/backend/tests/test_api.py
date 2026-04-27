@@ -270,7 +270,8 @@ def test_patch_frontmatter_field_success(client):
         "/api/pages/contacts/test-page.md/frontmatter",
         json={"field": "status", "value": "Dormant"}
     )
-    assert response.status_code in (200, 400)
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
 
 
 def test_patch_frontmatter_field_missing_field(client):
