@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query, BackgroundTasks, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query, BackgroundTasks, Depends, Body
 from datetime import datetime
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, validator
@@ -301,6 +301,25 @@ async def download_page(wm: WM, path: str):
     return FileResponse(full_path, filename=filename, media_type="text/markdown")
 
 
+@router.patch("/pages/{path:path}/frontmatter")
+async def patch_frontmatter(wm: WM, path: str, payload: dict = Body(...)):
+    field = payload.get("field")
+    if not field:
+        raise HTTPException(status_code=422, detail="'field' is required")
+    value = payload.get("value", "")
+    try:
+        safe_path = safe_wiki_filename(path, wm)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        await wm.patch_frontmatter_field(safe_path, field, value)
+        return {"ok": True}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/pages/{path:path}")
 async def get_page(wm: WM, path: str):
     try:
@@ -343,6 +362,16 @@ async def get_entity_types(wm: WM):
         return wm.get_entity_types()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing entity types: {str(e)}")
+
+
+@router.get("/entity-types/{entity_type}/field-schema")
+async def get_field_schema(wm: WM, entity_type: str):
+    if entity_type not in get_valid_entity_subdirs(wm):
+        raise HTTPException(status_code=404, detail=f"Unknown entity type: {entity_type}")
+    try:
+        return {"schema": wm.get_field_schema(entity_type)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/folders")

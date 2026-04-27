@@ -99,6 +99,11 @@ const WikiView: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
 
+  // Frontmatter inline editing
+  const [fieldSchema, setFieldSchema] = useState<Record<string, string[]>>({});
+  const [savingField, setSavingField] = useState<string | null>(null);
+  const [savedField, setSavedField] = useState<string | null>(null);
+
   const fetchSearchIndex = async () => {
     try {
       const res = await fetch(`${API_BASE}/search/index`);
@@ -107,6 +112,22 @@ const WikiView: React.FC = () => {
       setSearchIndex(data);
     } catch {
       // search unavailable — silently degrade
+    }
+  };
+
+  const fetchFieldSchema = async (pagePath: string) => {
+    const entityType = pagePath.split('/')[0];
+    if (!entityType || entityType.startsWith('_')) {
+      setFieldSchema({});
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/entity-types/${entityType}/field-schema`);
+      if (!res.ok) { setFieldSchema({}); return; }
+      const data = await res.json();
+      setFieldSchema(data.schema ?? {});
+    } catch {
+      setFieldSchema({});
     }
   };
 
@@ -253,7 +274,8 @@ const WikiView: React.FC = () => {
       }
 
       setSelectedPage(filename);
-      
+      fetchFieldSchema(filename);
+
       // Fetch content and backlinks in parallel
       const [contentRes, backlinksRes] = await Promise.all([
         fetch(`${API_BASE}/pages/${encodeURIComponent(filename)}`),
@@ -687,6 +709,31 @@ const WikiView: React.FC = () => {
     return <span key={key}>{displayText}</span>;
   };
 
+  const patchFrontmatterField = async (field: string, value: string) => {
+    if (!selectedPage) return;
+    setSavingField(field);
+    try {
+      await fetch(`${API_BASE}/pages/${encodeURIComponent(selectedPage)}/frontmatter`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value }),
+      });
+      setContent(prev => {
+        if (!prev) return prev;
+        return prev.replace(
+          new RegExp(`^(${field}\\s*:).*$`, 'm'),
+          `$1 ${value}`
+        );
+      });
+      setSavedField(field);
+      setTimeout(() => setSavedField(null), 1500);
+    } catch {
+      // silently fail — raw editor still available
+    } finally {
+      setSavingField(null);
+    }
+  };
+
   const renderFrontmatterValue = (raw: string): React.ReactNode => {
     const value = raw.replace(/^["']|["']$/g, '').trim();
 
@@ -720,6 +767,98 @@ const WikiView: React.FC = () => {
     }
     if (lastIndex < value.length) parts.push(value.slice(lastIndex));
     return parts.length ? <>{parts}</> : value;
+  };
+
+  const READ_ONLY_FM_FIELDS = new Set(['type', 'name']);
+
+  const FrontmatterValue: React.FC<{ fieldKey: string; raw: string }> = ({ fieldKey, raw }) => {
+    const value = raw.replace(/^["']|["']$/g, '').trim();
+    const isSaving = savingField === fieldKey;
+    const isSaved = savedField === fieldKey;
+    const isReadOnly = READ_ONLY_FM_FIELDS.has(fieldKey);
+
+    if (value.startsWith('[') && !value.startsWith('[[')) {
+      return <span className="text-blue-600 dark:text-blue-400 font-bold">{renderFrontmatterValue(raw)}</span>;
+    }
+
+    if (isReadOnly) {
+      return <span className="text-blue-600 dark:text-blue-400 font-bold">{renderFrontmatterValue(raw)}</span>;
+    }
+
+    const indicator = isSaving
+      ? <span className="ml-1 text-gray-400 dark:text-gray-500 text-[9px]">…</span>
+      : isSaved
+      ? <span className="ml-1 text-green-500 text-[9px]">✓</span>
+      : null;
+
+    if (fieldSchema[fieldKey]) {
+      return (
+        <span className="inline-flex items-center">
+          <select
+            value={value}
+            disabled={isSaving}
+            onChange={e => patchFrontmatterField(fieldKey, e.target.value)}
+            className="text-blue-600 dark:text-blue-400 font-bold text-xs bg-transparent border-none outline-none cursor-pointer appearance-none pr-3 hover:underline focus:underline"
+            style={{ fontFamily: 'inherit' }}
+          >
+            {!value && <option value="">—</option>}
+            {fieldSchema[fieldKey].map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+          {indicator}
+        </span>
+      );
+    }
+
+    return <TextFrontmatterValue fieldKey={fieldKey} value={value} indicator={indicator} onSave={patchFrontmatterField} />;
+  };
+
+  const TextFrontmatterValue: React.FC<{
+    fieldKey: string;
+    value: string;
+    indicator: React.ReactNode;
+    onSave: (field: string, value: string) => Promise<void>;
+  }> = ({ fieldKey, value, indicator, onSave }) => {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(value);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+    const commit = () => {
+      setEditing(false);
+      if (draft !== value) onSave(fieldKey, draft);
+    };
+
+    if (!editing) {
+      return (
+        <span className="inline-flex items-center">
+          <span
+            className="text-blue-600 dark:text-blue-400 font-bold cursor-text hover:underline"
+            onClick={() => { setDraft(value); setEditing(true); }}
+          >
+            {value || <span className="text-gray-300 dark:text-gray-600 italic font-normal">—</span>}
+          </span>
+          {indicator}
+        </span>
+      );
+    }
+
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') { setDraft(value); setEditing(false); }
+        }}
+        className="text-blue-600 dark:text-blue-400 font-bold text-xs bg-transparent border-b border-blue-400 dark:border-blue-600 outline-none min-w-[4rem]"
+        style={{ fontFamily: 'inherit' }}
+      />
+    );
   };
 
   const parseFrontmatter = (text: string) => {
@@ -1326,7 +1465,10 @@ const WikiView: React.FC = () => {
                          {tags.map((t, idx) => (
                            <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 shadow-sm uppercase tracking-wider">
                              <span className="text-gray-400 dark:text-gray-500 mr-2 text-[10px]">{t.key}:</span>
-                             <span className="text-blue-600 dark:text-blue-400 font-bold">{renderFrontmatterValue(t.value)}</span>
+                             {isEditing
+                               ? <span className="text-blue-600 dark:text-blue-400 font-bold">{renderFrontmatterValue(t.value)}</span>
+                               : <FrontmatterValue fieldKey={t.key} raw={t.value} />
+                             }
                            </span>
                          ))}
                        </div>
