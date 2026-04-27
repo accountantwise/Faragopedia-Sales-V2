@@ -109,10 +109,12 @@ async def import_bundle(file: UploadFile = File(...)):
     with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
         names = set(zf.namelist())
 
-        if "manifest.json" not in names:
+        # Detect optional wrapper directory (e.g. when OS re-zips an extracted folder)
+        prefix = _find_bundle_prefix(names)
+        if prefix is None:
             raise HTTPException(status_code=400, detail="Missing manifest.json — not a Faragopedia bundle")
 
-        manifest = json.loads(zf.read("manifest.json"))
+        manifest = json.loads(zf.read(f"{prefix}manifest.json"))
 
         if manifest.get("version") != 1:
             raise HTTPException(
@@ -124,22 +126,24 @@ async def import_bundle(file: UploadFile = File(...)):
         if bundle_type not in ("full", "template"):
             raise HTTPException(status_code=400, detail=f"Unknown bundle type {bundle_type!r}")
 
-        if "schema/wiki_config.json" not in names:
+        if f"{prefix}schema/wiki_config.json" not in names:
             raise HTTPException(status_code=400, detail="Missing schema/wiki_config.json in bundle")
 
-        wiki_config = json.loads(zf.read("schema/wiki_config.json"))
+        wiki_config = json.loads(zf.read(f"{prefix}schema/wiki_config.json"))
 
         with tempfile.TemporaryDirectory() as staging_str:
             staging = Path(staging_str)
             zf.extractall(staging)
+            # If the zip had a wrapper directory, descend into it
+            actual_staging = staging / prefix.rstrip("/") if prefix else staging
 
             try:
                 if bundle_type == "full":
-                    _restore_full(staging)
+                    _restore_full(actual_staging)
                     _reinit_wiki_manager()
                     return {"status": "ok", "type": "full"}
                 else:
-                    entity_types = _restore_template(staging, wiki_config)
+                    entity_types = _restore_template(actual_staging, wiki_config)
                     return {
                         "status": "ok",
                         "type": "template",
@@ -151,6 +155,17 @@ async def import_bundle(file: UploadFile = File(...)):
                     }
             except Exception as exc:
                 raise HTTPException(status_code=500, detail=f"Restore failed: {exc}") from exc
+
+
+def _find_bundle_prefix(names: set) -> "str | None":
+    """Return the path prefix ('' or 'dir/') where manifest.json lives, or None."""
+    if "manifest.json" in names:
+        return ""
+    for name in names:
+        parts = name.split("/")
+        if len(parts) == 2 and parts[1] == "manifest.json" and parts[0]:
+            return parts[0] + "/"
+    return None
 
 
 def _clear_dir(path: Path) -> None:
