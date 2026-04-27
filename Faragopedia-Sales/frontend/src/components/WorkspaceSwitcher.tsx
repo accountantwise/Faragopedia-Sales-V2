@@ -81,7 +81,7 @@ const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
 
         {/* Dropdown */}
         {open && (
-          <div className="absolute left-0 right-0 bg-gray-700 border border-gray-600 rounded-b-lg shadow-xl z-50 overflow-hidden">
+          <div className="absolute left-0 right-0 bg-gray-700 border border-gray-600 rounded-b-lg shadow-xl z-50">
 
             {/* Active workspaces */}
             {activeWorkspaces.map(ws => (
