@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query, BackgroundTasks, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query, BackgroundTasks, Depends, Body
 from datetime import datetime
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, validator
@@ -299,6 +299,25 @@ async def download_page(wm: WM, path: str):
         raise HTTPException(status_code=404, detail="Page not found")
     filename = safe_path.split("/")[-1]
     return FileResponse(full_path, filename=filename, media_type="text/markdown")
+
+
+@router.patch("/pages/{path:path}/frontmatter")
+async def patch_frontmatter(wm: WM, path: str, payload: dict = Body(...)):
+    field = payload.get("field")
+    if not field:
+        raise HTTPException(status_code=422, detail="'field' is required")
+    value = payload.get("value", "")
+    try:
+        safe_path = safe_wiki_filename(path, wm)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        await wm.patch_frontmatter_field(safe_path, field, value)
+        return {"ok": True}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/pages/{path:path}")

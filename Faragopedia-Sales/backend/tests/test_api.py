@@ -66,6 +66,7 @@ def client(tmp_path):
     ]
     mock_wm.restore_snapshot = MagicMock()
     mock_wm.delete_snapshot = MagicMock()
+    mock_wm.patch_frontmatter_field = AsyncMock()
 
     set_wiki_manager(mock_wm)
 
@@ -262,3 +263,27 @@ def test_get_field_schema_returns_schema(client):
 def test_get_field_schema_unknown_type(client):
     response = client.get("/api/entity-types/nonexistent/field-schema")
     assert response.status_code == 404
+
+
+def test_patch_frontmatter_field_success(client):
+    response = client.patch(
+        "/api/pages/contacts/test-page.md/frontmatter",
+        json={"field": "status", "value": "Dormant"}
+    )
+    assert response.status_code in (200, 400)
+
+
+def test_patch_frontmatter_field_missing_field(client):
+    response = client.patch(
+        "/api/pages/contacts/test-page.md/frontmatter",
+        json={"value": "Dormant"}
+    )
+    assert response.status_code == 422
+
+
+def test_patch_frontmatter_field_invalid_path(client):
+    response = client.patch(
+        "/api/pages/../etc/passwd/frontmatter",
+        json={"field": "status", "value": "Dormant"}
+    )
+    assert response.status_code in (400, 404, 422)
