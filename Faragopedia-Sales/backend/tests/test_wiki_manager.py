@@ -1328,3 +1328,38 @@ async def test_rename_page_no_op_when_same_slug(tmp_path):
     result = await manager.rename_page("clients/acme-corp.md", "Acme Corp")
     assert result == "clients/acme-corp.md"
     assert (wiki / "clients" / "acme-corp.md").exists()
+
+
+def test_get_field_schema_returns_enum_fields(tmp_path):
+    import yaml
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+    contacts_dir = wiki_dir / "contacts"
+    contacts_dir.mkdir()
+    (contacts_dir / "_type.yaml").write_text(yaml.dump({
+        "name": "Contacts",
+        "singular": "contact",
+        "fields": [
+            {"name": "type", "type": "string", "default": "contact"},
+            {"name": "name", "type": "string"},
+            {"name": "status", "type": "enum", "values": ["Active", "Dormant"]},
+            {"name": "relationship", "type": "enum", "values": ["Cold", "Warm", "Hot"]},
+            {"name": "notes", "type": "string"},
+            {"name": "tags", "type": "list", "default": "[]"},
+        ],
+    }))
+    from agent.wiki_manager import WikiManager
+    wm = WikiManager(wiki_dir=str(wiki_dir), sources_dir=str(tmp_path / "sources"))
+    schema = wm.get_field_schema("contacts")
+    assert schema == {
+        "status": ["Active", "Dormant"],
+        "relationship": ["Cold", "Warm", "Hot"],
+    }
+
+
+def test_get_field_schema_unknown_type_returns_empty(tmp_path):
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+    from agent.wiki_manager import WikiManager
+    wm = WikiManager(wiki_dir=str(wiki_dir), sources_dir=str(tmp_path / "sources"))
+    assert wm.get_field_schema("nonexistent") == {}

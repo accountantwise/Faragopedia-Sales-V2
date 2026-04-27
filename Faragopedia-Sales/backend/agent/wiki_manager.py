@@ -495,6 +495,18 @@ class WikiManager:
         """Discover entity types dynamically from _type.yaml files."""
         return discover_entity_types(self.wiki_dir)
 
+    def get_field_schema(self, entity_type: str) -> dict:
+        from agent.schema_builder import load_type_yaml
+        folder_path = os.path.join(self.wiki_dir, entity_type)
+        type_data = load_type_yaml(folder_path)
+        if not type_data:
+            return {}
+        return {
+            field["name"]: field["values"]
+            for field in type_data.get("fields", [])
+            if field.get("type") == "enum" and field.get("values")
+        }
+
     def update_index(self):
         """Regenerate index.md grouped by entity subdirectory (dynamic)."""
         index_path = os.path.join(self.wiki_dir, "index.md")
