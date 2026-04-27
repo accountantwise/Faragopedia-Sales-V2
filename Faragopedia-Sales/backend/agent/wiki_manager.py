@@ -507,6 +507,21 @@ class WikiManager:
             if field.get("type") == "enum" and field.get("values")
         }
 
+    async def patch_frontmatter_field(self, page_path: str, field: str, value) -> None:
+        """Update a single frontmatter field in a page and rebuild the search index."""
+        abs_path = os.path.join(self.wiki_dir, page_path.replace("/", os.sep))
+        if not os.path.exists(abs_path):
+            raise FileNotFoundError(f"Page not found: {page_path}")
+        async with self._write_lock:
+            with open(abs_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            fm, body = self._parse_frontmatter(content)
+            fm[field] = value
+            updated = self._render_frontmatter(fm, body)
+            with open(abs_path, "w", encoding="utf-8") as f:
+                f.write(updated)
+        self._rebuild_search_index()
+
     def update_index(self):
         """Regenerate index.md grouped by entity subdirectory (dynamic)."""
         index_path = os.path.join(self.wiki_dir, "index.md")

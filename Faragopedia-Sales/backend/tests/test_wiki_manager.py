@@ -1363,3 +1363,29 @@ def test_get_field_schema_unknown_type_returns_empty(tmp_path):
     from agent.wiki_manager import WikiManager
     wm = WikiManager(wiki_dir=str(wiki_dir), sources_dir=str(tmp_path / "sources"))
     assert wm.get_field_schema("nonexistent") == {}
+
+
+@pytest.mark.asyncio
+async def test_patch_frontmatter_field_updates_value(tmp_path):
+    import yaml
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+    contacts_dir = wiki_dir / "contacts"
+    contacts_dir.mkdir()
+    page = contacts_dir / "alice.md"
+    page.write_text("---\nname: Alice\nstatus: Active\n---\n\n## Summary\n")
+    from agent.wiki_manager import WikiManager
+    wm = WikiManager(wiki_dir=str(wiki_dir), sources_dir=str(tmp_path / "sources"))
+    await wm.patch_frontmatter_field("contacts/alice.md", "status", "Dormant")
+    updated = page.read_text()
+    fm, _ = wm._parse_frontmatter(updated)
+    assert fm["status"] == "Dormant"
+
+@pytest.mark.asyncio
+async def test_patch_frontmatter_field_bad_path_raises(tmp_path):
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir()
+    from agent.wiki_manager import WikiManager
+    wm = WikiManager(wiki_dir=str(wiki_dir), sources_dir=str(tmp_path / "sources"))
+    with pytest.raises(FileNotFoundError):
+        await wm.patch_frontmatter_field("contacts/missing.md", "status", "Active")
