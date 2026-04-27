@@ -808,10 +808,10 @@ const WikiView: React.FC = () => {
         </button>
         {indicator}
         {open && (
-          <span className="absolute left-0 top-full mt-1 z-50 min-w-[120px] rounded shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-1 flex flex-col">
+          <span className="absolute left-0 top-full mt-1 z-50 min-w-[120px] rounded shadow-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 py-1 flex flex-col">
             <button
               onClick={() => select('')}
-              className="text-left px-3 py-1 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="text-left px-3 py-1 text-xs text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               —
             </button>
@@ -819,7 +819,7 @@ const WikiView: React.FC = () => {
               <button
                 key={opt}
                 onClick={() => select(opt)}
-                className={`text-left px-3 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${opt === value ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-800 dark:text-gray-200'}`}
+                className={`text-left px-3 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-800 ${opt === value ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-800 dark:text-gray-100'}`}
               >
                 {opt}
               </button>
