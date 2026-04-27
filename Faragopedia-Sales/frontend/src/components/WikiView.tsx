@@ -526,6 +526,7 @@ const WikiView: React.FC = () => {
         const err = await response.json();
         throw new Error(err.detail || 'Failed to delete folder');
       }
+      setSelectedFolder(null);
       await fetchEntityTypes();
       await fetchPages();
     } catch (err: any) {
@@ -548,6 +549,13 @@ const WikiView: React.FC = () => {
       }
       setRenamingFolder(null);
       setRenameFolderValue('');
+      // Update selectedFolder if the renamed folder was selected
+      if (selectedFolder === oldName) {
+        setSelectedFolder(newName);
+      } else {
+        // Clear selectedFolder for safety since the folder structure changed
+        setSelectedFolder(null);
+      }
       // Update selectedPage path if it was in the renamed folder
       if (selectedPage?.startsWith(oldName + '/')) {
         setSelectedPage(selectedPage.replace(oldName + '/', newName + '/'));
