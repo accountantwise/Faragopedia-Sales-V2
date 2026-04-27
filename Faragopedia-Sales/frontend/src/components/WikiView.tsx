@@ -99,6 +99,11 @@ const WikiView: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
 
+  // Frontmatter inline editing
+  const [fieldSchema, setFieldSchema] = useState<Record<string, string[]>>({});
+  const [savingField, setSavingField] = useState<string | null>(null);
+  const [savedField, setSavedField] = useState<string | null>(null);
+
   const fetchSearchIndex = async () => {
     try {
       const res = await fetch(`${API_BASE}/search/index`);
@@ -107,6 +112,22 @@ const WikiView: React.FC = () => {
       setSearchIndex(data);
     } catch {
       // search unavailable — silently degrade
+    }
+  };
+
+  const fetchFieldSchema = async (pagePath: string) => {
+    const entityType = pagePath.split('/')[0];
+    if (!entityType || entityType.startsWith('_')) {
+      setFieldSchema({});
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/entity-types/${entityType}/field-schema`);
+      if (!res.ok) { setFieldSchema({}); return; }
+      const data = await res.json();
+      setFieldSchema(data.schema ?? {});
+    } catch {
+      setFieldSchema({});
     }
   };
 
@@ -253,7 +274,8 @@ const WikiView: React.FC = () => {
       }
 
       setSelectedPage(filename);
-      
+      fetchFieldSchema(filename);
+
       // Fetch content and backlinks in parallel
       const [contentRes, backlinksRes] = await Promise.all([
         fetch(`${API_BASE}/pages/${encodeURIComponent(filename)}`),
