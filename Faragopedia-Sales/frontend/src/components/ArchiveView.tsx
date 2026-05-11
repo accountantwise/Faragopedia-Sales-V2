@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { FileText, FileCheck, RotateCcw, Trash2, Loader2, Archive } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { FileText, FileCheck, RotateCcw, Trash2, Loader2, Archive, X } from 'lucide-react';
 
 import { API_BASE } from '../config';
 import { formatPageName } from '../utils/formatPageName';
@@ -11,10 +11,24 @@ const ArchiveView: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState<boolean>(false);
+
+  const totalItems = archivedPages.length + archivedSources.length;
+  const allSelected = selectedItems.size === totalItems && totalItems > 0;
+  const someSelected = selectedItems.size > 0 && !allSelected;
+
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchArchivedItems();
   }, []);
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected;
+    }
+  }, [someSelected]);
 
   const fetchArchivedItems = async () => {
     try {
@@ -36,6 +50,74 @@ const ArchiveView: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleItem = (key: string) => {
+    setSelectedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set<string>([
+        ...archivedPages.map(p => `page:${p}`),
+        ...archivedSources.map(s => `source:${s}`),
+      ]));
+    }
+  };
+
+  const clearSelection = () => setSelectedItems(new Set());
+
+  const handleBulkRestore = async () => {
+    setBulkLoading(true);
+    const items = Array.from(selectedItems);
+    const results = await Promise.allSettled(
+      items.map(key => {
+        const colonIdx = key.indexOf(':');
+        const type = key.slice(0, colonIdx);
+        const filename = key.slice(colonIdx + 1);
+        const endpoint = type === 'page'
+          ? `/archive/pages/${filename}/restore`
+          : `/archive/sources/${encodeURIComponent(filename)}/restore`;
+        return fetch(`${API_BASE}${endpoint}`, { method: 'POST' });
+      })
+    );
+    const failed = results.filter(
+      r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)
+    ).length;
+    if (failed > 0) setError(`${failed} of ${items.length} items failed to restore.`);
+    clearSelection();
+    await fetchArchivedItems();
+    setBulkLoading(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Permanently delete ${selectedItems.size} item${selectedItems.size === 1 ? '' : 's'}? This cannot be undone.`)) return;
+    setBulkLoading(true);
+    const items = Array.from(selectedItems);
+    const results = await Promise.allSettled(
+      items.map(key => {
+        const colonIdx = key.indexOf(':');
+        const type = key.slice(0, colonIdx);
+        const filename = key.slice(colonIdx + 1);
+        const endpoint = type === 'page'
+          ? `/archive/pages/${filename}/permanent`
+          : `/archive/sources/${encodeURIComponent(filename)}/permanent`;
+        return fetch(`${API_BASE}${endpoint}`, { method: 'DELETE' });
+      })
+    );
+    const failed = results.filter(
+      r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)
+    ).length;
+    if (failed > 0) setError(`${failed} of ${items.length} items failed to delete.`);
+    clearSelection();
+    await fetchArchivedItems();
+    setBulkLoading(false);
   };
 
   const handleRestore = async (filename: string, type: 'page' | 'source') => {
