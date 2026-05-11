@@ -91,9 +91,12 @@ const ArchiveView: React.FC = () => {
       r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)
     ).length;
     if (failed > 0) setError(`${failed} of ${items.length} items failed to restore.`);
-    clearSelection();
-    await fetchArchivedItems();
-    setBulkLoading(false);
+    try {
+      clearSelection();
+      await fetchArchivedItems();
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const handleBulkDelete = async () => {
@@ -115,9 +118,12 @@ const ArchiveView: React.FC = () => {
       r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)
     ).length;
     if (failed > 0) setError(`${failed} of ${items.length} items failed to delete.`);
-    clearSelection();
-    await fetchArchivedItems();
-    setBulkLoading(false);
+    try {
+      clearSelection();
+      await fetchArchivedItems();
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const handleRestore = async (filename: string, type: 'page' | 'source') => {
