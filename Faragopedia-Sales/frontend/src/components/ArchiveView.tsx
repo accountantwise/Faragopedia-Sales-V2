@@ -193,6 +193,13 @@ const ArchiveView: React.FC = () => {
               {archivedPages.map((page) => (
                 <div key={page} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center space-x-3 overflow-hidden">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.has(`page:${page}`)}
+                      onChange={() => toggleItem(`page:${page}`)}
+                      disabled={bulkLoading}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 flex-shrink-0 cursor-pointer"
+                    />
                     <FileText className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
                       {formatPageName(page)}
@@ -201,17 +208,17 @@ const ArchiveView: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => handleRestore(page, 'page')}
-                      disabled={!!actionLoading}
+                      disabled={!!actionLoading || bulkLoading}
                       title="Restore"
-                      className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                      className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-40"
                     >
                       {actionLoading === `page-restore-${page}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                     </button>
                     <button
                       onClick={() => handleDeletePermanent(page, 'page')}
-                      disabled={!!actionLoading}
+                      disabled={!!actionLoading || bulkLoading}
                       title="Delete Permanently"
-                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors disabled:opacity-40"
                     >
                       {actionLoading === `page-delete-${page}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                     </button>
@@ -237,23 +244,30 @@ const ArchiveView: React.FC = () => {
               {archivedSources.map((source) => (
                 <div key={source} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center space-x-3 overflow-hidden">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.has(`source:${source}`)}
+                      onChange={() => toggleItem(`source:${source}`)}
+                      disabled={bulkLoading}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 flex-shrink-0 cursor-pointer"
+                    />
                     <FileCheck className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{source}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => handleRestore(source, 'source')}
-                      disabled={!!actionLoading}
+                      disabled={!!actionLoading || bulkLoading}
                       title="Restore"
-                      className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                      className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-40"
                     >
                       {actionLoading === `source-restore-${source}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                     </button>
                     <button
                       onClick={() => handleDeletePermanent(source, 'source')}
-                      disabled={!!actionLoading}
+                      disabled={!!actionLoading || bulkLoading}
                       title="Delete Permanently"
-                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors disabled:opacity-40"
                     >
                       {actionLoading === `source-delete-${source}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                     </button>
