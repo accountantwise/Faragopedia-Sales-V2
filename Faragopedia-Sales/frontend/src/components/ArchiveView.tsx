@@ -166,7 +166,7 @@ const ArchiveView: React.FC = () => {
   }
 
   return (
-    <div className="h-full overflow-y-auto p-12 max-w-6xl mx-auto">
+    <div className={`h-full overflow-y-auto p-12 max-w-6xl mx-auto${selectedItems.size > 0 ? ' pb-24' : ''}`}>
       <div className="flex items-center space-x-4 mb-8">
         <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-2xl text-amber-600 dark:text-amber-400">
           <Archive className="w-8 h-8" />
@@ -187,7 +187,10 @@ const ArchiveView: React.FC = () => {
             disabled={bulkLoading}
             className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 cursor-pointer disabled:cursor-not-allowed"
           />
-          <span className="text-sm text-gray-600 dark:text-gray-400 select-none cursor-pointer" onClick={toggleAll}>
+          <span
+            className={`text-sm select-none ${bulkLoading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer text-gray-600 dark:text-gray-400'}`}
+            onClick={bulkLoading ? undefined : toggleAll}
+          >
             {allSelected ? 'Deselect all' : 'Select all'}
           </span>
         </div>
