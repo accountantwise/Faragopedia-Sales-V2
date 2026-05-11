@@ -177,6 +177,22 @@ const ArchiveView: React.FC = () => {
         </div>
       </div>
 
+      {totalItems > 0 && (
+        <div className="flex items-center space-x-3 mb-6">
+          <input
+            ref={selectAllRef}
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleAll}
+            disabled={bulkLoading}
+            className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 cursor-pointer disabled:cursor-not-allowed"
+          />
+          <span className="text-sm text-gray-600 dark:text-gray-400 select-none cursor-pointer" onClick={toggleAll}>
+            {allSelected ? 'Deselect all' : 'Select all'}
+          </span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Archived Wiki Pages */}
         <section>
@@ -198,7 +214,7 @@ const ArchiveView: React.FC = () => {
                       checked={selectedItems.has(`page:${page}`)}
                       onChange={() => toggleItem(`page:${page}`)}
                       disabled={bulkLoading}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 flex-shrink-0 cursor-pointer"
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 flex-shrink-0 cursor-pointer disabled:cursor-not-allowed"
                     />
                     <FileText className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
@@ -249,7 +265,7 @@ const ArchiveView: React.FC = () => {
                       checked={selectedItems.has(`source:${source}`)}
                       onChange={() => toggleItem(`source:${source}`)}
                       disabled={bulkLoading}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 flex-shrink-0 cursor-pointer"
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 flex-shrink-0 cursor-pointer disabled:cursor-not-allowed"
                     />
                     <FileCheck className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{source}</span>
@@ -277,6 +293,47 @@ const ArchiveView: React.FC = () => {
             </div>
           )}
         </section>
+      </div>
+
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-200 ${
+          selectedItems.size > 0 ? 'translate-y-0' : 'translate-y-full'
+        }`}
+      >
+        <div className="bg-gray-900 dark:bg-gray-950 border-t border-gray-700 px-6 py-4 flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-200">
+            {selectedItems.size} selected
+          </span>
+          <div className="flex items-center space-x-3">
+            {bulkLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            ) : (
+              <>
+                <button
+                  onClick={handleBulkRestore}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Restore</span>
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete permanently</span>
+                </button>
+                <button
+                  onClick={clearSelection}
+                  title="Clear selection"
+                  className="p-2 text-gray-400 hover:text-gray-200 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {error && (
