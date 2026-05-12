@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, FileText, Loader2 } from 'lucide-react';
 import { API_BASE } from '../config';
+import { useOperationToasts } from '../OperationToastContext';
 
 interface Props {
   open: boolean;
@@ -29,6 +30,8 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
   const [saving, setSaving] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+
+  const { startCrawl } = useOperationToasts();
 
   if (!open) return null;
 
@@ -86,10 +89,11 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
         const data = await res.json();
         throw new Error(data.detail || 'Failed to start crawl');
       }
-      onClose();
+      startCrawl(urls);
+      // Brief confirmation before closing
+      setTimeout(onClose, 1500);
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setCrawling(false);
     }
   };
@@ -223,7 +227,10 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
                 disabled={!urlText.trim() || crawling}
                 className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
               >
-                {crawling ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting...</> : 'Start Crawl'}
+                {crawling
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Crawl started — closing</>
+                  : 'Start Crawl'
+                }
               </button>
             </div>
           )}
