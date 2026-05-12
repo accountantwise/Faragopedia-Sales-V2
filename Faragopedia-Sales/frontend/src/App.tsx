@@ -9,6 +9,8 @@ import { Loader2, MessageSquare, Send, Menu, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { API_BASE } from './config';
 import SettingsDrawer from './components/SettingsDrawer';
+import { useOperationToasts } from './OperationToastContext';
+import OperationToastStack from './components/OperationToastStack';
 
 const App: React.FC = () => {
   const [setupState, setSetupState] = useState<'loading' | 'required' | 'ready'>('loading');
@@ -23,6 +25,8 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sourcesMetadata, setSourcesMetadata] = useState<Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }>>({});
   const prevMetadataRef = useRef<Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }>>({});
+  const { completeIngest, completeCrawl } = useOperationToasts();
+  const prevFilenamesRef = useRef<Set<string>>(new Set());
   const [pagesMetadata, setPagesMetadata] = useState<Record<string, { read: boolean; read_at: string | null }>>({});
 
   const handleMarkPageRead = useCallback(async (path: string) => {
@@ -37,7 +41,6 @@ const App: React.FC = () => {
     }).catch(() => {});
   }, []);
 
-  const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string; archived?: boolean }[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState('');
@@ -94,12 +97,6 @@ const App: React.FC = () => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, chatLoading]);
 
-  const addToast = useCallback((message: string) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
-  }, []);
-
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
@@ -107,15 +104,25 @@ const App: React.FC = () => {
         if (!res.ok) return;
         const data: Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }> = await res.json();
 
-        // Fire toast for any source that just became ingested
         const prev = prevMetadataRef.current;
+        const prevFilenames = prevFilenamesRef.current;
+        const currentFilenames = new Set(Object.keys(data));
+
+        // Detect ingest completions
         Object.entries(data).forEach(([filename, meta]) => {
           if (meta.ingested && prev[filename] && !prev[filename].ingested) {
-            addToast(`"${filename}" ingested successfully.`);
+            completeIngest(filename);
           }
         });
 
+        // Detect crawl completions — completeCrawl is a no-op when no crawl is in-flight
+        const newFilenames = Array.from(currentFilenames).filter(f => !prevFilenames.has(f));
+        if (newFilenames.length > 0) {
+          completeCrawl(newFilenames);
+        }
+
         prevMetadataRef.current = data;
+        prevFilenamesRef.current = currentFilenames;
         setSourcesMetadata(data);
       } catch (err) {
         console.error('Failed to fetch metadata', err);
@@ -142,7 +149,7 @@ const App: React.FC = () => {
     fetchMetadata();
     const interval = setInterval(fetchMetadata, 5000);
     return () => clearInterval(interval);
-  }, [addToast]);
+  }, [completeIngest, completeCrawl]);
 
   const handleSetupComplete = async () => {
     const res = await fetch(`${API_BASE}/setup/config`);
@@ -493,7 +500,7 @@ const App: React.FC = () => {
         <div className="flex-grow overflow-hidden relative h-full">
           {renderContent()}
         </div>
-        <ToastContainer toasts={toasts} />
+        <OperationToastStack />
       </main>
       <SettingsDrawer
         open={settingsOpen}
@@ -505,20 +512,5 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-{/* Global ingestion toasts component styled for premium feel */}
-const ToastContainer: React.FC<{ toasts: { id: number; message: string }[] }> = ({ toasts }) => (
-  <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
-    {toasts.map(t => (
-      <div
-        key={t.id}
-        className="bg-gray-900/95 backdrop-blur text-white text-sm px-5 py-4 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 animate-in slide-in-from-right-full fade-in duration-300"
-      >
-        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.5)]" />
-        {t.message}
-      </div>
-    ))}
-  </div>
-);
 
 export default App;
