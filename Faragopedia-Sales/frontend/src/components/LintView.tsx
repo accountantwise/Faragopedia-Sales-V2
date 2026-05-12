@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Activity, Loader2, AlertCircle, AlertTriangle, Lightbulb, CheckSquare, Square, Wrench } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Activity, Loader2, AlertCircle, AlertTriangle, Lightbulb, CheckSquare, Square, Wrench, CheckCircle2 } from 'lucide-react';
 import { API_BASE } from '../config';
 import SnapshotsPanel from './SnapshotsPanel';
 
@@ -58,6 +58,7 @@ const LintView: React.FC = () => {
   const [applying, setApplying] = useState(false);
   const [fixReport, setFixReport] = useState<FixReport | null>(null);
   const [snapshotsKey, setSnapshotsKey] = useState(0);
+  const snapshotsPanelRef = useRef<HTMLDivElement>(null);
 
   const runLint = async () => {
     setLoading(true);
@@ -138,14 +139,16 @@ const LintView: React.FC = () => {
         </button>
 
         {loading && (
-          <div className="space-y-4 max-w-xl animate-pulse mt-8">
-            <div className="flex items-center space-x-3 mb-6">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-              <span className="text-blue-500 dark:text-blue-400 font-medium tracking-wide">Deep AI Analysis in Progress...</span>
+          <div className="mt-4 space-y-1">
+            <div className="flex items-center gap-2 text-sm text-blue-500 dark:text-blue-400">
+              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+              <span>This takes 20–40 seconds — reading all pages and running AI analysis</span>
             </div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-3/4"></div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-full"></div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-5/6"></div>
+            <div className="space-y-3 max-w-xl animate-pulse mt-4">
+              <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-3/4"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-full"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-5/6"></div>
+            </div>
           </div>
         )}
 
@@ -157,29 +160,44 @@ const LintView: React.FC = () => {
 
         {fixReport && (
           <div className="p-4 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30 rounded-xl mb-6">
-            <p className="text-green-800 dark:text-green-300 font-semibold mb-2">{fixReport.summary}</p>
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+              <p className="text-green-800 dark:text-green-300 font-semibold">{fixReport.summary}</p>
+            </div>
             {fixReport.files_changed.length > 0 && (
-              <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
+              <ul className="text-sm text-green-700 dark:text-green-400 space-y-1 ml-7">
                 {fixReport.files_changed.map(f => (
                   <li key={f} className="font-mono">{f}</li>
                 ))}
               </ul>
             )}
             {fixReport.skipped.length > 0 && (
-              <div className="mt-3">
+              <div className="mt-3 ml-7">
                 <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Skipped:</p>
                 <ul className="text-sm text-amber-600 dark:text-amber-500 space-y-1 mt-1">
                   {fixReport.skipped.map((s, i) => <li key={i}>{s}</li>)}
                 </ul>
               </div>
             )}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 ml-7">
+              Snapshot saved ·{' '}
+              <button
+                onClick={() => snapshotsPanelRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                restore if needed
+              </button>
+            </p>
           </div>
         )}
 
         {report && (
           <div className="space-y-6">
+            <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30 rounded-xl">
+              <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+              <p className="text-green-800 dark:text-green-300 font-semibold">{report.summary}</p>
+            </div>
             <div className="flex items-center justify-between">
-              <p className="text-gray-600 dark:text-gray-400 font-medium">{report.summary}</p>
               {report.findings.length > 0 && (
                 <button
                   onClick={allSelected ? deselectAll : selectAll}
@@ -247,7 +265,7 @@ const LintView: React.FC = () => {
             )}
 
             {selected.size > 0 && (
-              <div className="sticky bottom-4">
+              <div className="sticky bottom-4 flex flex-col gap-2">
                 <button
                   onClick={applySelected}
                   disabled={applying}
@@ -257,14 +275,22 @@ const LintView: React.FC = () => {
                     ? <Loader2 className="w-5 h-5 animate-spin mr-2" />
                     : <Wrench className="w-5 h-5 mr-2" />
                   }
-                  Apply {selected.size} selected
+                  {applying ? 'Applying fixes…' : `Apply ${selected.size} selected`}
                 </button>
+                {applying && (
+                  <div className="flex items-center gap-2 text-sm text-blue-500 dark:text-blue-400 px-1">
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                    <span>Writing changes to wiki — a snapshot is being created first</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
-        <SnapshotsPanel key={snapshotsKey} />
+        <div ref={snapshotsPanelRef}>
+          <SnapshotsPanel key={snapshotsKey} />
+        </div>
       </div>
     </div>
   );
