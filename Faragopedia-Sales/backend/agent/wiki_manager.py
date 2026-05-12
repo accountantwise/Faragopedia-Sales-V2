@@ -178,6 +178,7 @@ class WikiManager:
         self.archive_sources_dir = os.path.join(archive_dir, "sources")
         self.snapshots_dir = snapshots_dir
         self.metadata_path = os.path.join(sources_dir, ".metadata.json")
+        self.page_metadata_path = os.path.join(self.wiki_dir, ".page-metadata.json")
         self.schema_dir = schema_dir or os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "..", "schema"
         )
@@ -475,6 +476,38 @@ class WikiManager:
                 "tags": stored.get("tags", []),
             }
         return result
+
+    def _load_page_metadata(self) -> Dict:
+        if not os.path.exists(self.page_metadata_path):
+            return {}
+        try:
+            with open(self.page_metadata_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_page_metadata(self, metadata: Dict) -> None:
+        with open(self.page_metadata_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+
+    def get_pages_metadata(self) -> Dict:
+        return self._load_page_metadata()
+
+    def _mark_pages_unread(self, paths: List[str]) -> None:
+        """Mark pages as unread. Must be called while holding self._write_lock."""
+        metadata = self._load_page_metadata()
+        for path in paths:
+            metadata[path] = {"read": False, "read_at": None}
+        self._save_page_metadata(metadata)
+
+    async def mark_page_read(self, path: str) -> None:
+        async with self._write_lock:
+            metadata = self._load_page_metadata()
+            metadata[path] = {
+                "read": True,
+                "read_at": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            self._save_page_metadata(metadata)
 
     def mark_source_ingested(self, file_name: str, status: bool = True):
         """Mark a source as ingested in the metadata."""
