@@ -23,6 +23,20 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sourcesMetadata, setSourcesMetadata] = useState<Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }>>({});
   const prevMetadataRef = useRef<Record<string, { ingested: boolean; ingested_at: string | null; tags: string[] }>>({});
+  const [pagesMetadata, setPagesMetadata] = useState<Record<string, { read: boolean; read_at: string | null }>>({});
+
+  const handleMarkPageRead = useCallback(async (path: string) => {
+    setPagesMetadata(prev => ({
+      ...prev,
+      [path]: { read: true, read_at: new Date().toISOString() },
+    }));
+    fetch(`${API_BASE}/pages/mark-read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    }).catch(() => {});
+  }, []);
+
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string; archived?: boolean }[]>([]);
@@ -105,6 +119,17 @@ const App: React.FC = () => {
         setSourcesMetadata(data);
       } catch (err) {
         console.error('Failed to fetch metadata', err);
+      }
+
+      // Also refresh page read/unread state
+      try {
+        const pagesRes = await fetch(`${API_BASE}/pages/metadata`);
+        if (pagesRes.ok) {
+          const pagesData: Record<string, { read: boolean; read_at: string | null }> = await pagesRes.json();
+          setPagesMetadata(pagesData);
+        }
+      } catch {
+        // non-fatal
       }
     };
 
@@ -257,7 +282,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (currentView) {
       case 'Wiki':
-        return <WikiView key={activeWorkspaceId} />;
+        return <WikiView key={activeWorkspaceId} pagesMetadata={pagesMetadata} onMarkPageRead={handleMarkPageRead} />;
       case 'Sources':
         return <SourcesView key={activeWorkspaceId} sourcesMetadata={sourcesMetadata} />;
       case 'Chat':
