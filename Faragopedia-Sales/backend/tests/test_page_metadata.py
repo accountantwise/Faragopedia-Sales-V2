@@ -92,3 +92,20 @@ async def test_ingest_source_marks_pages_unread(wm, tmp_path):
 
     metadata = wm._load_page_metadata()
     assert metadata["clients/acme.md"]["read"] is False
+
+
+@pytest.mark.asyncio
+async def test_fix_lint_marks_pages_unread(wm):
+    """Pages written inside fix_lint_findings lock block should be marked unread."""
+    wm._save_page_metadata({
+        "clients/acme.md": {"read": True, "read_at": "2026-05-12 10:00:00"}
+    })
+
+    # Simulate what fix_lint_findings does inside its write-lock block
+    async with wm._write_lock:
+        files_changed = ["clients/acme.md", "photographers/jane.md"]
+        wm._mark_pages_unread(files_changed)
+
+    metadata = wm._load_page_metadata()
+    assert metadata["clients/acme.md"]["read"] is False
+    assert metadata["photographers/jane.md"]["read"] is False

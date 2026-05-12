@@ -961,6 +961,7 @@ class WikiManager:
 
             self.update_index()
             self._append_to_log("lint-fix", fix_plan.summary)
+            self._mark_pages_unread(files_changed)
 
         self._rebuild_search_index()
 
