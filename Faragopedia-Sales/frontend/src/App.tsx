@@ -126,7 +126,13 @@ const App: React.FC = () => {
         const pagesRes = await fetch(`${API_BASE}/pages/metadata`);
         if (pagesRes.ok) {
           const pagesData: Record<string, { read: boolean; read_at: string | null }> = await pagesRes.json();
-          setPagesMetadata(pagesData);
+          setPagesMetadata(prev => {
+            const merged = { ...prev };
+            for (const [k, v] of Object.entries(pagesData)) {
+              if (merged[k]?.read !== true) merged[k] = v;
+            }
+            return merged;
+          });
         }
       } catch {
         // non-fatal
