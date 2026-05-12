@@ -33,8 +33,7 @@ Wiki/
 ├── log.md                 # Append-only chronological log
 ├── company_profile.md     # Farago Projects profile (IMMUTABLE — never modify)
 │
-├── clients/
-│   └── [client-name].md
+
 └── sources/               # Immutable raw source documents (human drops here — never modify)
     └── assets/            # Downloaded images
 ```
@@ -53,14 +52,7 @@ NEVER modify these files under any circumstances:
 
 All wiki pages use YAML frontmatter for Obsidian Dataview compatibility. Use wikilink syntax (`[[page-name]]`) for all cross-references.
 
-### clients/[client-name].md
 
-```yaml
----
----
-```
-
----
 
 ## Operations
 
