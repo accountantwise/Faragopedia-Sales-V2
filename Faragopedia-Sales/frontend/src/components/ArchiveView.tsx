@@ -158,7 +158,44 @@ const ArchiveView: React.FC = () => {
   }
 
   return (
-    <div className={`h-full overflow-y-auto p-12 max-w-6xl mx-auto${selectedItems.size > 0 ? ' pb-24' : ''}`}>
+    <div className="h-full flex flex-col">
+      {selectedItems.size > 0 && (
+        <div className="shrink-0 bg-gray-900 dark:bg-gray-950 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+            {selectedItems.size} selected
+          </span>
+          <div className="flex items-center space-x-3">
+            {bulkLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            ) : (
+              <>
+                <button
+                  onClick={handleBulkRestore}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Restore</span>
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete permanently</span>
+                </button>
+                <button
+                  onClick={clearSelection}
+                  title="Clear selection"
+                  className="p-2 text-gray-400 hover:text-gray-200 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    <div className="flex-grow overflow-y-auto p-12 max-w-6xl mx-auto w-full">
       <div className="flex items-center space-x-4 mb-8">
         <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-2xl text-amber-600 dark:text-amber-400">
           <Archive className="w-8 h-8" />
@@ -290,50 +327,10 @@ const ArchiveView: React.FC = () => {
         </section>
       </div>
 
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-200 ${
-          selectedItems.size > 0 ? 'translate-y-0' : 'translate-y-full'
-        }`}
-      >
-        <div className="bg-gray-900 dark:bg-gray-950 border-t border-gray-700 px-6 py-4 flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-200">
-            {selectedItems.size} selected
-          </span>
-          <div className="flex items-center space-x-3">
-            {bulkLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-            ) : (
-              <>
-                <button
-                  onClick={handleBulkRestore}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>Restore</span>
-                </button>
-                <button
-                  onClick={handleBulkDelete}
-                  className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Delete permanently</span>
-                </button>
-                <button
-                  onClick={clearSelection}
-                  title="Clear selection"
-                  className="p-2 text-gray-400 hover:text-gray-200 rounded-lg transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
       {error && (
         <ErrorToast message={error} onDismiss={() => setError(null)} />
       )}
+    </div>
     </div>
   );
 };
