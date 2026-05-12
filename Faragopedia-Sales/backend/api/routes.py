@@ -30,6 +30,10 @@ class BulkMove(BaseModel):
     paths: List[str]
     destination: str
 
+class BulkArchiveItems(BaseModel):
+    pages: List[str] = []
+    sources: List[str] = []
+
 class LintFixRequest(BaseModel):
     findings: List[LintFinding]
 
@@ -655,6 +659,46 @@ async def list_archived_sources(wm: WM):
         return wm.list_archived_sources()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing archived sources: {str(e)}")
+
+@router.post("/archive/bulk/restore")
+async def bulk_restore_archive_items(wm: WM, payload: BulkArchiveItems):
+    restored = []
+    errors = []
+    for page in payload.pages:
+        try:
+            safe_name = safe_wiki_filename(page, wm)
+            await wm.restore_page(safe_name)
+            restored.append(f"page:{page}")
+        except Exception:
+            errors.append(f"page:{page}")
+    for source in payload.sources:
+        try:
+            safe_name = os.path.basename(source)
+            await wm.restore_source(safe_name)
+            restored.append(f"source:{source}")
+        except Exception:
+            errors.append(f"source:{source}")
+    return {"restored": restored, "errors": errors}
+
+@router.delete("/archive/bulk/permanent")
+async def bulk_delete_archive_items_permanent(wm: WM, payload: BulkArchiveItems):
+    deleted = []
+    errors = []
+    for page in payload.pages:
+        try:
+            safe_name = safe_wiki_filename(page, wm)
+            await wm.delete_archived_page(safe_name)
+            deleted.append(f"page:{page}")
+        except Exception:
+            errors.append(f"page:{page}")
+    for source in payload.sources:
+        try:
+            safe_name = os.path.basename(source)
+            await wm.delete_archived_source(safe_name)
+            deleted.append(f"source:{source}")
+        except Exception:
+            errors.append(f"source:{source}")
+    return {"deleted": deleted, "errors": errors}
 
 @router.post("/archive/pages/{filename:path}/restore")
 async def restore_page(wm: WM, filename: str):

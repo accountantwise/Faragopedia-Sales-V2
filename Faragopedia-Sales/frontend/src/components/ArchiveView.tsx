@@ -76,24 +76,20 @@ const ArchiveView: React.FC = () => {
   const handleBulkRestore = async () => {
     setBulkLoading(true);
     const items = Array.from(selectedItems);
-    const results = await Promise.allSettled(
-      items.map(key => {
-        const colonIdx = key.indexOf(':');
-        const type = key.slice(0, colonIdx);
-        const filename = key.slice(colonIdx + 1);
-        const endpoint = type === 'page'
-          ? `/archive/pages/${filename}/restore`
-          : `/archive/sources/${encodeURIComponent(filename)}/restore`;
-        return fetch(`${API_BASE}${endpoint}`, { method: 'POST' });
-      })
-    );
-    const failed = results.filter(
-      r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)
-    ).length;
-    if (failed > 0) setError(`${failed} of ${items.length} items failed to restore.`);
+    const pages = items.filter(k => k.startsWith('page:')).map(k => k.slice('page:'.length));
+    const sources = items.filter(k => k.startsWith('source:')).map(k => k.slice('source:'.length));
     try {
+      const res = await fetch(`${API_BASE}/archive/bulk/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pages, sources }),
+      });
+      const data = await res.json();
+      if (data.errors?.length) setError(`${data.errors.length} of ${items.length} items failed to restore.`);
       clearSelection();
       await fetchArchivedItems();
+    } catch {
+      setError('Failed to restore selected items');
     } finally {
       setBulkLoading(false);
     }
@@ -103,24 +99,20 @@ const ArchiveView: React.FC = () => {
     if (!window.confirm(`Permanently delete ${selectedItems.size} item${selectedItems.size === 1 ? '' : 's'}? This cannot be undone.`)) return;
     setBulkLoading(true);
     const items = Array.from(selectedItems);
-    const results = await Promise.allSettled(
-      items.map(key => {
-        const colonIdx = key.indexOf(':');
-        const type = key.slice(0, colonIdx);
-        const filename = key.slice(colonIdx + 1);
-        const endpoint = type === 'page'
-          ? `/archive/pages/${filename}/permanent`
-          : `/archive/sources/${encodeURIComponent(filename)}/permanent`;
-        return fetch(`${API_BASE}${endpoint}`, { method: 'DELETE' });
-      })
-    );
-    const failed = results.filter(
-      r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)
-    ).length;
-    if (failed > 0) setError(`${failed} of ${items.length} items failed to delete.`);
+    const pages = items.filter(k => k.startsWith('page:')).map(k => k.slice('page:'.length));
+    const sources = items.filter(k => k.startsWith('source:')).map(k => k.slice('source:'.length));
     try {
+      const res = await fetch(`${API_BASE}/archive/bulk/permanent`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pages, sources }),
+      });
+      const data = await res.json();
+      if (data.errors?.length) setError(`${data.errors.length} of ${items.length} items failed to delete.`);
       clearSelection();
       await fetchArchivedItems();
+    } catch {
+      setError('Failed to delete selected items');
     } finally {
       setBulkLoading(false);
     }
