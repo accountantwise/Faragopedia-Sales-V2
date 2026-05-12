@@ -33,7 +33,12 @@ type SearchIndex = {
   }>;
 };
 
-const WikiView: React.FC = () => {
+interface WikiViewProps {
+  pagesMetadata: Record<string, { read: boolean; read_at: string | null }>;
+  onMarkPageRead: (path: string) => void;
+}
+
+const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead }) => {
   const [pageTree, setPageTree] = useState<PageTree>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -274,6 +279,7 @@ const WikiView: React.FC = () => {
       }
 
       setSelectedPage(filename);
+      onMarkPageRead(filename);
       fetchFieldSchema(filename);
 
       // Fetch content and backlinks in parallel
@@ -1201,6 +1207,9 @@ const WikiView: React.FC = () => {
             </button>
             {Object.entries(entityTypes).map(([section, typeData]) => {
               const sectionPages = pageTree[section] || [];
+              const unreadCount = sectionPages.filter(
+                p => pagesMetadata[p]?.read === false
+              ).length;
               return (
                 <div key={section}>
                   <div className="flex items-center group">
@@ -1212,7 +1221,14 @@ const WikiView: React.FC = () => {
                           : 'text-gray-400 dark:text-gray-500'
                       }`}
                     >
-                      <span>{typeData.name || section}</span>
+                      <span className="flex items-center gap-1.5">
+                        {typeData.name || section}
+                        {unreadCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-500 text-white leading-none">
+                            {unreadCount}
+                          </span>
+                        )}
+                      </span>
                       <ChevronRight className={`w-3 h-3 transition-transform duration-150 ${expandedSections[section] ? 'rotate-90' : ''}`} />
                     </button>
                     <div className="hidden group-hover:flex items-center space-x-0.5 mr-1">
@@ -1279,7 +1295,11 @@ const WikiView: React.FC = () => {
                               }`}
                             >
                               <FileText className="w-4 h-4 mr-2 flex-shrink-0 opacity-40" />
-                              <span className="break-all line-clamp-2 leading-tight">
+                              <span className={`break-all line-clamp-2 leading-tight${
+                                pagesMetadata[pagePath]?.read === false && selectedPage !== pagePath
+                                  ? ' font-semibold text-gray-900 dark:text-white'
+                                  : ''
+                              }`}>
                                 {pagePath.split('/').pop()?.replace('.md', '').replace(/-/g, ' ')}
                               </span>
                             </button>
