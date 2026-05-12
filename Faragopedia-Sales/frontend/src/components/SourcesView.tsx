@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database, MoreVertical, X, Search, ListChecks } from 'lucide-react';
 
 import { API_BASE } from '../config';
+import { useOperationToasts } from '../OperationToastContext';
 import ErrorToast from './ErrorToast';
 import AddSourcesModal from './AddSourcesModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -54,6 +55,8 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [showMobileList, setShowMobileList] = useState(true);
   const [showActionMenu, setShowActionMenu] = useState(false);
+
+  const { startIngest, failIngest } = useOperationToasts();
 
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = { startX: e.clientX, startWidth: sidebarWidth };
@@ -224,11 +227,15 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
     if (!selectedSource) return;
     try {
       setIngesting(selectedSource);
+      startIngest([selectedSource]);
       const response = await fetch(`${API_BASE}/sources/${encodeURIComponent(selectedSource)}/ingest`, {
         method: 'POST'
       });
-      if (!response.ok) throw new Error('Failed to start ingestion');
-      // Metadata will be updated by polling
+      if (!response.ok) {
+        failIngest(selectedSource);
+        throw new Error('Failed to start ingestion');
+      }
+      // Completion detected by App.tsx metadata poll
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -263,14 +270,17 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
   };
 
   const handleBulkIngest = async () => {
+    const filenames = Array.from(selectedItems);
     try {
+      startIngest(filenames);
       await fetch(`${API_BASE}/sources/bulk-ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filenames: Array.from(selectedItems) }),
+        body: JSON.stringify({ filenames }),
       });
       clearSelection();
     } catch {
+      filenames.forEach(f => failIngest(f));
       setError('Failed to start bulk ingestion');
     }
   };
