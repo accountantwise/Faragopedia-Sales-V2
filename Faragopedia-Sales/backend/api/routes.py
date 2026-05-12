@@ -324,6 +324,27 @@ async def patch_frontmatter(wm: WM, path: str, payload: dict = Body(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class MarkReadRequest(BaseModel):
+    path: str
+
+
+@router.get("/pages/metadata")
+async def get_pages_metadata_endpoint(wm: WM):
+    try:
+        return wm.get_pages_metadata()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching pages metadata: {str(e)}")
+
+
+@router.post("/pages/mark-read")
+async def mark_page_read_endpoint(wm: WM, body: MarkReadRequest):
+    try:
+        await wm.mark_page_read(body.path)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error marking page as read: {str(e)}")
+
+
 @router.get("/pages/{path:path}")
 async def get_page(wm: WM, path: str):
     try:
