@@ -75,3 +75,20 @@ async def test_mark_page_read_creates_entry_if_absent(wm):
     await wm.mark_page_read("clients/new.md")
     metadata = wm._load_page_metadata()
     assert metadata["clients/new.md"]["read"] is True
+
+
+@pytest.mark.asyncio
+async def test_ingest_source_marks_pages_unread(wm, tmp_path):
+    """Pages written by ingest_source should be marked unread."""
+    # Pre-populate a page as read
+    wm._save_page_metadata({
+        "clients/acme.md": {"read": True, "read_at": "2026-05-12 10:00:00"}
+    })
+
+    # Simulate what ingest writes by calling _mark_pages_unread inside the lock
+    # (integration smoke: verify the lock + method interaction)
+    async with wm._write_lock:
+        wm._mark_pages_unread(["clients/acme.md"])
+
+    metadata = wm._load_page_metadata()
+    assert metadata["clients/acme.md"]["read"] is False

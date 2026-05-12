@@ -707,6 +707,7 @@ class WikiManager:
             self.update_index()
             self.mark_source_ingested(file_name, True)
             self._append_to_log("ingest", result.log_entry)
+            self._mark_pages_unread([page.path for page in result.pages])
 
         # Phase 3: Auto-apply AI tags (outside lock — async LLM calls)
         for page in result.pages:
