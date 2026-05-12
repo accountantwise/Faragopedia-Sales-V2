@@ -54,7 +54,25 @@ export const OperationToastProvider: React.FC<{ children: React.ReactNode }> = (
         }, 4000);
       }
     });
+    return () => {
+      // Clear timers for operations no longer in state
+      const currentIds = new Set(operations.map(op => op.id));
+      Object.keys(dismissTimerRef.current).forEach(id => {
+        if (!currentIds.has(id)) {
+          clearTimeout(dismissTimerRef.current[id]);
+          delete dismissTimerRef.current[id];
+        }
+      });
+    };
   }, [operations]);
+
+  // Clear all timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(crawlTimerRef.current).forEach(clearTimeout);
+      Object.values(dismissTimerRef.current).forEach(clearTimeout);
+    };
+  }, []);
 
   const startIngest = useCallback((filenames: string[]) => {
     setOperations(prev => {
