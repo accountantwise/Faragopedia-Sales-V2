@@ -803,6 +803,47 @@ async def scrape_urls(payload: dict, background_tasks: BackgroundTasks):
     return {"message": f"Started {len(urls)} crawl job(s)"}
 
 
+# ── Search via WiseCrawler (Brave-backed) ─────────────────────────────────────
+
+async def _wc_search(query: str, count: int) -> list[dict]:
+    """Indirection seam so tests can patch this symbol on api.routes."""
+    from agent.wisecrawler import search as _search
+    return await _search(query, count)
+
+
+@router.post("/search")
+async def search_web(payload: dict):
+    import httpx as _httpx
+
+    base_url = os.getenv("WISECRAWLER_BASE_URL", "")
+    if not base_url:
+        raise HTTPException(status_code=503, detail="WISECRAWLER_BASE_URL is not configured")
+
+    query = (payload.get("query") or "").strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="query is required")
+
+    count = payload.get("count", 10)
+    if not isinstance(count, int) or count < 1 or count > 20:
+        raise HTTPException(status_code=422, detail="count must be an integer between 1 and 20")
+
+    try:
+        results = await _wc_search(query, count)
+    except _httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 429:
+            raise HTTPException(status_code=429, detail="Search rate limit reached. Try again in a minute.")
+        if status == 503:
+            raise HTTPException(status_code=503, detail="Web search isn't configured on the crawler service.")
+        if status >= 500:
+            raise HTTPException(status_code=502, detail="Web search failed. Please try again.")
+        raise HTTPException(status_code=status, detail="Web search request rejected.")
+    except _httpx.HTTPError:
+        raise HTTPException(status_code=503, detail="Web search service unavailable.")
+
+    return {"results": results}
+
+
 @router.delete("/archive/sources/{filename}/permanent")
 async def delete_archived_source_permanent(wm: WM, filename: str):
     try:
