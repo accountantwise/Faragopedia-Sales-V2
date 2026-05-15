@@ -94,3 +94,50 @@ async def test_analyze_crawl_returns_analysis():
     call_kwargs = mock_client.post.call_args
     assert call_kwargs[1]["json"]["crawl_id"] == "job-abc123"
     assert call_kwargs[1]["json"]["prompt"] == "Summarize this."
+
+
+@pytest.mark.asyncio
+async def test_search_returns_results():
+    mock_client = make_mock_client(
+        post_response=make_mock_response({
+            "results": [
+                {"title": "First", "url": "https://a.com", "snippet": "first snippet"},
+                {"title": "Second", "url": "https://b.com", "snippet": "second snippet"},
+            ]
+        })
+    )
+    with patch.dict(os.environ, {"WISECRAWLER_BASE_URL": "http://test-wc", "WISECRAWLER_API_KEY": "test-key"}):
+        with patch("agent.wisecrawler.httpx.AsyncClient", return_value=mock_client):
+            from agent.wisecrawler import search
+            result = await search("lv fall 2026", count=5)
+
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert result[0] == {"title": "First", "url": "https://a.com", "snippet": "first snippet"}
+    mock_client.post.assert_called_once()
+    call_kwargs = mock_client.post.call_args
+    assert call_kwargs[1]["json"] == {"query": "lv fall 2026", "count": 5}
+    assert call_kwargs[0][0].endswith("/v1/search")
+    assert "Authorization" in call_kwargs[1]["headers"]
+
+
+@pytest.mark.asyncio
+async def test_search_uses_default_count():
+    mock_client = make_mock_client(
+        post_response=make_mock_response({"results": []})
+    )
+    with patch.dict(os.environ, {"WISECRAWLER_BASE_URL": "http://test-wc", "WISECRAWLER_API_KEY": "test-key"}):
+        with patch("agent.wisecrawler.httpx.AsyncClient", return_value=mock_client):
+            from agent.wisecrawler import search
+            await search("anything")
+    call_kwargs = mock_client.post.call_args
+    assert call_kwargs[1]["json"]["count"] == 10
+
+
+@pytest.mark.asyncio
+async def test_search_raises_when_base_url_missing():
+    env = {k: v for k, v in os.environ.items() if k != "WISECRAWLER_BASE_URL"}
+    with patch.dict(os.environ, env, clear=True):
+        from agent.wisecrawler import search
+        with pytest.raises(ValueError, match="WISECRAWLER_BASE_URL"):
+            await search("anything")
