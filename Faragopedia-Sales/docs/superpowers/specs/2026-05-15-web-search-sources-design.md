@@ -57,7 +57,7 @@ Full self-contained details in the [Wisecrawler brief](2026-05-15-wisecrawler-se
 
 | File | Change |
 |---|---|
-| [backend/agent/wisecrawler.py](../../../backend/agent/wisecrawler.py) | Add `async def search(query: str, count: int = 10) -> list[dict]`. POSTs to `{base_url}/v1/search` using existing `_get_base_url()` / `_get_headers()` helpers. Same timeout pattern as `analyze_crawl` (120s). |
+| [backend/agent/wisecrawler.py](../../../backend/agent/wisecrawler.py) | Add `async def search(query: str, count: int = 10) -> list[dict]`. POSTs to `{base_url}/v1/search` using existing `_get_base_url()` / `_get_headers()` helpers. Timeout 30s (search is sub-second; this is just an upper bound — analyze_crawl's 120s is for the slow LLM step, not applicable here). |
 | [backend/api/routes.py](../../../backend/api/routes.py) | Add `POST /search` proxy route. Pydantic request `{query: str, count: int = 10}`. Returns `{results: [...]}` untouched. Returns 503 if `WISECRAWLER_BASE_URL` not configured (same gate `/scrape-urls` uses today). Passes through Wisecrawler 4xx/5xx with original status. |
 | [frontend/src/components/AddSourcesModal.tsx](../../../frontend/src/components/AddSourcesModal.tsx) | Add 4th tab `'search'`. New local state: `searchQuery: string`, `searching: boolean`, `searchResults: SearchResult[]`, `selectedUrls: Set<string>`. On Search submit: POST `/search`. On "Ingest Selected": POST `/scrape-urls` with selected URLs, call `startCrawl(selectedUrls)`, close modal. |
 
