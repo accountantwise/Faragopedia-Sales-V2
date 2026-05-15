@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, FileText, Loader2 } from 'lucide-react';
+import { X, Upload, FileText, Loader2, Search as SearchIcon } from 'lucide-react';
 import { API_BASE } from '../config';
 import { useOperationToasts } from '../OperationToastContext';
 
@@ -9,7 +9,13 @@ interface Props {
   onSourceAdded: () => void;
 }
 
-type Tab = 'files' | 'url' | 'paste';
+type Tab = 'files' | 'url' | 'paste' | 'search';
+
+interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
 
 const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
   const [activeTab, setActiveTab] = useState<Tab>('files');
@@ -28,6 +34,14 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
   const [pasteName, setPasteName] = useState('');
   const [pasteContent, setPasteContent] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Search tab
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchPerformed, setSearchPerformed] = useState(false);
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  const [ingesting, setIngesting] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -123,6 +137,67 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
     }
   };
 
+  // ── Search tab handlers ───────────────────────────────────────────────────
+
+  const handleSearchSubmit = async () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    setSearching(true);
+    setError(null);
+    setSearchResults([]);
+    setSelectedUrls(new Set());
+    try {
+      const res = await fetch(`${API_BASE}/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q, count: 10 }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ detail: 'Search failed' }));
+        throw new Error(data.detail || 'Search failed');
+      }
+      const data = await res.json();
+      setSearchResults(data.results || []);
+      setSearchPerformed(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const toggleUrlSelection = (url: string) => {
+    setSelectedUrls(prev => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url);
+      else next.add(url);
+      return next;
+    });
+  };
+
+  const handleIngestSelected = async () => {
+    if (selectedUrls.size === 0) return;
+    const urls = Array.from(selectedUrls);
+    setIngesting(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/scrape-urls`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'Failed to start crawl');
+      }
+      startCrawl(urls);
+      setTimeout(onClose, 1500);
+    } catch (err: any) {
+      setError(err.message);
+      setIngesting(false);
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -139,7 +214,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 mx-6 mt-4">
-          {(['files', 'url', 'paste'] as Tab[]).map(tab => (
+          {(['files', 'url', 'paste', 'search'] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => switchTab(tab)}
@@ -149,7 +224,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'files' ? '📁 Files' : tab === 'url' ? '🔗 URL' : '📋 Paste Text'}
+              {tab === 'files' ? '📁 Files' : tab === 'url' ? '🔗 URL' : tab === 'paste' ? '📋 Paste Text' : '🔍 Search'}
             </button>
           ))}
         </div>
@@ -260,6 +335,90 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
                 className="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
               >
                 {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : 'Save as Source'}
+              </button>
+            </div>
+          )}
+
+          {/* ── Search tab ── */}
+          {activeTab === 'search' && (
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSearchSubmit(); }}
+                  placeholder="Search the web…"
+                  disabled={searching}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                />
+                <button
+                  onClick={handleSearchSubmit}
+                  disabled={!searchQuery.trim() || searching}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                >
+                  {searching
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <><SearchIcon className="w-4 h-4" /> Search</>}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1 mb-3">Brave Search · up to 10 results per query.</p>
+
+              {searchPerformed && searchResults.length === 0 && !searching && (
+                <p className="text-sm text-gray-500 italic py-4 text-center">No results for "{searchQuery}".</p>
+              )}
+
+              {searchResults.length > 0 && (
+                <>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">
+                    {selectedUrls.size} of {searchResults.length} results selected
+                  </p>
+                  <ul className="border border-gray-200 rounded-lg overflow-y-auto" style={{ maxHeight: '40vh' }}>
+                    {searchResults.map(r => {
+                      const checked = selectedUrls.has(r.url);
+                      return (
+                        <li
+                          key={r.url}
+                          onClick={() => toggleUrlSelection(r.url)}
+                          className={`flex gap-2.5 p-3 border-b border-gray-100 last:border-b-0 cursor-pointer transition-colors ${
+                            checked ? 'bg-blue-50' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleUrlSelection(r.url)}
+                            onClick={e => e.stopPropagation()}
+                            className="mt-1 accent-blue-600 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={r.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="text-sm font-medium text-blue-700 underline hover:text-blue-800 block leading-tight break-words"
+                            >
+                              {r.title}
+                            </a>
+                            <div className="text-xs text-emerald-700 mt-0.5 truncate">{r.url}</div>
+                            <p className="text-xs text-gray-600 mt-1 leading-snug">{r.snippet}</p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+
+              <button
+                onClick={handleIngestSelected}
+                disabled={selectedUrls.size === 0 || ingesting}
+                className="mt-4 shrink-0 w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+              >
+                {ingesting
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Crawl started — closing</>
+                  : `Ingest ${selectedUrls.size > 0 ? selectedUrls.size + ' ' : ''}Selected Source${selectedUrls.size !== 1 ? 's' : ''}`}
               </button>
             </div>
           )}

@@ -65,3 +65,16 @@ async def analyze_crawl(job_id: str, prompt: str = DEFAULT_ANALYZE_PROMPT) -> st
         )
         response.raise_for_status()
         return response.json()["analysis"]
+
+
+async def search(query: str, count: int = 10) -> list[dict]:
+    """POST /v1/search — returns a list of {title, url, snippet} dicts."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{_get_base_url()}/v1/search",
+            json={"query": query, "count": count},
+            headers=_get_headers(),
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()["results"]

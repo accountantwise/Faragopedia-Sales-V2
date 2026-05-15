@@ -99,3 +99,65 @@ def test_scrape_urls_no_wisecrawler_url():
     with patch.dict(os.environ, env, clear=True):
         response = client.post("/api/scrape-urls", json={"urls": ["https://example.com"]})
     assert response.status_code == 503
+
+
+# ── Search endpoint ───────────────────────────────────────────────────────────
+
+def test_search_returns_results():
+    fake_results = [
+        {"title": "A", "url": "https://a.com", "snippet": "a snip"},
+        {"title": "B", "url": "https://b.com", "snippet": "b snip"},
+    ]
+    with patch.dict(os.environ, {"WISECRAWLER_BASE_URL": "http://test-wc"}):
+        with patch("api.routes._wc_search", new_callable=AsyncMock, return_value=fake_results):
+            response = client.post("/api/search", json={"query": "lv fall 2026", "count": 5})
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"results": fake_results}
+
+
+def test_search_default_count():
+    with patch.dict(os.environ, {"WISECRAWLER_BASE_URL": "http://test-wc"}):
+        with patch("api.routes._wc_search", new_callable=AsyncMock, return_value=[]) as mock:
+            response = client.post("/api/search", json={"query": "x"})
+    assert response.status_code == 200
+    mock.assert_called_once_with("x", 10)
+
+
+def test_search_empty_query():
+    with patch.dict(os.environ, {"WISECRAWLER_BASE_URL": "http://test-wc"}):
+        response = client.post("/api/search", json={"query": "   "})
+    assert response.status_code == 422
+
+
+def test_search_no_wisecrawler_url():
+    env = {k: v for k, v in os.environ.items() if k != "WISECRAWLER_BASE_URL"}
+    with patch.dict(os.environ, env, clear=True):
+        response = client.post("/api/search", json={"query": "anything"})
+    assert response.status_code == 503
+
+
+def test_search_wisecrawler_503_passthrough():
+    import httpx as _httpx
+    def raise_503(*args, **kwargs):
+        request = _httpx.Request("POST", "http://test-wc/v1/search")
+        response = _httpx.Response(503, request=request, json={"detail": "BRAVE_API_KEY not configured"})
+        raise _httpx.HTTPStatusError("503", request=request, response=response)
+
+    with patch.dict(os.environ, {"WISECRAWLER_BASE_URL": "http://test-wc"}):
+        with patch("api.routes._wc_search", new_callable=AsyncMock, side_effect=raise_503):
+            response = client.post("/api/search", json={"query": "x"})
+    assert response.status_code == 503
+
+
+def test_search_wisecrawler_429_passthrough():
+    import httpx as _httpx
+    def raise_429(*args, **kwargs):
+        request = _httpx.Request("POST", "http://test-wc/v1/search")
+        response = _httpx.Response(429, request=request, json={"detail": "Search rate limit reached"})
+        raise _httpx.HTTPStatusError("429", request=request, response=response)
+
+    with patch.dict(os.environ, {"WISECRAWLER_BASE_URL": "http://test-wc"}):
+        with patch("api.routes._wc_search", new_callable=AsyncMock, side_effect=raise_429):
+            response = client.post("/api/search", json={"query": "x"})
+    assert response.status_code == 429

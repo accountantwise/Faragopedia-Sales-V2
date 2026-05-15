@@ -8,7 +8,7 @@
 
 ## Current Phase: 🟡 MVP Development / Prototype Functional
 
-**Last updated:** 2026-04-24
+**Last updated:** 2026-05-15
 
 ---
 
@@ -16,6 +16,7 @@
 
 | Date       | Agent/Person | Summary                                       |
 | ---------- | ------------ | --------------------------------------------- |
+| 2026-05-15 | Claude | **Web Search Sources — Faragopedia side complete** (branch: `feature/web-search-sources`). Tasks 1–3 implemented and reviewed: `agent.wisecrawler.search()` client function with 3 unit tests, `POST /api/search` proxy route with 6 route tests, new `🔍 Search` tab in `AddSourcesModal.tsx` (query → Brave-backed results → checkbox-select → ingest via existing `/scrape-urls` pipeline). Backend tests: `test_wisecrawler.py` 7/7, `test_sources.py` 15/15 passing. Frontend `npm run build` clean. Wisecrawler-side `POST /v1/search` is a separate repo — portable brief at `docs/superpowers/specs/2026-05-15-wisecrawler-search-endpoint-brief.md`. Live end-to-end smoke test pending Brave API key. |
 | 2026-04-24 | Claude | **Entity Type Templates — designed and planned**. Design spec saved to `docs/superpowers/specs/2026-04-24-entity-templates-design.md`. Full 5-task TDD implementation plan saved to `docs/superpowers/plans/2026-04-24-entity-templates.md`. Feature: during setup wizard completion, generate a `_template.md` per entity type co-located with `_type.yaml`; filter `_`-prefixed files from `list_pages()`; pre-populate new pages from the template. Pure backend — no frontend changes. No code changes yet. |
 | 2026-04-22 | Claude | **Settings Section — designed and planned** (branch: `setup-wizard`). Design spec saved to `docs/superpowers/specs/2026-04-22-settings-design.md`. Full 13-task TDD implementation plan saved to `docs/superpowers/plans/2026-04-22-settings-implementation.md`. Feature covers: slide-out SettingsDrawer (theme toggle, reconfigure, export zip), Tailwind dark mode (`dark:` class strategy), backend export/import API (3 endpoints), SetupWizard step-0 import-from-backup flow. Backend tasks (1–5) → Claude. Frontend tasks (6–13) → Gemini. No code changes yet. |
 | 2026-04-21 | Claude | **Setup Wizard — All 10 tasks complete** (branch: `setup-wizard`). Tasks 3–9 implemented: `setup_wizard.py` Pydantic models + core functions + `complete_setup()`; `setup_routes.py` 5 endpoints + `suggest_schema_llm()`; `main.py` startup migration + WikiManager init; `Sidebar.tsx` wikiName prop + Reconfigure button; `App.tsx` setup state gating + reconfigure flow; `SetupWizard.tsx` full 3-step wizard (identity → schema review → confirm/launch). `wiki_config.json` generated on setup completion. |

@@ -593,6 +593,64 @@ Open `docs/superpowers/specs/2026-05-15-web-search-sources-design.md` and tick e
 
 ---
 
+## Connection Smoke Test Runbook (deferred — run when Brave key is missing OR present)
+
+This runbook replaces the original Task 3 Step 5 manual smoke test, split into two phases. **Phase 1 can run BEFORE setting up the Brave API key** — it verifies the entire network and auth path between Faragopedia and Wisecrawler using the upstream's BRAVE_API_KEY-missing 503 response as the success signal. **Phase 2 runs after the Brave key is set up** and covers live result rendering through ingestion.
+
+### Prerequisites (both phases)
+
+- Wisecrawler is deployed with the `POST /v1/search` endpoint from the brief (`docs/superpowers/specs/2026-05-15-wisecrawler-search-endpoint-brief.md`).
+- Faragopedia has been deployed/restarted from `feature/web-search-sources` so it includes the new `/search` route and Search tab.
+- `WISECRAWLER_BASE_URL` and `WISECRAWLER_API_KEY` are set in Faragopedia's environment and point at the running Wisecrawler.
+
+### Phase 1 — Connection test (no Brave key required)
+
+**Assumes:** `BRAVE_API_KEY` is NOT set on Wisecrawler. Wisecrawler will return 503 for any search call. We use that 503 as proof the wiring works.
+
+**1a — Curl test (verifies backend ↔ Wisecrawler):**
+
+From any shell that can reach Faragopedia's backend:
+
+```bash
+curl -s -X POST <faragopedia-host>/api/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"hello","count":3}' -w "\nHTTP %{http_code}\n"
+```
+
+| Outcome | Meaning |
+|---|---|
+| `HTTP 503` with detail mentioning "Web search isn't configured on the crawler service" or BRAVE_API_KEY | ✅ Full path works. Faragopedia reached Wisecrawler, Wisecrawler answered, error mapped correctly. Phase 1 passes. |
+| `HTTP 503` with detail "WISECRAWLER_BASE_URL is not configured" | ❌ Faragopedia is missing the env var. Fix the env, redeploy/restart, re-run. |
+| `HTTP 503` with detail "Web search service unavailable" | ❌ Faragopedia couldn't reach Wisecrawler (network / DNS / tunnel down). Check that the URL in `WISECRAWLER_BASE_URL` is correct and that the tunnel/host is up. |
+| Connection refused / timeout | ❌ Faragopedia backend not running (or wrong host/port). |
+| `HTTP 401/403` | ❌ `WISECRAWLER_API_KEY` is wrong or Wisecrawler is rejecting auth. |
+| `HTTP 502` | ❌ Wisecrawler returned a 5xx (other than 503). Check Wisecrawler logs. |
+
+**1b — UI test (verifies Search tab renders and shows errors):**
+
+1. Open Faragopedia in a browser → click "Add Sources" → click 🔍 Search tab.
+2. **Empty-query gate:** With the query input empty, verify the Search button is disabled.
+3. Type any query (e.g. `test`) and click Search.
+4. Expected: red error banner inside the modal with the same Wisecrawler 503 message from the curl test above. No crash; rest of the modal still works (you can switch back to Files/URL/Paste tabs).
+5. **Test result rendering with mocked data (optional):** If you want to see what the result cards look like before getting a Brave key, the mockup at `.superpowers/brainstorm/2008-1778838516/content/search-tab-layout.html` shows the layout. (Or open that file directly in a browser.)
+
+If 1a and 1b both pass, the Faragopedia side is **fully verified except for the live Brave path**. You can ship the branch with confidence; Phase 2 is just turning the key on.
+
+### Phase 2 — Live smoke test (Brave key required)
+
+**Assumes:** `BRAVE_API_KEY` is now set on Wisecrawler and Wisecrawler has been restarted to pick up the env var. (Verify with: `curl -X POST <wisecrawler>/v1/search -d '{"query":"test"}' -H 'Content-Type: application/json' -H "Authorization: Bearer $WISECRAWLER_API_KEY"` — should return a `{results: [...]}` with real Brave hits.)
+
+1. **Live results render:** Open Faragopedia → Add Sources → Search. Type a real query (e.g. `louis vuitton fall 2026 campaign`), click Search. Verify ~10 result cards appear with blue title (clickable to a new tab), green URL, gray snippet.
+2. **Selection updates count:** Check 2 boxes; verify the "2 of N results selected" label updates and the bottom button reads "Ingest 2 Selected Sources".
+3. **Ingest pipeline fires:** Click "Ingest 2 Selected Sources". Verify the existing crawl toast appears and the modal closes after ~1.5s.
+4. **Sources land:** Wait 30–60s; switch to Sources view; verify the 2 new raw sources have appeared. Click Ingest on one; verify the wiki page is created as with any URL-tab crawl.
+5. **Empty-results state:** Open Search again; type a deliberately weird query (e.g. `aksdjfhakjsdf qweqwe nonsense xyz123`). Verify a "No results for '…'" message appears.
+6. **Rate limit handling (optional):** If you spam-click Search enough times to trigger Brave's rate limit, verify the UI shows "Search rate limit reached. Try again in a minute."
+
+Once Phase 2 passes, tick all acceptance criteria in `docs/superpowers/specs/2026-05-15-web-search-sources-design.md` §11 and the feature is ready to merge.
+
+---
+
 ## Self-Review
 
 **Spec coverage:**
