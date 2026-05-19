@@ -28,7 +28,6 @@ const App: React.FC = () => {
   const { completeIngest, completeCrawl } = useOperationToasts();
   const prevFilenamesRef = useRef<Set<string>>(new Set());
   const [pagesMetadata, setPagesMetadata] = useState<Record<string, { read: boolean; read_at: string | null }>>({});
-  const [ingestCompletedAt, setIngestCompletedAt] = useState<number>(0);
 
   const handleMarkPageRead = useCallback(async (path: string) => {
     setPagesMetadata(prev => ({
@@ -113,7 +112,6 @@ const App: React.FC = () => {
         Object.entries(data).forEach(([filename, meta]) => {
           if (meta.ingested && prev[filename] && !prev[filename].ingested) {
             completeIngest(filename);
-            setIngestCompletedAt(Date.now());
           }
         });
 
@@ -297,7 +295,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (currentView) {
       case 'Wiki':
-        return <WikiView key={activeWorkspaceId} pagesMetadata={pagesMetadata} onMarkPageRead={handleMarkPageRead} ingestCompletedAt={ingestCompletedAt} />;
+        return <WikiView key={activeWorkspaceId} pagesMetadata={pagesMetadata} onMarkPageRead={handleMarkPageRead} />;
       case 'Sources':
         return <SourcesView key={activeWorkspaceId} sourcesMetadata={sourcesMetadata} />;
       case 'Chat':

@@ -36,10 +36,9 @@ type SearchIndex = {
 interface WikiViewProps {
   pagesMetadata: Record<string, { read: boolean; read_at: string | null }>;
   onMarkPageRead: (path: string) => void;
-  ingestCompletedAt?: number;
 }
 
-const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead, ingestCompletedAt }) => {
+const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead }) => {
   const [pageTree, setPageTree] = useState<PageTree>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -63,6 +62,9 @@ const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead, inge
   // Resizable sidebar state
   const [sidebarWidth, setSidebarWidth] = useState<number>(256);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  // Track pagesMetadata keys to detect newly ingested pages
+  const seenPageKeysRef = useRef<Set<string>>(new Set());
 
   // Mobile/Tablet responsive states
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
@@ -177,9 +179,18 @@ const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead, inge
   }, []);
 
   useEffect(() => {
-    if (!ingestCompletedAt) return;
-    fetchPages();
-  }, [ingestCompletedAt]);
+    const currentKeys = Object.keys(pagesMetadata);
+    if (seenPageKeysRef.current.size === 0) {
+      // First time we see pages — record them, don't trigger a redundant fetch
+      seenPageKeysRef.current = new Set(currentKeys);
+      return;
+    }
+    const hasNew = currentKeys.some(k => !seenPageKeysRef.current.has(k));
+    if (hasNew) {
+      seenPageKeysRef.current = new Set(currentKeys);
+      fetchPages();
+    }
+  }, [pagesMetadata]);
 
   const togglePageSelection = (path: string) => {
     setSelectedPages(prev => {
