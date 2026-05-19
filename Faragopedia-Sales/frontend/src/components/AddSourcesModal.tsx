@@ -6,7 +6,7 @@ import { useOperationToasts } from '../OperationToastContext';
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSourceAdded: () => void;
+  onSourceAdded: (isAsync?: boolean) => void;
 }
 
 type Tab = 'files' | 'url' | 'paste' | 'search';
@@ -103,6 +103,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
         const data = await res.json();
         throw new Error(data.detail || 'Failed to start crawl');
       }
+      onSourceAdded(true);
       startCrawl(urls);
       // Brief confirmation before closing
       setTimeout(onClose, 1500);
@@ -190,6 +191,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
         const data = await res.json();
         throw new Error(data.detail || 'Failed to start crawl');
       }
+      onSourceAdded(true);
       startCrawl(urls);
       setTimeout(onClose, 1500);
     } catch (err: any) {

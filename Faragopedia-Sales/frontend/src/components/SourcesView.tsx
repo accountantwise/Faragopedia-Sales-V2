@@ -51,12 +51,39 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
   const [sidebarWidth, setSidebarWidth] = useState<number>(256);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
+  // Polling refs for async source ingestion
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Mobile/Tablet responsive states
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [showMobileList, setShowMobileList] = useState(true);
   const [showActionMenu, setShowActionMenu] = useState(false);
 
   const { startIngest, failIngest } = useOperationToasts();
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) { clearInterval(pollingIntervalRef.current); pollingIntervalRef.current = null; }
+    if (pollingTimeoutRef.current) { clearTimeout(pollingTimeoutRef.current); pollingTimeoutRef.current = null; }
+  };
+
+  const startPolling = (knownCount: number) => {
+    stopPolling();
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/sources`);
+        if (!res.ok) return;
+        const data: string[] = await res.json();
+        if (data.length > knownCount) {
+          stopPolling();
+          fetchSources();
+          fetchSourceIndex();
+        }
+      } catch {}
+    }, 4000);
+    // Safety valve — stop polling after 90 seconds regardless
+    pollingTimeoutRef.current = setTimeout(stopPolling, 90000);
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = { startX: e.clientX, startWidth: sidebarWidth };
@@ -91,6 +118,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('resize', handleResize);
+      stopPolling();
     };
   }, [handleMouseMove, handleMouseUp]);
 
@@ -872,7 +900,14 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
       <AddSourcesModal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onSourceAdded={() => { fetchSources(); }}
+        onSourceAdded={(isAsync) => {
+          if (isAsync) {
+            startPolling(sources.length);
+          } else {
+            fetchSources();
+            fetchSourceIndex();
+          }
+        }}
       />
 
       {error && (
