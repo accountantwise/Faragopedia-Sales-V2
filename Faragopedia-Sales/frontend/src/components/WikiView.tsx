@@ -36,9 +36,10 @@ type SearchIndex = {
 interface WikiViewProps {
   pagesMetadata: Record<string, { read: boolean; read_at: string | null }>;
   onMarkPageRead: (path: string) => void;
+  ingestCompletedAt?: number;
 }
 
-const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead }) => {
+const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead, ingestCompletedAt }) => {
   const [pageTree, setPageTree] = useState<PageTree>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -174,6 +175,11 @@ const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead }) =>
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!ingestCompletedAt) return;
+    fetchPages();
+  }, [ingestCompletedAt]);
 
   const togglePageSelection = (path: string) => {
     setSelectedPages(prev => {
