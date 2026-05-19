@@ -210,9 +210,10 @@ class WikiManager:
             profile = f.read()
         return f"{schema}\n\n---\n\n{profile}"
 
-    def _init_llm(self):
-        provider = os.getenv("AI_PROVIDER", "openai").lower()
-        model = os.getenv("AI_MODEL", "gpt-4o-mini")
+    def _init_llm(self, operation: str = None):
+        prefix = f"{operation.upper()}_" if operation else ""
+        provider = (os.getenv(f"{prefix}AI_PROVIDER") or os.getenv("AI_PROVIDER", "openai")).lower()
+        model = os.getenv(f"{prefix}AI_MODEL") or os.getenv("AI_MODEL", "gpt-4o-mini")
 
         if provider == "openai":
             llm = ChatOpenAI(model=model)
@@ -827,7 +828,7 @@ class WikiManager:
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
             HumanMessagePromptTemplate.from_template(LINT_HUMAN_TEMPLATE),
         ])
-        chain = prompt | self.llm | parser
+        chain = prompt | self._init_llm("lint") | parser
         return await chain.ainvoke({
             "system_prompt": self.system_prompt,
             "wiki_content": wiki_content,
@@ -931,7 +932,7 @@ class WikiManager:
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
             HumanMessagePromptTemplate.from_template(FIX_HUMAN_TEMPLATE),
         ])
-        chain = prompt | self.llm | parser
+        chain = prompt | self._init_llm("fix") | parser
         return await chain.ainvoke({
             "system_prompt": self.system_prompt,
             "wiki_content": wiki_content,
