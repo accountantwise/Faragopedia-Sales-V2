@@ -8,7 +8,7 @@
 
 ## Current Phase: 🟡 MVP Development / Prototype Functional
 
-**Last updated:** 2026-05-15
+**Last updated:** 2026-05-19
 
 ---
 
@@ -16,6 +16,7 @@
 
 | Date       | Agent/Person | Summary                                       |
 | ---------- | ------------ | --------------------------------------------- |
+| 2026-05-19 | Claude | **Web Search Sources — Phase 2 smoke test passed. Feature fully verified end-to-end.** Search renders ~10 Brave results; checkbox selection and count label work; "Ingest N Selected Sources" fires the crawl toast and closes the modal; sources land in Sources view; Ingest creates wiki pages. Known limitation: JS-rendered/auth-gated pages (LinkedIn, paywalled sites) return empty crawled content and fail at Wisecrawler's analyze step — this is pre-existing crawler behaviour, not a web-search bug. Feature is production-ready. |
 | 2026-05-15 | Claude | **Web Search Sources — merged to `main` and deployed for first inspection.** Branch `feature/web-search-sources` (6 commits) merged via `--no-ff` (`674435f`); pushed to GitHub. Portainer redeploy of Faragopedia confirmed the new `🔍 Search` tab renders; clicking Search surfaced 503 "WISECRAWLER_BASE_URL is not configured" — wiring on the Faragopedia side is correct, the env vars just aren't set on the deployed stack yet. **Next actions (user, when ready):** (1) Add `WISECRAWLER_BASE_URL` + `WISECRAWLER_API_KEY` to Faragopedia's Portainer stack env; (2) deploy Wisecrawler with the `POST /v1/search` route from the brief at `docs/superpowers/specs/2026-05-15-wisecrawler-search-endpoint-brief.md`; (3) sign up for Brave Search API and add `BRAVE_API_KEY` to Wisecrawler stack env; (4) run Phase 2 of the smoke runbook in `docs/superpowers/plans/2026-05-15-web-search-sources-faragopedia.md`. |
 | 2026-05-15 | Claude | **Web Search Sources — Faragopedia side complete** (branch: `feature/web-search-sources`). Tasks 1–3 implemented and reviewed: `agent.wisecrawler.search()` client function with 3 unit tests, `POST /api/search` proxy route with 6 route tests, new `🔍 Search` tab in `AddSourcesModal.tsx` (query → Brave-backed results → checkbox-select → ingest via existing `/scrape-urls` pipeline). Backend tests: `test_wisecrawler.py` 7/7, `test_sources.py` 15/15 passing. Frontend `npm run build` clean. Wisecrawler-side `POST /v1/search` is a separate repo — portable brief at `docs/superpowers/specs/2026-05-15-wisecrawler-search-endpoint-brief.md`. Live end-to-end smoke test pending Brave API key. |
 | 2026-04-24 | Claude | **Entity Type Templates — designed and planned**. Design spec saved to `docs/superpowers/specs/2026-04-24-entity-templates-design.md`. Full 5-task TDD implementation plan saved to `docs/superpowers/plans/2026-04-24-entity-templates.md`. Feature: during setup wizard completion, generate a `_template.md` per entity type co-located with `_type.yaml`; filter `_`-prefixed files from `list_pages()`; pre-populate new pages from the template. Pure backend — no frontend changes. No code changes yet. |

@@ -109,7 +109,7 @@ current direction.
 25. **Add "estimated time remaining" to Lint View**
 26. **Monitor snapshot storage / add auto-pruning**
 27. **Implement Graph View**
-28. ~~Execute Web Search Sources plan (Faragopedia side)~~ ✅ (2026-05-15) — merged to `main`; 9 new tests passing. Wisecrawler-side `POST /v1/search` is a separate repo; portable brief at `docs/superpowers/specs/2026-05-15-wisecrawler-search-endpoint-brief.md`. **Deployment pending:** set `WISECRAWLER_BASE_URL` + `WISECRAWLER_API_KEY` on Faragopedia stack; set `BRAVE_API_KEY` on Wisecrawler stack. Smoke runbook in `docs/superpowers/plans/2026-05-15-web-search-sources-faragopedia.md`.
+28. ~~Execute Web Search Sources plan (Faragopedia side)~~ ✅ (2026-05-19) — merged to `main`; 9 new tests passing; Phase 2 smoke test passed end-to-end. Wisecrawler-side `POST /v1/search` deployed with `BRAVE_API_KEY`. Known limitation: JS-rendered/auth-gated URLs (LinkedIn, paywalled sites) fail at Wisecrawler's analyze step — pre-existing crawler behaviour, not a web-search bug.
 
 
 
