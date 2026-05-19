@@ -184,7 +184,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
       const res = await fetch(`${API_BASE}/scrape-urls`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls }),
+        body: JSON.stringify({ urls, mode: 'scrape' }),
       });
       if (!res.ok) {
         const data = await res.json();

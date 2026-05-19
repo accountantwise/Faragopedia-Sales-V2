@@ -54,6 +54,19 @@ async def poll_until_done(job_id: str, poll_interval: float = 3.0) -> dict:
             await asyncio.sleep(poll_interval)
 
 
+async def scrape(url: str) -> str:
+    """POST /v1/scrape — returns markdown content for a single URL."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{_get_base_url()}/v1/scrape",
+            json={"url": url, "formats": ["markdown"]},
+            headers=_get_headers(),
+            timeout=60,
+        )
+        response.raise_for_status()
+        return response.json()["data"]["markdown"] or ""
+
+
 async def analyze_crawl(job_id: str, prompt: str = DEFAULT_ANALYZE_PROMPT) -> str:
     """POST /v1/crawl/analyze — returns the analysis string."""
     async with httpx.AsyncClient() as client:

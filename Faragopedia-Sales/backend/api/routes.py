@@ -761,16 +761,24 @@ async def delete_archived_page_permanent(wm: WM, filename: str):
 # ── URL scraping via WiseCrawler ──────────────────────────────────────────────
 
 async def _crawl_and_save(url: str) -> None:
-    """Background task: crawl a URL with WiseCrawler, analyze, save to sources/."""
+    """Background task: crawl a URL with WiseCrawler, save raw markdown to sources/."""
     import logging
     from urllib.parse import urlparse
-    from agent.wisecrawler import start_crawl, poll_until_done, analyze_crawl, DEFAULT_ANALYZE_PROMPT
+    from agent.wisecrawler import start_crawl, poll_until_done
 
     logger = logging.getLogger(__name__)
     try:
         job_id = await start_crawl(url)
-        await poll_until_done(job_id)
-        analysis = await analyze_crawl(job_id, DEFAULT_ANALYZE_PROMPT)
+        result = await poll_until_done(job_id)
+
+        pages = result.get("data", [])
+        parts = []
+        for page in pages:
+            md = page.get("markdown") or ""
+            page_url = (page.get("metadata") or {}).get("url", "")
+            if md.strip():
+                parts.append(f"## {page_url}\n\n{md}" if page_url else md)
+        content = "\n\n---\n\n".join(parts) if parts else "(no content extracted)"
 
         parsed = urlparse(url)
         domain = parsed.netloc.replace(".", "-").replace(":", "-")
@@ -780,11 +788,36 @@ async def _crawl_and_save(url: str) -> None:
         os.makedirs(get_sources_dir(), exist_ok=True)
         file_path = os.path.join(get_sources_dir(), filename)
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(f"# Source: {url}\n\n{analysis}")
+            f.write(f"# Source: {url}\n\n{content}")
 
         logger.info(f"Saved crawl result for {url} → {filename}")
     except Exception as exc:
         logger.error(f"Failed to crawl {url}: {exc}")
+
+
+async def _scrape_and_save(url: str) -> None:
+    """Background task: scrape a single URL with WiseCrawler, save raw markdown to sources/."""
+    import logging
+    from urllib.parse import urlparse
+    from agent.wisecrawler import scrape
+
+    logger = logging.getLogger(__name__)
+    try:
+        markdown = await scrape(url)
+
+        parsed = urlparse(url)
+        domain = parsed.netloc.replace(".", "-").replace(":", "-")
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filename = f"{domain}-{timestamp}.md"
+
+        os.makedirs(get_sources_dir(), exist_ok=True)
+        file_path = os.path.join(get_sources_dir(), filename)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"# Source: {url}\n\n{markdown}")
+
+        logger.info(f"Saved scrape result for {url} → {filename}")
+    except Exception as exc:
+        logger.error(f"Failed to scrape {url}: {exc}")
 
 
 @router.post("/scrape-urls", status_code=202)
@@ -797,10 +830,13 @@ async def scrape_urls(payload: dict, background_tasks: BackgroundTasks):
     if not urls:
         raise HTTPException(status_code=422, detail="urls list is required and cannot be empty")
 
-    for url in urls:
-        background_tasks.add_task(_crawl_and_save, url)
+    mode = payload.get("mode", "crawl")
+    task = _scrape_and_save if mode == "scrape" else _crawl_and_save
 
-    return {"message": f"Started {len(urls)} crawl job(s)"}
+    for url in urls:
+        background_tasks.add_task(task, url)
+
+    return {"message": f"Started {len(urls)} {mode} job(s)"}
 
 
 # ── Search via WiseCrawler (Brave-backed) ─────────────────────────────────────
