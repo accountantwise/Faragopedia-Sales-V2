@@ -418,7 +418,7 @@ const AddSourcesModal: React.FC<Props> = ({ open, onClose, onSourceAdded }) => {
               >
                 {ingesting
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Crawl started — closing</>
-                  : `Ingest ${selectedUrls.size > 0 ? selectedUrls.size + ' ' : ''}Selected Source${selectedUrls.size !== 1 ? 's' : ''}`}
+                  : `Add ${selectedUrls.size > 0 ? selectedUrls.size + ' ' : ''}Selected Source${selectedUrls.size !== 1 ? 's' : ''}`}
               </button>
             </div>
           )}
