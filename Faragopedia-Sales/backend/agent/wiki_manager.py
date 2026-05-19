@@ -13,7 +13,6 @@ from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.runnables import Runnable
 
 class _LLMProxy(Runnable):
@@ -105,9 +104,7 @@ Instructions:
 5. For existing pages (action="update"), produce the full merged content.
 6. For new pages (action="create"), produce the full page with all schema sections.
 7. Always use [[subdir/page-name]] wikilink syntax for cross-references.
-8. Write a 2-3 line log_entry summarising what was ingested.
-
-{format_instructions}"""
+8. Write a 2-3 line log_entry summarising what was ingested."""
 
 RELEVANCE_HUMAN_TEMPLATE = """Given the wiki index below, list the 3-5 most relevant page paths to answer the user query.
 Return ONLY a comma-separated list of relative page paths (e.g. 'clients/louis-vuitton.md, contacts/jane-doe.md').
@@ -145,7 +142,7 @@ For each finding also set:
 - fix_confidence: 'full' if the fix can be applied entirely from existing wiki context; 'stub' if a useful starting-point page or edit can be created but the user will need to complete it; 'needs_source' if fixing requires ingesting new external source material first.
 - fix_description: A short plain-English sentence describing what will happen when the fix is applied (e.g. "Replace all raw/ paths with source/ across 14 files", "Create a stub concepts/e-sign.md page", "Add [[wikilink]] references from index.md to photographers/jane-doe.md").
 
-{format_instructions}"""
+Return at most 30 findings total, prioritising errors first, then warnings, then suggestions."""
 
 FIX_HUMAN_TEMPLATE = """You are applying selected lint fixes to the Farago Projects wiki.
 
@@ -164,9 +161,7 @@ Instructions:
 6. Always use [[subdir/page-name]] wikilink syntax for cross-references.
 7. Use action='create' for new pages, action='update' for modified existing pages.
 8. Only include pages that genuinely need to change — do not regenerate unchanged pages.
-9. Write a one-line summary (e.g. "Fixed 3 findings: updated 2 pages, created 1 stub").
-
-{format_instructions}"""
+9. Write a one-line summary (e.g. "Fixed 3 findings: updated 2 pages, created 1 stub")."""
 
 
 class WikiManager:
@@ -618,12 +613,11 @@ class WikiManager:
         """Run the LLM ingest call. Extracted for testability."""
         entity_types = self.get_entity_types()
         entity_types_str = ", ".join(entity_types.keys()) if entity_types else "clients, prospects, contacts, photographers, productions"
-        parser = PydanticOutputParser(pydantic_object=FaragoIngestionResult)
         prompt = ChatPromptTemplate.from_messages([
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
             HumanMessagePromptTemplate.from_template(INGEST_HUMAN_TEMPLATE),
         ])
-        chain = prompt | self.llm | parser
+        chain = prompt | self.llm.with_structured_output(FaragoIngestionResult)
         return await chain.ainvoke({
             "system_prompt": self.system_prompt,
             "index_content": index_content,
@@ -631,7 +625,6 @@ class WikiManager:
             "filename": filename,
             "source_content": source_content,
             "entity_types": entity_types_str,
-            "format_instructions": parser.get_format_instructions(),
         })
 
     async def ingest_source(self, file_name: str):
@@ -823,16 +816,15 @@ class WikiManager:
 
     async def _run_lint_llm(self, wiki_content: str) -> LintReport:
         """Run the LLM lint call. Extracted for testability."""
-        parser = PydanticOutputParser(pydantic_object=LintReport)
         prompt = ChatPromptTemplate.from_messages([
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
             HumanMessagePromptTemplate.from_template(LINT_HUMAN_TEMPLATE),
         ])
-        chain = prompt | self._init_llm("lint") | parser
+        llm = self._init_llm("lint")
+        chain = prompt | llm.with_structured_output(LintReport)
         return await chain.ainvoke({
             "system_prompt": self.system_prompt,
             "wiki_content": wiki_content,
-            "format_instructions": parser.get_format_instructions(),
         })
 
     async def lint(self) -> LintReport:
@@ -927,17 +919,16 @@ class WikiManager:
             f"{i+1}. [{f.fix_confidence.upper()}] {f.description} (page: {f.page})\n   Fix: {f.fix_description}"
             for i, f in enumerate(findings)
         ])
-        parser = PydanticOutputParser(pydantic_object=LintFixPlan)
         prompt = ChatPromptTemplate.from_messages([
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
             HumanMessagePromptTemplate.from_template(FIX_HUMAN_TEMPLATE),
         ])
-        chain = prompt | self._init_llm("fix") | parser
+        llm = self._init_llm("fix")
+        chain = prompt | llm.with_structured_output(LintFixPlan)
         return await chain.ainvoke({
             "system_prompt": self.system_prompt,
             "wiki_content": wiki_content,
             "findings_text": findings_text,
-            "format_instructions": parser.get_format_instructions(),
         })
 
     async def fix_lint_findings(self, findings: List[LintFinding]) -> FixReport:
