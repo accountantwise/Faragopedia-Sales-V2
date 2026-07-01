@@ -3,8 +3,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from api.routes import router as api_router, set_wiki_manager
 from api.setup_routes import setup_router
 from api.export_routes import export_router
@@ -24,6 +25,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def external_api_key_middleware(request: Request, call_next):
+    # cf-connecting-ip is injected by Cloudflare on tunneled requests and is
+    # absent on internal Docker-network calls (e.g. the frontend container).
+    is_external = "cf-connecting-ip" in request.headers
+    is_api_route = request.url.path.startswith("/api/")
+    api_key = os.getenv("FARAGOPEDIA_API_KEY", "")
+
+    if is_external and is_api_route and api_key:
+        key = request.headers.get("x-api-key", "")
+        if key != api_key:
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+    return await call_next(request)
 
 app.include_router(api_router, prefix="/api")
 app.include_router(setup_router, prefix="/api/setup")
