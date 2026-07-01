@@ -28,13 +28,17 @@ app.add_middleware(
 
 @app.middleware("http")
 async def external_api_key_middleware(request: Request, call_next):
-    # cf-connecting-ip is injected by Cloudflare on tunneled requests and is
-    # absent on internal Docker-network calls (e.g. the frontend container).
-    is_external = "cf-connecting-ip" in request.headers
+    # cf-connecting-ip is injected by Cloudflare on ALL tunneled requests,
+    # including normal browser traffic to the main frontend hostname — it
+    # does not distinguish the external Trigger.dev automation from a real
+    # user. Gate only requests arriving on the dedicated external-API
+    # hostname instead.
+    external_hostname = os.getenv("FARAGOPEDIA_API_HOSTNAME", "")
     is_api_route = request.url.path.startswith("/api/")
+    request_host = request.headers.get("host", "").split(":")[0]
     api_key = os.getenv("FARAGOPEDIA_API_KEY", "")
 
-    if is_external and is_api_route and api_key:
+    if external_hostname and is_api_route and request_host == external_hostname and api_key:
         key = request.headers.get("x-api-key", "")
         if key != api_key:
             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})

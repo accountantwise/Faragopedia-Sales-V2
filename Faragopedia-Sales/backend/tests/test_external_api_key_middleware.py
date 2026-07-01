@@ -28,44 +28,88 @@ def client():
     set_wiki_manager(None)
 
 
+EXTERNAL_ENV = {
+    "FARAGOPEDIA_API_KEY": "secret123",
+    "FARAGOPEDIA_API_HOSTNAME": "faragopedia-api.ai-wise.uk",
+}
+
+
 def test_internal_request_bypasses_key_check(client):
-    with patch.dict(os.environ, {"FARAGOPEDIA_API_KEY": "secret123"}):
+    with patch.dict(os.environ, EXTERNAL_ENV):
         res = client.get("/api/pages/metadata")
     assert res.status_code == 200
 
 
+def test_frontend_request_with_cf_header_is_not_gated(client):
+    # Regression test: Cloudflare injects CF-Connecting-IP on ALL tunneled
+    # requests, including normal browser visits to the main frontend
+    # hostname — not just the dedicated external-API hostname. A request
+    # carrying that header but arriving on the frontend's Host must NOT be
+    # blocked, or every real user gets locked out (2026-07-01 incident).
+    with patch.dict(os.environ, EXTERNAL_ENV):
+        res = client.get(
+            "/api/pages/metadata",
+            headers={"CF-Connecting-IP": "1.2.3.4", "Host": "faragopedia.ai-wise.uk"},
+        )
+    assert res.status_code == 200
+
+
 def test_external_request_without_key_is_rejected(client):
-    with patch.dict(os.environ, {"FARAGOPEDIA_API_KEY": "secret123"}):
-        res = client.get("/api/pages/metadata", headers={"CF-Connecting-IP": "1.2.3.4"})
+    with patch.dict(os.environ, EXTERNAL_ENV):
+        res = client.get(
+            "/api/pages/metadata",
+            headers={"CF-Connecting-IP": "1.2.3.4", "Host": "faragopedia-api.ai-wise.uk"},
+        )
     assert res.status_code == 401
 
 
 def test_external_request_with_wrong_key_is_rejected(client):
-    with patch.dict(os.environ, {"FARAGOPEDIA_API_KEY": "secret123"}):
+    with patch.dict(os.environ, EXTERNAL_ENV):
         res = client.get(
             "/api/pages/metadata",
-            headers={"CF-Connecting-IP": "1.2.3.4", "X-API-Key": "wrong"},
+            headers={
+                "CF-Connecting-IP": "1.2.3.4",
+                "Host": "faragopedia-api.ai-wise.uk",
+                "X-API-Key": "wrong",
+            },
         )
     assert res.status_code == 401
 
 
 def test_external_request_with_correct_key_is_allowed(client):
-    with patch.dict(os.environ, {"FARAGOPEDIA_API_KEY": "secret123"}):
+    with patch.dict(os.environ, EXTERNAL_ENV):
         res = client.get(
             "/api/pages/metadata",
-            headers={"CF-Connecting-IP": "1.2.3.4", "X-API-Key": "secret123"},
+            headers={
+                "CF-Connecting-IP": "1.2.3.4",
+                "Host": "faragopedia-api.ai-wise.uk",
+                "X-API-Key": "secret123",
+            },
         )
     assert res.status_code == 200
 
 
 def test_external_request_bypasses_check_when_key_unset(client):
-    with patch.dict(os.environ, {}, clear=False):
+    with patch.dict(os.environ, {"FARAGOPEDIA_API_HOSTNAME": "faragopedia-api.ai-wise.uk"}, clear=False):
         os.environ.pop("FARAGOPEDIA_API_KEY", None)
-        res = client.get("/api/pages/metadata", headers={"CF-Connecting-IP": "1.2.3.4"})
+        res = client.get(
+            "/api/pages/metadata",
+            headers={"CF-Connecting-IP": "1.2.3.4", "Host": "faragopedia-api.ai-wise.uk"},
+        )
+    assert res.status_code == 200
+
+
+def test_external_request_bypasses_check_when_hostname_unset(client):
+    with patch.dict(os.environ, {"FARAGOPEDIA_API_KEY": "secret123"}, clear=False):
+        os.environ.pop("FARAGOPEDIA_API_HOSTNAME", None)
+        res = client.get(
+            "/api/pages/metadata",
+            headers={"CF-Connecting-IP": "1.2.3.4", "Host": "faragopedia-api.ai-wise.uk"},
+        )
     assert res.status_code == 200
 
 
 def test_non_api_route_is_not_gated(client):
-    with patch.dict(os.environ, {"FARAGOPEDIA_API_KEY": "secret123"}):
-        res = client.get("/", headers={"CF-Connecting-IP": "1.2.3.4"})
+    with patch.dict(os.environ, EXTERNAL_ENV):
+        res = client.get("/", headers={"CF-Connecting-IP": "1.2.3.4", "Host": "faragopedia-api.ai-wise.uk"})
     assert res.status_code == 200
