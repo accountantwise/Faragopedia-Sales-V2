@@ -198,8 +198,13 @@ async def paste_source(payload: dict):
     if not content or not content.strip():
         raise HTTPException(status_code=422, detail="Content is required")
 
+    explicit_filename = (payload.get("filename") or "").strip()
     name = (payload.get("name") or "").strip()
-    if name:
+    if explicit_filename:
+        # Caller (e.g. an external automation) chose the full filename,
+        # extension included — honor it verbatim rather than forcing .txt.
+        filename = secure_filename(explicit_filename)
+    elif name:
         filename = secure_filename(name)
         if not filename.endswith(".txt"):
             filename += ".txt"

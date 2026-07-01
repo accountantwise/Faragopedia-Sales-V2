@@ -75,6 +75,42 @@ def test_paste_source_empty_content():
     assert response.status_code == 422
 
 
+def test_paste_source_with_explicit_filename(tmp_path):
+    # External automations (e.g. Trigger.dev) send a full filename with its
+    # own extension already chosen — it must be honored verbatim, not have
+    # .txt forced onto it like the "name" field used by the paste UI.
+    with patch("api.routes.get_sources_dir", return_value=str(tmp_path)):
+        response = client.post(
+            "/api/paste",
+            json={"content": "CRM notes", "filename": "crm-john-doe-acme.md"},
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["filename"] == "crm-john-doe-acme.md"
+    assert (tmp_path / "crm-john-doe-acme.md").read_text(encoding="utf-8") == "CRM notes"
+
+
+def test_paste_source_explicit_filename_takes_precedence_over_name(tmp_path):
+    with patch("api.routes.get_sources_dir", return_value=str(tmp_path)):
+        response = client.post(
+            "/api/paste",
+            json={"content": "x", "filename": "explicit.md", "name": "ignored"},
+        )
+    assert response.status_code == 200
+    assert response.json()["filename"] == "explicit.md"
+
+
+def test_paste_source_explicit_filename_is_sanitized(tmp_path):
+    with patch("api.routes.get_sources_dir", return_value=str(tmp_path)):
+        response = client.post(
+            "/api/paste",
+            json={"content": "x", "filename": "../../etc/passwd.md"},
+        )
+    assert response.status_code == 200
+    assert response.json()["filename"] == "passwd.md"
+    assert (tmp_path / "passwd.md").exists()
+
+
 # ── Scrape URLs endpoint ──────────────────────────────────────────────────────
 
 def test_scrape_urls_starts_background_jobs():
