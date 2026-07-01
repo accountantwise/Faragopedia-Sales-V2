@@ -46,6 +46,7 @@ current direction.
 | Search Engine      | Client-side JSON Index| —        |
 | Linting System     | AI-powered + Snapshots| —        |
 | Tagging System     | Frontmatter + Shared  | —        |
+| External API Auth  | Cloudflare Access (Service Token) + backend API-key middleware | [ADR 0003](docs/decisions/0003-external-api-exposure-auth.md) |
 
 ---
 
