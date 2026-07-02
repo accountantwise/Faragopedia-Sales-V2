@@ -188,7 +188,10 @@ class WikiManager:
                 os.makedirs(d, exist_ok=True)
 
         bootstrap_type_yamls(self.wiki_dir)
-        self.rebuild_schema()
+        try:
+            self.rebuild_schema()
+        except FileNotFoundError:
+            pass  # No SCHEMA_TEMPLATE.md yet — schema_dir not fully set up
 
         # Build search index on startup if missing
         index_path = os.path.join(self.wiki_dir, "search-index.json")
@@ -1053,7 +1056,10 @@ class WikiManager:
         """Regenerate SCHEMA.md from SCHEMA_TEMPLATE.md and _type.yaml files."""
         template_path = os.path.join(self.schema_dir, "SCHEMA_TEMPLATE.md")
         if not os.path.exists(template_path):
-            return  # No template yet, skip
+            # WikiManager is only constructed post-setup, by which point setup_wizard
+            # guarantees SCHEMA_TEMPLATE.md exists — a missing template here means the
+            # workspace is corrupted, so fail loud instead of leaving SCHEMA.md stale.
+            raise FileNotFoundError(f"SCHEMA_TEMPLATE.md not found in {self.schema_dir}")
         schema_content = build_schema_md(self.wiki_dir, template_path)
         schema_path = os.path.join(self.schema_dir, "SCHEMA.md")
         with open(schema_path, "w", encoding="utf-8") as f:

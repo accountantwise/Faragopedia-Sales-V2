@@ -21,20 +21,22 @@ def wiki_env(tmp_path):
     sources = tmp_path / "sources"
     wiki = tmp_path / "wiki"
     archive = tmp_path / "archive"
+    schema = tmp_path / "schema"
     sources.mkdir()
     wiki.mkdir()
+    schema.mkdir()
     # Create a clients entity folder with _type.yaml
     clients = wiki / "clients"
     clients.mkdir()
     (clients / "_type.yaml").write_text(
         yaml.dump({"name": "Clients", "singular": "client", "fields": [], "sections": []})
     )
-    return str(sources), str(wiki), str(archive)
+    return str(sources), str(wiki), str(archive), str(schema)
 
 
 def make_manager(wiki_env):
-    sources, wiki, archive = wiki_env
-    return WikiManager(sources_dir=sources, wiki_dir=wiki, archive_dir=archive)
+    sources, wiki, archive, schema = wiki_env
+    return WikiManager(sources_dir=sources, wiki_dir=wiki, archive_dir=archive, schema_dir=schema)
 
 
 def write_page(wiki_dir, rel_path, content):
@@ -88,7 +90,7 @@ def test_strip_markdown(wiki_env):
 # ── Search index builder ──────────────────────────────────────────────────────
 
 def test_rebuild_search_index_creates_file(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     write_page(wiki, "clients/acme-corp.md",
                "---\ntype: client\nname: Acme Corp\ntags:\n- wedding\n---\n\n# Acme Corp\n\nContent here.")
@@ -107,7 +109,7 @@ def test_rebuild_search_index_creates_file(wiki_env):
 
 
 def test_rebuild_search_index_includes_sources(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     src_file = os.path.join(sources, "brief.pdf")
     with open(src_file, "w") as f:
@@ -128,7 +130,7 @@ def test_rebuild_search_index_includes_sources(wiki_env):
 
 
 def test_init_creates_index_if_missing(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     write_page(wiki, "clients/test.md",
                "---\nname: Test\ntags: []\n---\n\n# Test\n\nHello.")
     # Index should not exist yet
@@ -141,7 +143,7 @@ def test_init_creates_index_if_missing(wiki_env):
 
 @pytest.mark.asyncio
 async def test_save_page_content_rebuilds_index(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     write_page(wiki, "clients/acme.md",
                "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nOld content.")
@@ -157,7 +159,7 @@ async def test_save_page_content_rebuilds_index(wiki_env):
 
 @pytest.mark.asyncio
 async def test_archive_page_removes_from_index(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     write_page(wiki, "clients/gone.md",
                "---\nname: Gone\ntags: []\n---\n\n# Gone\n\nContent.")
@@ -172,7 +174,7 @@ async def test_archive_page_removes_from_index(wiki_env):
 
 @pytest.mark.asyncio
 async def test_restore_page_adds_to_index(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     write_page(wiki, "clients/restored.md",
                "---\nname: Restored\ntags: []\n---\n\n# Restored\n\nContent.")
@@ -189,7 +191,7 @@ async def test_restore_page_adds_to_index(wiki_env):
 
 @pytest.mark.asyncio
 async def test_update_page_tags_writes_frontmatter(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     write_page(wiki, "clients/acme.md",
                "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nContent.")
@@ -203,7 +205,7 @@ async def test_update_page_tags_writes_frontmatter(wiki_env):
 
 @pytest.mark.asyncio
 async def test_update_page_tags_rebuilds_index(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     write_page(wiki, "clients/acme.md",
                "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nContent.")
@@ -217,7 +219,7 @@ async def test_update_page_tags_rebuilds_index(wiki_env):
 
 
 def test_update_source_tags_writes_metadata(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     src = os.path.join(sources, "brief.txt")
     with open(src, "w") as f:
@@ -231,7 +233,7 @@ def test_update_source_tags_writes_metadata(wiki_env):
 
 
 def test_update_source_tags_rebuilds_index(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     src = os.path.join(sources, "brief.txt")
     with open(src, "w") as f:
@@ -247,7 +249,7 @@ def test_update_source_tags_rebuilds_index(wiki_env):
 
 
 def test_get_sources_metadata_includes_tags_default(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     src = os.path.join(sources, "file.txt")
     with open(src, "w") as f:
@@ -286,7 +288,7 @@ async def test_suggest_tags_returns_empty_on_error(wiki_env):
 
 @pytest.mark.asyncio
 async def test_save_page_content_returns_new_suggestions(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     write_page(wiki, "clients/acme.md",
                "---\nname: Acme\ntags: []\n---\n\n# Acme\n\nContent.")
@@ -306,7 +308,7 @@ async def test_save_page_content_returns_new_suggestions(wiki_env):
 
 @pytest.mark.asyncio
 async def test_save_page_content_excludes_existing_tags_from_suggestions(wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     manager = make_manager(wiki_env)
     write_page(wiki, "clients/acme.md",
                "---\nname: Acme\ntags:\n- wedding\n---\n\n# Acme\n\nContent.")
@@ -330,7 +332,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client(wiki_env, monkeypatch):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, schema = wiki_env
     monkeypatch.setenv("OPENAI_API_KEY", "test_key")
     monkeypatch.setenv("AI_PROVIDER", "openai")
     monkeypatch.setenv("AI_MODEL", "gpt-4o-mini")
@@ -339,7 +341,7 @@ def client(wiki_env, monkeypatch):
     monkeypatch.setattr("api.routes.get_sources_dir", lambda: sources)
     monkeypatch.setattr("api.routes.get_wiki_dir", lambda: wiki)
     monkeypatch.setattr("api.routes.get_archive_dir", lambda: archive)
-    r.set_wiki_manager(WikiManager(sources_dir=sources, wiki_dir=wiki, archive_dir=archive))
+    r.set_wiki_manager(WikiManager(sources_dir=sources, wiki_dir=wiki, archive_dir=archive, schema_dir=schema))
 
     from fastapi import FastAPI
     app = FastAPI()
@@ -348,7 +350,7 @@ def client(wiki_env, monkeypatch):
 
 
 def test_get_search_index(client, wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     write_page(wiki, "clients/test.md",
                "---\nname: Test\ntags:\n- foo\n---\n\n# Test\n\nContent.")
     import api.routes as r
@@ -362,7 +364,7 @@ def test_get_search_index(client, wiki_env):
 
 
 def test_get_tags(client, wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     write_page(wiki, "clients/test.md",
                "---\nname: Test\ntags:\n- foo\n- bar\n---\n\n# Test\n\nContent.")
     import api.routes as r
@@ -376,7 +378,7 @@ def test_get_tags(client, wiki_env):
 
 
 def test_patch_page_tags(client, wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     write_page(wiki, "clients/test.md",
                "---\nname: Test\ntags: []\n---\n\n# Test\n\nContent.")
 
@@ -390,7 +392,7 @@ def test_patch_page_tags(client, wiki_env):
 
 
 def test_patch_source_tags(client, wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     src_path = os.path.join(sources, "file.txt")
     with open(src_path, "w") as f:
         f.write("content")
@@ -403,7 +405,7 @@ def test_patch_source_tags(client, wiki_env):
 
 
 def test_put_page_returns_suggested_tags(client, wiki_env):
-    sources, wiki, archive = wiki_env
+    sources, wiki, archive, _schema = wiki_env
     write_page(wiki, "clients/test.md",
                "---\nname: Test\ntags: []\n---\n\n# Test\n\nContent.")
 
