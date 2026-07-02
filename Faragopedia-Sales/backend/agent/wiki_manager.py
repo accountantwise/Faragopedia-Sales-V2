@@ -179,6 +179,7 @@ class WikiManager:
         )
         self.system_prompt = self._load_system_prompt()
         self.llm = llm if llm else self._init_llm()
+        self.ingest_llm = llm if llm else self._init_llm("ingest")
         self._write_lock = asyncio.Lock()
 
         for d in [self.sources_dir, self.wiki_dir, self.archive_dir,
@@ -617,7 +618,7 @@ class WikiManager:
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
             HumanMessagePromptTemplate.from_template(INGEST_HUMAN_TEMPLATE),
         ])
-        chain = prompt | self.llm.with_structured_output(FaragoIngestionResult)
+        chain = prompt | self.ingest_llm.with_structured_output(FaragoIngestionResult)
         return await chain.ainvoke({
             "system_prompt": self.system_prompt,
             "index_content": index_content,
@@ -923,7 +924,7 @@ class WikiManager:
             SystemMessagePromptTemplate.from_template("{system_prompt}"),
             HumanMessagePromptTemplate.from_template(FIX_HUMAN_TEMPLATE),
         ])
-        llm = self._init_llm("fix")
+        llm = self._init_llm("lint")
         chain = prompt | llm.with_structured_output(LintFixPlan)
         return await chain.ainvoke({
             "system_prompt": self.system_prompt,

@@ -1,7 +1,7 @@
 # ADR 0002: Per-Operation AI Model Routing
 
 **Date:** 2026-05-19
-**Status:** Accepted
+**Status:** Accepted (partially superseded by ADR 0004 — `FIX_AI_*` was merged into `LINT_AI_*`, and ingest gained its own `INGEST_AI_*` override)
 
 ## Context
 

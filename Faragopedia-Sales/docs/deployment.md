@@ -9,8 +9,10 @@ The following variables can be configured in your `.env` file or passed as envir
 ### AI Configuration
 | Variable | Description | Default |
 | :--- | :--- | :--- |
-| `AI_PROVIDER` | The LLM provider (`openai`, `anthropic`, `google`, `openrouter`) | `openai` |
-| `AI_MODEL` | The specific model to use (e.g., `gpt-4o-mini`, `claude-3-5-sonnet-20240620`) | `gpt-4o-mini` |
+| `AI_PROVIDER` | The default LLM provider (`openai`, `anthropic`, `google`, `openrouter`) — used for query and any operation without its own override | `openai` |
+| `AI_MODEL` | The default model (e.g., `gpt-4o-mini`, `claude-3-5-sonnet-20240620`) | `gpt-4o-mini` |
+| `INGEST_AI_PROVIDER` / `INGEST_AI_MODEL` | Optional override used only for source ingestion. Omit to fall back to `AI_PROVIDER`/`AI_MODEL`. | - |
+| `LINT_AI_PROVIDER` / `LINT_AI_MODEL` | Optional override used for both wiki linting and applying lint fixes. Omit to fall back to `AI_PROVIDER`/`AI_MODEL`. | - |
 | `OPENAI_API_KEY` | Your OpenAI API key | - |
 | `ANTHROPIC_API_KEY` | Your Anthropic API key | - |
 | `GOOGLE_API_KEY` | Your Google AI (Gemini) API key | - |
