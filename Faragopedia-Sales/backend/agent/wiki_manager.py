@@ -13,6 +13,7 @@ from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import Runnable
 
 class _LLMProxy(Runnable):
@@ -84,15 +85,19 @@ class Snapshot(BaseModel):
     file_count: int = Field(description="Number of wiki files captured in the snapshot")
 
 
-INGEST_HUMAN_TEMPLATE = """You are ingesting a new source document into the Farago Projects wiki.
+# Split so the (largely stable, often-reused) wiki-context portion can carry
+# a prompt-caching breakpoint separately from the (always-different) source
+# document and instructions. Concatenated with "\n\n" these reproduce the
+# original single-block template byte-for-byte.
+INGEST_HUMAN_TEMPLATE_PREFIX = """You are ingesting a new source document into the Farago Projects wiki.
 
 Current wiki index:
 {index_content}
 
 Existing pages that may need updating:
-{existing_pages}
+{existing_pages}"""
 
-Source document filename: {filename}
+INGEST_HUMAN_TEMPLATE_SUFFIX = """Source document filename: {filename}
 Source document content:
 {source_content}
 
@@ -611,25 +616,50 @@ class WikiManager:
         with open(index_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
+    def _supports_cache_control(self, operation: str = None) -> bool:
+        """cache_control content blocks are an Anthropic-specific extension.
+
+        Only Anthropic (native, or routed through OpenRouter to an Anthropic
+        model) is known to honor them — other providers may reject the extra
+        field outright, so default to plain string content for everyone else.
+        """
+        prefix = f"{operation.upper()}_" if operation else ""
+        provider = (os.getenv(f"{prefix}AI_PROVIDER") or os.getenv("AI_PROVIDER", "openai")).lower()
+        model = os.getenv(f"{prefix}AI_MODEL") or os.getenv("AI_MODEL", "gpt-4o-mini")
+        if provider == "anthropic":
+            return True
+        if provider == "openrouter" and model.startswith("anthropic/"):
+            return True
+        return False
+
     async def _run_ingest_llm(
         self, filename: str, source_content: str, index_content: str, existing_pages: str
     ) -> FaragoIngestionResult:
         """Run the LLM ingest call. Extracted for testability."""
         entity_types = self.get_entity_types()
         entity_types_str = ", ".join(entity_types.keys()) if entity_types else "clients, prospects, contacts, photographers, productions"
-        prompt = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template("{system_prompt}"),
-            HumanMessagePromptTemplate.from_template(INGEST_HUMAN_TEMPLATE),
-        ])
-        chain = prompt | self.ingest_llm.with_structured_output(FaragoIngestionResult)
-        return await chain.ainvoke({
-            "system_prompt": self.system_prompt,
-            "index_content": index_content,
-            "existing_pages": existing_pages,
-            "filename": filename,
-            "source_content": source_content,
-            "entity_types": entity_types_str,
-        })
+
+        prefix_text = INGEST_HUMAN_TEMPLATE_PREFIX.format(
+            index_content=index_content, existing_pages=existing_pages
+        )
+        suffix_text = INGEST_HUMAN_TEMPLATE_SUFFIX.format(
+            filename=filename, source_content=source_content, entity_types=entity_types_str
+        )
+
+        if self._supports_cache_control("ingest"):
+            system_message = SystemMessage(content=[
+                {"type": "text", "text": self.system_prompt, "cache_control": {"type": "ephemeral"}},
+            ])
+            human_message = HumanMessage(content=[
+                {"type": "text", "text": prefix_text, "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": suffix_text},
+            ])
+        else:
+            system_message = SystemMessage(content=self.system_prompt)
+            human_message = HumanMessage(content=f"{prefix_text}\n\n{suffix_text}")
+
+        structured_llm = self.ingest_llm.with_structured_output(FaragoIngestionResult)
+        return await structured_llm.ainvoke([system_message, human_message])
 
     async def ingest_source(self, file_name: str):
         """Phase 1: Read file and call LLM (concurrent). Phase 2: Write files (serialized)."""

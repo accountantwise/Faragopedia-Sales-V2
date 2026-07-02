@@ -621,6 +621,121 @@ async def test_ingest_retries_on_llm_failure(tmp_path):
     assert (wiki / "clients" / "test.md").exists()
 
 
+class _CapturingLLM:
+    """Fake LLM that records the messages passed to a structured-output call."""
+
+    def __init__(self):
+        self.captured_messages = None
+
+    def with_structured_output(self, schema):
+        return self
+
+    async def ainvoke(self, messages):
+        self.captured_messages = messages
+        return FaragoIngestionResult(pages=[], log_entry="ok")
+
+
+def _make_ingest_manager(tmp_path, fake_llm):
+    schema_dir = tmp_path / "schema"
+    schema_dir.mkdir()
+    (schema_dir / "SCHEMA.md").write_text("# Schema")
+    (schema_dir / "company_profile.md").write_text("# Profile")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+
+    with patch('agent.wiki_manager.WikiManager._init_llm', return_value=fake_llm):
+        return WikiManager(
+            sources_dir=str(tmp_path / "sources"),
+            wiki_dir=str(wiki),
+            schema_dir=str(schema_dir),
+        )
+
+
+@pytest.mark.asyncio
+async def test_ingest_uses_cache_control_for_anthropic_provider(tmp_path):
+    fake_llm = _CapturingLLM()
+    with patch.dict(os.environ, {"INGEST_AI_PROVIDER": "anthropic", "INGEST_AI_MODEL": "claude-haiku-4-5"}):
+        manager = _make_ingest_manager(tmp_path, fake_llm)
+        await manager._run_ingest_llm(
+            filename="brief.txt",
+            source_content="Some source text.",
+            index_content="# Index",
+            existing_pages="--- clients/acme.md ---\n# Acme",
+        )
+
+    system_message, human_message = fake_llm.captured_messages
+
+    assert isinstance(system_message.content, list)
+    assert system_message.content[0]["cache_control"] == {"type": "ephemeral"}
+    assert system_message.content[0]["text"] == manager.system_prompt
+
+    assert isinstance(human_message.content, list)
+    assert human_message.content[0]["cache_control"] == {"type": "ephemeral"}
+    assert "Current wiki index" in human_message.content[0]["text"]
+    assert "# Index" in human_message.content[0]["text"]
+    assert "Existing pages that may need updating" in human_message.content[0]["text"]
+    assert "clients/acme.md" in human_message.content[0]["text"]
+
+    assert "cache_control" not in human_message.content[1]
+    assert "Source document filename: brief.txt" in human_message.content[1]["text"]
+    assert "Some source text." in human_message.content[1]["text"]
+    assert "Instructions:" in human_message.content[1]["text"]
+
+
+@pytest.mark.asyncio
+async def test_ingest_uses_cache_control_for_openrouter_anthropic_model(tmp_path):
+    fake_llm = _CapturingLLM()
+    with patch.dict(os.environ, {"INGEST_AI_PROVIDER": "openrouter", "INGEST_AI_MODEL": "anthropic/claude-sonnet-4.6"}):
+        manager = _make_ingest_manager(tmp_path, fake_llm)
+        await manager._run_ingest_llm(
+            filename="brief.txt", source_content="x", index_content="# Index", existing_pages=""
+        )
+
+    system_message, human_message = fake_llm.captured_messages
+    assert isinstance(system_message.content, list)
+    assert system_message.content[0]["cache_control"] == {"type": "ephemeral"}
+    assert isinstance(human_message.content, list)
+    assert human_message.content[0]["cache_control"] == {"type": "ephemeral"}
+
+
+@pytest.mark.asyncio
+async def test_ingest_no_cache_control_for_openrouter_non_anthropic_model(tmp_path):
+    fake_llm = _CapturingLLM()
+    with patch.dict(os.environ, {"INGEST_AI_PROVIDER": "openrouter", "INGEST_AI_MODEL": "meta-llama/llama-3-70b-instruct"}):
+        manager = _make_ingest_manager(tmp_path, fake_llm)
+        await manager._run_ingest_llm(
+            filename="brief.txt", source_content="x", index_content="# Index", existing_pages=""
+        )
+
+    system_message, human_message = fake_llm.captured_messages
+    assert isinstance(system_message.content, str)
+    assert isinstance(human_message.content, str)
+
+
+@pytest.mark.asyncio
+async def test_ingest_no_cache_control_for_default_provider(tmp_path):
+    """Explicitly force a non-Anthropic provider — don't rely on INGEST_AI_PROVIDER
+    being merely absent, since main.py's load_dotenv() can leak the real .env's
+    INGEST_AI_PROVIDER=openrouter into the test process when other test modules
+    import main first."""
+    fake_llm = _CapturingLLM()
+    with patch.dict(os.environ, {"INGEST_AI_PROVIDER": "openai", "INGEST_AI_MODEL": "gpt-4o-mini"}):
+        manager = _make_ingest_manager(tmp_path, fake_llm)
+        await manager._run_ingest_llm(
+            filename="brief.txt", source_content="Some source text.", index_content="# Index", existing_pages="existing"
+        )
+
+    system_message, human_message = fake_llm.captured_messages
+    assert system_message.content == manager.system_prompt
+    assert isinstance(human_message.content, str)
+    assert "Current wiki index" in human_message.content
+    assert "# Index" in human_message.content
+    assert "existing" in human_message.content
+    assert "Source document filename: brief.txt" in human_message.content
+    assert "Some source text." in human_message.content
+    assert "Instructions:" in human_message.content
+
+
 @pytest.mark.asyncio
 async def test_query_uses_system_prompt(tmp_path):
     schema_dir = tmp_path / "schema"
