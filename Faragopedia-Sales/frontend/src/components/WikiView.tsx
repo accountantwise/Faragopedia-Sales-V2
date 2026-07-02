@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
-import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, FilePlus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, ListChecks, MoveRight, List, Upload, Archive } from 'lucide-react';
+import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, FilePlus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, ListChecks, MoveRight, List, Upload } from 'lucide-react';
 
 import ChatPanel from './ChatPanel';
 import ImportWikiModal from './ImportWikiModal';
@@ -1109,16 +1109,16 @@ const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead }) =>
                 </button>
                 <button
                   onClick={handleBulkDownloadPages}
-                  className="flex items-center justify-center gap-1 text-xs py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 shadow-sm transition-all font-bold"
+                  className="flex items-center justify-center gap-2 text-xs py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 shadow-sm transition-all font-bold"
                 >
-                  <Download className="w-3 h-3 shrink-0" />
+                  <Download className="w-3.5 h-3.5" />
                   Download
                 </button>
                 <button
                   onClick={() => setShowConfirm(true)}
-                  className="flex items-center justify-center gap-2 text-xs py-2 bg-amber-700 text-white rounded-lg hover:bg-amber-600 shadow-sm transition-all font-bold"
+                  className="flex items-center justify-center gap-2 text-xs py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 shadow-sm transition-all font-bold"
                 >
-                  <Archive className="w-3.5 h-3.5" />
+                  <Trash2 className="w-3.5 h-3.5" />
                   Archive
                 </button>
               </div>
@@ -1825,7 +1825,7 @@ const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead }) =>
                   </button>
                   <button
                     onClick={() => { setShowConfirm(true); setShowActionMenu(false); }}
-                    className="w-full flex justify-center items-center py-3 bg-amber-700 text-white rounded-2xl font-bold"
+                    className="w-full flex justify-center items-center py-3 bg-red-600 text-white rounded-2xl font-bold"
                   >
                     Bulk Archive
                   </button>
