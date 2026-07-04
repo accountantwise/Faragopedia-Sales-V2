@@ -387,12 +387,21 @@ const LinkView: React.FC = () => {
         </div>
 
         {/* Reading panel — slides in from the right when a page is focused */}
+        {/* Slide transform + visibility live in inline styles, not Tailwind
+            classes: prod serves CSS through a CDN cache, and a stale
+            stylesheet missing a class new to this component would leave the
+            closed panel parked over the whole map. Inline styles can't go
+            stale independently of the component. max-w-md (28rem) is used
+            app-wide, so it exists in any cached stylesheet. */}
         <aside
           onClick={(e) => e.stopPropagation()}
           aria-hidden={!focusId}
-          className={`absolute inset-y-0 right-0 z-20 w-full sm:w-[28rem] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out ${
-            focusId ? 'translate-x-0' : 'translate-x-full'
-          }`}
+          style={{
+            transform: focusId ? 'translateX(0)' : 'translateX(100%)',
+            visibility: focusId ? 'visible' : 'hidden',
+            transition: 'transform 300ms ease-in-out, visibility 300ms',
+          }}
+          className="absolute inset-y-0 right-0 z-20 w-full max-w-md bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col"
         >
           <div className="shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-start justify-between gap-3">
             <div className="min-w-0">
