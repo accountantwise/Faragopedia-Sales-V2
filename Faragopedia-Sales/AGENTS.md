@@ -47,6 +47,7 @@ current direction.
 | Linting System     | AI-powered + Snapshots| —        |
 | Tagging System     | Frontmatter + Shared  | —        |
 | External API Auth  | Cloudflare Access (Service Token) + backend API-key middleware | [ADR 0003](docs/decisions/0003-external-api-exposure-auth.md) |
+| Link View (Graph)  | Single-pass `GET /pages/graph` + hand-rolled SVG (no graph lib) | [ADR 0005](docs/decisions/0005-link-view-graph-architecture.md) |
 
 ---
 
@@ -109,7 +110,7 @@ current direction.
 24. **Execute Entity Type Templates plan (Tasks 1–5)** — pure backend; spec + plan in `docs/superpowers/`; `main` branch
 25. **Add "estimated time remaining" to Lint View**
 26. **Monitor snapshot storage / add auto-pruning**
-27. **Implement Graph View**
+27. ~~Implement Graph View~~ ✅ (2026-07-04) — shipped as **Link View** on branch `link-view` (deployed to production): grouped-grid wikilink map (not force-directed), hover/focus connection curves, docked reading panel, content search. Backend `GET /pages/graph` builds the whole graph in one pass (ADR 0005). Verified with 35/35 browser checks in light + dark.
 28. ~~Execute Web Search Sources plan (Faragopedia side)~~ ✅ (2026-05-19) — merged to `main`; 9 new tests passing; Phase 2 smoke test passed end-to-end. Wisecrawler-side `POST /v1/search` deployed with `BRAVE_API_KEY`. Known limitation: JS-rendered/auth-gated URLs (LinkedIn, paywalled sites) fail at Wisecrawler's analyze step — pre-existing crawler behaviour, not a web-search bug.
 
 
