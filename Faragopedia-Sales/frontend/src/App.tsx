@@ -5,6 +5,7 @@ import WikiView from './components/WikiView';
 import SourcesView from './components/SourcesView';
 import ArchiveView from './components/ArchiveView';
 import LintView from './components/LintView';
+import LinkView from './components/LinkView';
 import { Loader2, MessageSquare, Send, Menu, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { API_BASE } from './config';
@@ -406,6 +407,8 @@ const App: React.FC = () => {
         return <ArchiveView key={activeWorkspaceId} />;
       case 'Lint':
         return <LintView key={activeWorkspaceId} />;
+      case 'Links':
+        return <LinkView key={activeWorkspaceId} />;
       default:
         return <div className="p-8">Select a view</div>;
     }

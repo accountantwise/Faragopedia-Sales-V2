@@ -1492,6 +1492,59 @@ class WikiManager:
 
         return sorted(backlinks)
 
+    def get_link_graph(self) -> dict:
+        """Build the full wikilink graph in a single pass over the wiki.
+
+        Returns all pages as nodes, deduplicated wikilink edges whose target
+        resolves to an existing page, and the entity types as groups — so the
+        frontend can render the whole crosslink structure without calling
+        get_backlinks() per page (which re-scans every file per call).
+        """
+        wiki_link_pattern = re.compile(r"\[\[(.*?)\]\]")
+        entity_types = self.get_entity_types()
+        pages = [
+            p for p in self.list_pages()
+            if len(p.split("/")) == 2 and p.split("/")[0] in entity_types
+        ]
+        page_set = set(pages)
+
+        nodes = []
+        edges = []
+        seen_edges = set()
+        for rel_path in pages:
+            try:
+                content = self.get_page_content(rel_path)
+            except (OSError, FileNotFoundError):
+                continue
+            frontmatter, _ = self._parse_frontmatter(content)
+            title = frontmatter.get("name")
+            if not isinstance(title, str) or not title.strip():
+                stem = rel_path.rsplit("/", 1)[-1][:-3]
+                title = stem.replace("-", " ").replace("_", " ").title()
+            nodes.append({
+                "id": rel_path,
+                "title": title.strip(),
+                "group": rel_path.split("/")[0],
+            })
+            for link in wiki_link_pattern.findall(content):
+                target = link.strip()
+                target_path = target if target.endswith(".md") else f"{target}.md"
+                if target_path in page_set and target_path != rel_path:
+                    key = (rel_path, target_path)
+                    if key not in seen_edges:
+                        seen_edges.add(key)
+                        edges.append({"source": rel_path, "target": target_path})
+
+        groups = [
+            {
+                "id": folder,
+                "name": data.get("name") or folder.replace("-", " ").title(),
+                "description": data.get("description", "") or "",
+            }
+            for folder, data in entity_types.items()
+        ]
+        return {"nodes": nodes, "edges": edges, "groups": groups}
+
     async def save_page_content(self, page_path: str, content: str) -> list[str]:
         """
         Save content to a wiki page and log the action.
