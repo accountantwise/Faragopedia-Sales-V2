@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
-import { Loader2, Network, X, FileText } from 'lucide-react';
+import { Loader2, Network, X, FileText, Search } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { API_BASE } from '../config';
 
@@ -42,6 +42,10 @@ const GROUP_PALETTE = [
   { dot: 'bg-cyan-500', title: 'text-cyan-600 dark:text-cyan-400', stroke: '#0891b2', strokeDark: '#22d3ee' },
 ];
 
+// Docked reading-panel width; also used for the inner content so text does
+// not reflow while the panel's outer width animates open/closed.
+const PANEL_WIDTH = 'min(28rem, 85vw)';
+
 const splitFrontmatter = (raw: string): { fields: [string, string][]; body: string } => {
   const match = raw.replace(/\r\n/g, '\n').match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!match) return { fields: [], body: raw };
@@ -67,10 +71,13 @@ const LinkView: React.FC = () => {
   const [pageContent, setPageContent] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [searchHaystacks, setSearchHaystacks] = useState<Map<string, string>>(new Map());
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const panelBodyRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Hover takes display priority so hovering always responds, even while a
   // page is focused — a lingering focus must never make hover look dead.
@@ -90,22 +97,44 @@ const LinkView: React.FC = () => {
         setLoading(false);
       }
     };
+    // Search index powers content search; non-fatal if unavailable (search
+    // then falls back to matching titles/paths only).
+    const fetchIndex = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/search/index`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const map = new Map<string, string>();
+        for (const p of data.pages ?? []) {
+          const fmValues = Object.values(p.frontmatter ?? {}).map(v => String(v)).join(' ');
+          map.set(p.path, `${p.title} ${p.path} ${(p.tags ?? []).join(' ')} ${fmValues} ${p.content_preview ?? ''}`.toLowerCase());
+        }
+        setSearchHaystacks(map);
+      } catch {
+        // non-fatal
+      }
+    };
     fetchGraph();
+    fetchIndex();
   }, []);
 
-  // Escape resets hover + focus (and thereby closes the reading panel)
+  // Escape resets hover + focus (and thereby closes the reading panel).
+  // Inputs handle their own Escape (clear the search) — skip those here.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setFocusId(null);
-        setHoverId(null);
-      }
+      if (e.key !== 'Escape') return;
+      if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+      setFocusId(null);
+      setHoverId(null);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Chip positions shift when the window or sidebar resizes — remeasure curves
+  // Chip positions shift when the window, sidebar, or reading panel resizes
+  // the map area — remeasure curves whenever the wrapper changes size.
+  // Keyed on `loading`: during the initial loading spinner the wrapper is
+  // not mounted yet, so observing on first mount alone would observe nothing.
   useEffect(() => {
     const bump = () => setMeasureTick(t => t + 1);
     window.addEventListener('resize', bump);
@@ -115,7 +144,7 @@ const LinkView: React.FC = () => {
       window.removeEventListener('resize', bump);
       observer.disconnect();
     };
-  }, []);
+  }, [loading]);
 
   // Track theme changes so SVG stroke hexes follow light/dark
   useEffect(() => {
@@ -157,18 +186,46 @@ const LinkView: React.FC = () => {
     };
   }, [focusId]);
 
-  // Undirected adjacency: hover/focus highlights pages this page links to
-  // AND pages that link to it, matching how backlinks read in the wiki.
+  // Content search: keep only nodes whose indexed text matches the query.
+  const visibleIds = useMemo(() => {
+    if (!graph) return new Set<string>();
+    const q = query.trim().toLowerCase();
+    if (!q) return new Set(graph.nodes.map(n => n.id));
+    const set = new Set<string>();
+    for (const node of graph.nodes) {
+      const haystack = searchHaystacks.get(node.id) ?? `${node.title} ${node.id}`.toLowerCase();
+      if (haystack.includes(q)) set.add(node.id);
+    }
+    return set;
+  }, [graph, query, searchHaystacks]);
+
+  const visibleNodes = useMemo(
+    () => graph?.nodes.filter(n => visibleIds.has(n.id)) ?? [],
+    [graph, visibleIds],
+  );
+  const visibleEdges = useMemo(
+    () => graph?.edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target)) ?? [],
+    [graph, visibleIds],
+  );
+
+  // If the search filters out the hovered/focused page, drop that state so
+  // no curves point at chips that are no longer rendered.
+  useEffect(() => {
+    if (hoverId && !visibleIds.has(hoverId)) setHoverId(null);
+    if (focusId && !visibleIds.has(focusId)) setFocusId(null);
+  }, [visibleIds, hoverId, focusId]);
+
+  // Undirected adjacency over the visible subgraph: hover/focus highlights
+  // pages this page links to AND pages that link to it.
   const neighbors = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    if (!graph) return map;
-    for (const node of graph.nodes) map.set(node.id, new Set());
-    for (const edge of graph.edges) {
+    for (const node of visibleNodes) map.set(node.id, new Set());
+    for (const edge of visibleEdges) {
       map.get(edge.source)?.add(edge.target);
       map.get(edge.target)?.add(edge.source);
     }
     return map;
-  }, [graph]);
+  }, [visibleNodes, visibleEdges]);
 
   const groupIndex = useMemo(() => {
     const map = new Map<string, number>();
@@ -186,13 +243,13 @@ const LinkView: React.FC = () => {
     const map = new Map<string, GraphNode[]>();
     if (!graph) return map;
     for (const group of graph.groups) map.set(group.id, []);
-    for (const node of graph.nodes) {
+    for (const node of visibleNodes) {
       if (!map.has(node.group)) map.set(node.group, []);
       map.get(node.group)!.push(node);
     }
     for (const list of map.values()) list.sort((a, b) => a.title.localeCompare(b.title));
     return map;
-  }, [graph]);
+  }, [graph, visibleNodes]);
 
   const nodeById = useMemo(() => {
     const map = new Map<string, GraphNode>();
@@ -294,22 +351,63 @@ const LinkView: React.FC = () => {
   const dimChrome = mode !== 'rest';
   const focusedNode = focusId ? nodeById.get(focusId) : null;
   const parsed = pageContent !== null ? splitFrontmatter(pageContent) : null;
+  const isFiltering = query.trim().length > 0;
 
   return (
     <div className="h-full w-full flex flex-col" onClick={reset}>
       <style>{`@keyframes linkview-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }`}</style>
-      <div className="flex-1 relative overflow-hidden">
-        <div className="h-full overflow-y-auto">
-          <div className="p-8 md:p-12 max-w-7xl mx-auto pb-16">
-            <h1 className="text-4xl font-extrabold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">Link View</h1>
-            <p className="text-xl text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-              Every page and its wikilinks in one map. Hover a page to see its connections; click to focus and read it.
-            </p>
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 min-w-0 h-full overflow-y-auto">
+          <div className="p-8 md:p-12 pb-16">
+            <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+              <div className="min-w-0">
+                <h1 className="text-4xl font-extrabold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">Link View</h1>
+                <p className="text-xl text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Every page and its wikilinks in one map. Hover a page to see its connections; click to focus and read it.
+                </p>
+              </div>
+              <div className="relative w-full sm:w-72 shrink-0 sm:mt-2" onClick={(e) => e.stopPropagation()}>
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setQuery('');
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  placeholder="Search page contents…"
+                  className="w-full pl-9 pr-9 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all"
+                />
+                {query && (
+                  <button
+                    onClick={() => {
+                      setQuery('');
+                      searchInputRef.current?.focus();
+                    }}
+                    aria-label="Clear search"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
 
             {graph && graph.nodes.length === 0 && (
               <div className="p-8 text-center text-gray-400 dark:text-gray-600 border border-dashed border-gray-300 dark:border-gray-700 rounded-2xl">
                 <Network className="w-10 h-10 mx-auto mb-3 opacity-30" />
                 <p>No pages yet — ingest some sources and the link map will build itself.</p>
+              </div>
+            )}
+
+            {graph && graph.nodes.length > 0 && isFiltering && visibleNodes.length === 0 && (
+              <div className="p-8 text-center text-gray-400 dark:text-gray-600 border border-dashed border-gray-300 dark:border-gray-700 rounded-2xl">
+                <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p>No pages match “{query.trim()}”.</p>
               </div>
             )}
 
@@ -386,121 +484,131 @@ const LinkView: React.FC = () => {
           </div>
         </div>
 
-        {/* Reading panel — slides in from the right when a page is focused */}
-        {/* Slide transform + visibility live in inline styles, not Tailwind
-            classes: prod serves CSS through a CDN cache, and a stale
-            stylesheet missing a class new to this component would leave the
-            closed panel parked over the whole map. Inline styles can't go
-            stale independently of the component. max-w-md (28rem) is used
-            app-wide, so it exists in any cached stylesheet. */}
+        {/* Reading panel — docked flex sibling, not an overlay: opening it
+            reflows the map to fit the remaining width (curves remeasure via
+            the wrapper ResizeObserver). Width/visibility animate via inline
+            styles: prod serves CSS through a CDN cache, and a stale
+            stylesheet missing a class new to this component previously left
+            the panel parked over the whole map. */}
         <aside
           onClick={(e) => e.stopPropagation()}
           aria-hidden={!focusId}
           style={{
-            transform: focusId ? 'translateX(0)' : 'translateX(100%)',
+            width: focusId ? PANEL_WIDTH : '0px',
             visibility: focusId ? 'visible' : 'hidden',
-            transition: 'transform 300ms ease-in-out, visibility 300ms',
+            borderLeftWidth: focusId ? 1 : 0,
+            transition: 'width 300ms ease-in-out, visibility 300ms',
           }}
-          className="absolute inset-y-0 right-0 z-20 w-full max-w-md bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col"
+          className="shrink-0 h-full overflow-hidden bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800"
         >
-          <div className="shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                {focusedNode && (
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${paletteFor(focusedNode.group).dot}`} />
-                )}
-                <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">
-                  {focusedNode?.title ?? ''}
-                </h2>
-              </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 font-mono truncate mt-0.5">{focusId}</p>
-            </div>
-            <button
-              onClick={reset}
-              title="Close"
-              aria-label="Close reading panel"
-              className="p-2 -mr-2 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors shrink-0"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div ref={panelBodyRef} className="flex-1 overflow-y-auto px-6 py-5">
-            {pageLoading && (
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Loading page…</span>
-              </div>
-            )}
-            {pageError && (
-              <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded-xl text-red-700 dark:text-red-400 text-sm">
-                {pageError}
-              </div>
-            )}
-            {!pageLoading && !pageError && parsed && (
-              <>
-                {parsed.fields.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {parsed.fields.map(([key, value]) => (
-                      <span
-                        key={key}
-                        className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300"
-                      >
-                        <span className="text-gray-400 dark:text-gray-500 mr-1.5 text-[10px] uppercase tracking-wider">{key}</span>
-                        {value.replace(/\[\[|\]\]/g, '')}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="prose prose-sm prose-slate dark:prose-invert max-w-none break-words">
-                  <ReactMarkdown
-                    components={{
-                      a: ({ node: _n, ...props }) => {
-                        if (props.href?.startsWith('#')) {
-                          const pagePath = `${props.href.slice(1).replace(/__/g, '/')}.md`;
-                          const exists = nodeById.has(pagePath);
-                          return (
-                            <a
-                              {...props}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (exists) setFocusId(pagePath);
-                              }}
-                              className={exists
-                                ? 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-medium'
-                                : 'text-gray-400 dark:text-gray-500 cursor-default no-underline'}
-                            >
-                              {props.children}
-                            </a>
-                          );
-                        }
-                        return (
-                          <a {...props} className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" />
-                        );
-                      },
-                    }}
-                  >
-                    {processWikiLinks(parsed.body)}
-                  </ReactMarkdown>
+          <div className="h-full flex flex-col" style={{ width: PANEL_WIDTH }}>
+            <div className="shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  {focusedNode && (
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${paletteFor(focusedNode.group).dot}`} />
+                  )}
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">
+                    {focusedNode?.title ?? ''}
+                  </h2>
                 </div>
-              </>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-mono truncate mt-0.5">{focusId}</p>
+              </div>
+              <button
+                onClick={reset}
+                title="Close"
+                aria-label="Close reading panel"
+                className="p-2 -mr-2 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div ref={panelBodyRef} className="flex-1 overflow-y-auto px-6 py-5">
+              {pageLoading && (
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading page…</span>
+                </div>
+              )}
+              {pageError && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded-xl text-red-700 dark:text-red-400 text-sm">
+                  {pageError}
+                </div>
+              )}
+              {!pageLoading && !pageError && parsed && (
+                <>
+                  {parsed.fields.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-6">
+                      {parsed.fields.map(([key, value]) => (
+                        <span
+                          key={key}
+                          className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300"
+                        >
+                          <span className="text-gray-400 dark:text-gray-500 mr-1.5 text-[10px] uppercase tracking-wider">{key}</span>
+                          {value.replace(/\[\[|\]\]/g, '')}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="prose prose-sm prose-slate dark:prose-invert max-w-none break-words">
+                    <ReactMarkdown
+                      components={{
+                        a: ({ node: _n, ...props }) => {
+                          if (props.href?.startsWith('#')) {
+                            const pagePath = `${props.href.slice(1).replace(/__/g, '/')}.md`;
+                            const exists = nodeById.has(pagePath);
+                            return (
+                              <a
+                                {...props}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (!exists) return;
+                                  // A search filter can hide the target chip;
+                                  // clear it so the focused page is visible.
+                                  if (!visibleIds.has(pagePath)) setQuery('');
+                                  setFocusId(pagePath);
+                                }}
+                                className={exists
+                                  ? 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-medium'
+                                  : 'text-gray-400 dark:text-gray-500 cursor-default no-underline'}
+                              >
+                                {props.children}
+                              </a>
+                            );
+                          }
+                          return (
+                            <a {...props} className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" />
+                          );
+                        },
+                      }}
+                    >
+                      {processWikiLinks(parsed.body)}
+                    </ReactMarkdown>
+                  </div>
+                </>
+              )}
+            </div>
+            {focusedNode && (
+              <div className="shrink-0 px-6 py-3 border-t border-gray-200 dark:border-gray-800 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <FileText className="w-3.5 h-3.5" />
+                <span>
+                  {(neighbors.get(focusedNode.id)?.size ?? 0)} {(neighbors.get(focusedNode.id)?.size ?? 0) === 1 ? 'connection' : 'connections'}
+                </span>
+              </div>
             )}
           </div>
-          {focusedNode && (
-            <div className="shrink-0 px-6 py-3 border-t border-gray-200 dark:border-gray-800 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <FileText className="w-3.5 h-3.5" />
-              <span>
-                {(neighbors.get(focusedNode.id)?.size ?? 0)} {(neighbors.get(focusedNode.id)?.size ?? 0) === 1 ? 'connection' : 'connections'}
-              </span>
-            </div>
-          )}
         </aside>
       </div>
 
       <div className="shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-6 py-2.5 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
         <span>
-          <span className="font-semibold text-gray-700 dark:text-gray-300">{graph?.nodes.length ?? 0} nodes</span>
+          <span className="font-semibold text-gray-700 dark:text-gray-300">
+            {isFiltering ? `${visibleNodes.length} of ${graph?.nodes.length ?? 0}` : graph?.nodes.length ?? 0} nodes
+          </span>
           {' · '}
-          <span className="font-semibold text-gray-700 dark:text-gray-300">{graph?.edges.length ?? 0} connections</span>
+          <span className="font-semibold text-gray-700 dark:text-gray-300">
+            {isFiltering ? `${visibleEdges.length} of ${graph?.edges.length ?? 0}` : graph?.edges.length ?? 0} connections
+          </span>
           {activeNode && (
             <span className="ml-3" style={{ color: activeStroke }}>
               {activeNode.title} — {connected.size} {connected.size === 1 ? 'link' : 'links'}
