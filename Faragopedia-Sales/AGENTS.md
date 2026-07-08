@@ -112,6 +112,7 @@ current direction.
 26. **Monitor snapshot storage / add auto-pruning**
 27. ~~Implement Graph View~~ ✅ (2026-07-04) — shipped as **Link View** on branch `link-view` (deployed to production): grouped-grid wikilink map (not force-directed), hover/focus connection curves, docked reading panel, content search. Backend `GET /pages/graph` builds the whole graph in one pass (ADR 0005). Verified with 35/35 browser checks in light + dark.
 28. ~~Execute Web Search Sources plan (Faragopedia side)~~ ✅ (2026-05-19) — merged to `main`; 9 new tests passing; Phase 2 smoke test passed end-to-end. Wisecrawler-side `POST /v1/search` deployed with `BRAVE_API_KEY`. Known limitation: JS-rendered/auth-gated URLs (LinkedIn, paywalled sites) fail at Wisecrawler's analyze step — pre-existing crawler behaviour, not a web-search bug.
+29. ~~Author + critically review a 10-point growth roadmap~~ ✅ (2026-07-08) — production hardening, security remediation, auth, permissions/sharing, admin dashboard, routing/frontend refactor, version history, collaboration, semantic search/RAG, UX polish. Docs live in `roadmap/` at the repo root (sibling to this folder, not inside it); verdicts and evidence in `roadmap/00-review-log.md`. All 10 approved for build; sequencing in `roadmap/00-overview.md` — **01 (production hardening) and 02 (security remediation) are next**, since prod currently runs the dev server with no auth. Hand each doc to a build session one at a time.
 
 
 
