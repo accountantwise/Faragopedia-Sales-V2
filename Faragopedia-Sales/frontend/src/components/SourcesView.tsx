@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { FileText, ChevronRight, Loader2, FileCheck, Trash2, Download, ArrowLeft, ArrowRight, Plus, Database, MoreVertical, X, Search, ListChecks } from 'lucide-react';
 
 import { API_BASE } from '../config';
@@ -764,6 +765,7 @@ const SourcesView: React.FC<Props> = ({ sourcesMetadata }) => {
                          </div>
                        )}
                        <ReactMarkdown
+                         remarkPlugins={[remarkGfm]}
                          components={{
                            a: ({ node, ...props }) => (
                              <a 

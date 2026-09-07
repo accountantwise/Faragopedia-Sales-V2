@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import MDEditor from '@uiw/react-md-editor';
 import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, FilePlus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, ListChecks, MoveRight, List, Upload } from 'lucide-react';
 
@@ -1567,7 +1568,17 @@ const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead }) =>
                        </div>
                      )}
                      <ReactMarkdown
+                       remarkPlugins={[remarkGfm]}
                        components={{
+                         // Imported pages carry wide tables — a job's people roster is
+                         // five columns and some role titles run to 48 characters — so
+                         // they scroll inside their own box rather than overflowing the
+                         // prose column.
+                         table: ({ node, ...props }) => (
+                           <div className="overflow-x-auto my-4 -mx-1">
+                             <table {...props} className="text-sm w-full" />
+                           </div>
+                         ),
                          a: ({ node, ...props }) => {
                            const isInternal = props.href?.startsWith('#');
                            if (isInternal) {
