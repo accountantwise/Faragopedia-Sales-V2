@@ -59,6 +59,27 @@ Best for persistent deployments on a server.
    - Set `PUID` and `PGID` so you can manage the markdown files directly via SFTP/SMB.
 4. Deploy the stack.
 
+### ⚠️ Frontend Asset Caching Behind Cloudflare
+
+The frontend container runs the Vite **dev server**, whose module URLs never
+change between deploys (`/src/index.css`, `/src/components/*.tsx`). When the
+site is served through a Cloudflare tunnel, Cloudflare caches `.css` by file
+extension but not `.tsx` — so after a redeploy, browsers can receive **new
+component JavaScript with a stale pre-deploy stylesheet**. Any Tailwind class
+that is new to the codebase in that deploy will silently be missing.
+
+This caused a real outage on 2026-07-04: the Link View rendered as a blank
+page because the reading panel's (then class-based) hide transform wasn't in
+the cached CSS, leaving an invisible full-width sheet over the map (see
+`docs/status.md`, Link View round 3).
+
+**After every redeploy that touches frontend styling:** purge the Cloudflare
+cache for the zone (or enable Development Mode while testing).
+
+**Durable fixes (not yet implemented):** add a Cloudflare cache-bypass rule
+for the frontend hostname, or serve a production `vite build` (hashed asset
+filenames) instead of the dev server in the container.
+
 ---
 
 ## Permissions Troubleshooting
