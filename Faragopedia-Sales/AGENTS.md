@@ -47,6 +47,8 @@ current direction.
 | Linting System     | AI-powered + Snapshots| —        |
 | Tagging System     | Frontmatter + Shared  | —        |
 | External API Auth  | Cloudflare Access (Service Token) + backend API-key middleware | [ADR 0003](docs/decisions/0003-external-api-exposure-auth.md) |
+| Source-doc links   | Key + closed lookup table, `GET /api/job/{key}` -> 302 | [ADR 0006](docs/decisions/0006-source-document-link-resolver.md) |
+| Markdown rendering | react-markdown + **remark-gfm** — v9 core is CommonMark, so tables need it | - |
 
 ---
 

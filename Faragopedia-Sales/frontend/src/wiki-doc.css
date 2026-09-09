@@ -1,0 +1,245 @@
+/* Wiki page typography.
+ *
+ * Design tokens and rules ported from the Faragopedia callsheet mock-up
+ * (docs/2026-09-02-faragopedia-callsheet-mockup-mcqueen-manta-526.html), so imported
+ * job pages read like that page rather than like generic prose.
+ *
+ * Layered on top of @tailwindcss/typography rather than replacing it: typography's
+ * selectors are wrapped in :where(), which contributes zero specificity, so a plain
+ * `.wiki-doc table` here wins without !important. Lists, links and inline formatting
+ * keep coming from `prose`.
+ *
+ * Dark mode keys off the `.dark` class, matching tailwind.config darkMode: 'class'.
+ */
+
+.wiki-doc {
+  --ground: #f7f8fa;
+  --surface: #ffffff;
+  --surface-sunk: #eef1f5;
+  --ink: #14181f;
+  --ink-soft: #5a6472;
+  --ink-faint: #8b94a3;
+  --rule: #dfe3e9;
+  --rule-strong: #c6cdd8;
+  --accent: #1f4fd8;
+  --accent-soft: #e5ebfc;
+  --flag: #b4531a;
+  --flag-soft: #fbece1;
+  --shadow: 0 1px 2px rgba(20, 24, 31, 0.05), 0 8px 24px -12px rgba(20, 24, 31, 0.12);
+}
+
+.dark .wiki-doc {
+  --ground: #0d1017;
+  --surface: #151a23;
+  --surface-sunk: #1d232e;
+  --ink: #e8ecf2;
+  --ink-soft: #9aa4b4;
+  --ink-faint: #6b7688;
+  --rule: #262d3a;
+  --rule-strong: #37404f;
+  --accent: #7a9bff;
+  --accent-soft: #1b2745;
+  --flag: #e5934f;
+  --flag-soft: #2e2016;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- headings ---------------------------------------------------------------- */
+
+.wiki-doc h1 {
+  font-size: 34px;
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  color: var(--ink);
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+
+/* The mock-up's signature: section titles as small tracked labels above a rule,
+   rather than large bold text competing with the page title. */
+.wiki-doc h2 {
+  font-size: 11.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--ink-faint);
+  margin: 42px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Shoot days, and campaign groupings on multi-campaign jobs. */
+.wiki-doc h3 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 26px 0 10px;
+}
+
+.wiki-doc h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin: 20px 0 8px;
+}
+
+/* ---- tables ------------------------------------------------------------------ */
+
+/* The scroll box carries the border, radius and shadow so the table itself can keep
+   square edges and still look like a contained card. */
+.wiki-doc .wiki-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  margin: 14px 0 22px;
+}
+
+.wiki-doc .wiki-table-scroll table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wiki-doc .wiki-table-scroll thead th {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 700;
+  text-align: left;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--rule-strong);
+  background: var(--surface-sunk);
+  white-space: nowrap;
+}
+
+.wiki-doc .wiki-table-scroll tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  color: var(--ink);
+}
+
+.wiki-doc .wiki-table-scroll tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* First column is the role — the reader scans it, so it stays quiet and narrow. */
+.wiki-doc .wiki-table-scroll tbody td:first-child {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  max-width: 15rem;
+}
+
+/* Second column is the person's name: the thing being looked up. */
+.wiki-doc .wiki-table-scroll tbody td:nth-child(2) {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+
+/* Contact details: monospaced and dimmed, so numbers align down the column. */
+.wiki-doc .wiki-table-scroll tbody td:last-child {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+/* ---- badges ------------------------------------------------------------------ */
+
+/* Inline code inside a table cell is a status token — staff/freelance — not a code
+   sample, so it renders as the mock-up's pill rather than as monospace text. */
+.wiki-doc .wiki-table-scroll td code {
+  display: inline-block;
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-weight: 600;
+  border-radius: 2px;
+  padding: 2px 5px;
+  background: var(--surface-sunk);
+  color: var(--ink-faint);
+}
+
+.wiki-doc .wiki-table-scroll td code::before,
+.wiki-doc .wiki-table-scroll td code::after {
+  content: none; /* typography adds backticks around inline code */
+}
+
+/* Staff is the exception worth noticing; freelance is the default and stays grey. */
+.wiki-doc .wiki-table-scroll td code[data-badge="staff"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---- caveats ----------------------------------------------------------------- */
+
+/* The talent placeholder-name warning, and any other flagged note. */
+.wiki-doc blockquote {
+  font-style: normal;
+  font-weight: 400;
+  quotes: none;
+  color: var(--flag);
+  background: var(--flag-soft);
+  border-left: 3px solid var(--flag);
+  border-radius: 3px;
+  padding: 10px 14px;
+  margin: 14px 0 22px;
+  font-size: 13px;
+}
+
+.wiki-doc blockquote p {
+  margin: 0;
+}
+
+.wiki-doc blockquote p::before,
+.wiki-doc blockquote p::after {
+  content: none;
+}
+
+/* ---- body -------------------------------------------------------------------- */
+
+.wiki-doc {
+  color: var(--ink);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.wiki-doc p {
+  color: var(--ink);
+}
+
+/* Path and filename literals outside tables: keep them monospaced and quiet. */
+.wiki-doc p code,
+.wiki-doc li code {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: var(--surface-sunk);
+  border-radius: 2px;
+  padding: 1px 5px;
+}
+
+.wiki-doc p code::before,
+.wiki-doc p code::after,
+.wiki-doc li code::before,
+.wiki-doc li code::after {
+  content: none;
+}
+
+/* Access and parking notes nested under a venue. */
+.wiki-doc ul ul {
+  margin-top: 4px;
+}
+
+.wiki-doc ul ul li {
+  color: var(--ink-soft);
+  font-size: 13.5px;
+}
