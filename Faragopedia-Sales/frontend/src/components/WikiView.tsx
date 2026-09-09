@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import '../wiki-doc.css';
 import MDEditor from '@uiw/react-md-editor';
 import { FileText, ChevronRight, Loader2, ArrowLeft, ArrowRight, Edit3, Save, X, Trash2, Download, Plus, FilePlus, MoreVertical, MessageSquare, FolderPlus, Pencil, Search, ListChecks, MoveRight, List, Upload } from 'lucide-react';
 
@@ -1548,7 +1550,7 @@ const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead }) =>
                 ))}
               </div>
             )}
-            <div className="prose prose-slate dark:prose-invert max-w-4xl mx-auto break-words text-gray-900 dark:text-gray-100">
+            <div className="wiki-doc prose prose-slate dark:prose-invert max-w-4xl mx-auto break-words">
               {(() => {
                  const { tags, content: cleanContent } = parseFrontmatter(content);
                  return (
@@ -1567,7 +1569,33 @@ const WikiView: React.FC<WikiViewProps> = ({ pagesMetadata, onMarkPageRead }) =>
                        </div>
                      )}
                      <ReactMarkdown
+                       remarkPlugins={[remarkGfm]}
                        components={{
+                         // Imported pages carry wide tables — a job's people roster is
+                         // five columns and some role titles run to 48 characters — so
+                         // they scroll inside their own box rather than overflowing the
+                         // prose column. The box carries the border and shadow; see
+                         // wiki-doc.css.
+                         table: ({ node, ...props }) => (
+                           <div className="wiki-table-scroll">
+                             <table {...props} />
+                           </div>
+                         ),
+                         // Status tokens are written as inline code by the ingest
+                         // (`staff (UK)`, `freelance`) because markdown cannot carry an
+                         // attribute. Tag them here so the stylesheet can show staff in
+                         // the accent colour and leave freelance grey — freelance is the
+                         // default on a callsheet, so staff is the exception worth
+                         // noticing.
+                         code: ({ node, children, ...props }) => {
+                           const text = String(children);
+                           const badge = /^staff\b/i.test(text)
+                             ? 'staff'
+                             : /^freelance$/i.test(text)
+                             ? 'freelance'
+                             : undefined;
+                           return <code {...props} data-badge={badge}>{children}</code>;
+                         },
                          a: ({ node, ...props }) => {
                            const isInternal = props.href?.startsWith('#');
                            if (isInternal) {

@@ -216,3 +216,31 @@ def test_write_entity_templates_overwrites_existing(tmp_path):
     content = (wiki / "clients" / "_template.md").read_text()
     assert content != "old content"
     assert "type: client" in content
+
+
+def test_render_type_schema_section_comments_every_described_field():
+    """Descriptions used to render for enum fields only, so a caveat on a string or
+    date field never reached SCHEMA.md — the only place the ingest and lint agents
+    see what a field means."""
+    section = render_type_schema_section("callsheets", {
+        "singular": "callsheet",
+        "fields": [
+            {"name": "city", "type": "string",
+             "description": "Farago office that ran the job, not the shoot location"},
+            {"name": "shoot_start", "type": "date", "description": "first day on the sheet"},
+            {"name": "campaigns", "type": "list", "default": "[]",
+             "description": "one job can hold several"},
+            {"name": "type", "type": "string", "default": "callsheet",
+             "description": "entity discriminator"},
+            {"name": "status", "type": "enum", "values": ["a", "b"], "description": "still works"},
+            {"name": "undescribed", "type": "string"},
+        ],
+        "sections": [],
+    })
+    assert "city:          # Farago office that ran the job, not the shoot location" in section
+    assert "shoot_start:          # first day on the sheet" in section
+    assert "campaigns: []          # one job can hold several" in section
+    assert "type: callsheet          # entity discriminator" in section
+    assert "status: a | b          # still works" in section
+    # A field with no description keeps its bare form, with no trailing comment marker.
+    assert "\nundescribed:\n" in section

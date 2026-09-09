@@ -181,3 +181,108 @@ def test_update_index_uses_dynamic_types(manager_with_types):
         content = f.read()
     assert "## Clients" in content
     assert "[[clients/test-brand]]" in content
+
+
+# --- Explicit _type.yaml schema on create_folder -----------------------------------
+# fields/sections/singular are optional additions. The first test is the regression
+# guard that matters: the UI's New Folder dialog sends only name/display_name/
+# description, so omitting them must keep producing exactly the type this method
+# wrote before.
+
+
+@pytest.mark.asyncio
+async def test_create_folder_writes_unchanged_default_type_when_schema_omitted(manager_with_types):
+    mgr = manager_with_types
+    await mgr.create_folder("stylists", "Stylists", "Hair and makeup")
+
+    with open(os.path.join(mgr.wiki_dir, "stylists", "_type.yaml")) as f:
+        data = yaml.safe_load(f)
+
+    assert data["singular"] == "stylist"
+    assert data["fields"] == [
+        {"name": "type", "type": "string", "default": "stylist"},
+        {"name": "name", "type": "string", "required": True},
+    ]
+    assert data["sections"] == ["Overview", "Notes"]
+
+
+@pytest.mark.asyncio
+async def test_create_folder_accepts_explicit_fields_and_sections(manager_with_types):
+    mgr = manager_with_types
+    fields = [
+        {"name": "type", "type": "string", "default": "job"},
+        {"name": "name", "type": "string", "required": True},
+        {"name": "job_reference_number", "type": "string"},
+        {"name": "campaigns", "type": "list", "default": "[]"},
+        {"name": "shoot_start", "type": "date"},
+    ]
+    sections = ["Overview", "Shoot Days", "People", "Source"]
+    await mgr.create_folder("jobs", "Jobs", "Production jobs", fields=fields, sections=sections)
+
+    with open(os.path.join(mgr.wiki_dir, "jobs", "_type.yaml")) as f:
+        data = yaml.safe_load(f)
+
+    assert data["fields"] == fields
+    assert data["sections"] == sections
+
+
+@pytest.mark.asyncio
+async def test_create_folder_explicit_singular_overrides_rstrip_guess(manager_with_types):
+    """rstrip("s") strips *every* trailing s, so the guess is wrong for words like
+    "classes" (-> "clas"). An explicit singular is the fix."""
+    mgr = manager_with_types
+    await mgr.create_folder("classes", "Classes", "", singular="class")
+
+    with open(os.path.join(mgr.wiki_dir, "classes", "_type.yaml")) as f:
+        data = yaml.safe_load(f)
+
+    assert data["singular"] == "class"
+    # The default type field follows the resolved singular, not the stripped folder name.
+    assert data["fields"][0] == {"name": "type", "type": "string", "default": "class"}
+
+
+@pytest.mark.asyncio
+async def test_create_folder_empty_sections_list_is_honoured(manager_with_types):
+    """An explicit empty list means "no sections", and must not fall back to the
+    default — hence the `is not None` check rather than a truthiness test."""
+    mgr = manager_with_types
+    await mgr.create_folder("jobs", "Jobs", "", sections=[])
+
+    with open(os.path.join(mgr.wiki_dir, "jobs", "_type.yaml")) as f:
+        data = yaml.safe_load(f)
+
+    assert data["sections"] == []
+
+
+# --- Route-level field validation --------------------------------------------------
+
+
+def test_validate_type_fields_accepts_the_documented_vocabulary():
+    from api.routes import validate_type_fields
+
+    validate_type_fields([
+        {"name": "a", "type": "string"},
+        {"name": "b", "type": "date"},
+        {"name": "c", "type": "integer"},
+        {"name": "d", "type": "list", "default": "[]"},
+        {"name": "e", "type": "enum", "values": ["x", "y"]},
+        {"name": "f"},  # type defaults to string
+    ])
+
+
+@pytest.mark.parametrize("fields,expected", [
+    ("not-a-list", "fields must be a list"),
+    ([["nope"]], "must be an object"),
+    ([{"type": "string"}], "missing a name"),
+    ([{"name": "a", "type": "timestamp"}], "unknown type"),
+    ([{"name": "a", "type": "enum"}], "needs a values list"),
+    ([{"name": "a", "type": "enum", "values": []}], "needs a values list"),
+])
+def test_validate_type_fields_rejects_malformed_schema(fields, expected):
+    from fastapi import HTTPException
+    from api.routes import validate_type_fields
+
+    with pytest.raises(HTTPException) as exc:
+        validate_type_fields(fields)
+    assert exc.value.status_code == 422
+    assert expected in exc.value.detail
