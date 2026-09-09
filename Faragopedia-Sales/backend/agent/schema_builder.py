@@ -171,20 +171,21 @@ def render_type_schema_section(folder_name: str, type_data: Dict) -> str:
         fname = field["name"]
         ftype = field.get("type", "string")
         if ftype == "enum":
-            values = field.get("values", [])
-            comment = field.get("description", "")
-            value_str = " | ".join(str(v) for v in values)
-            line = f"{fname}: {value_str}"
-            if comment:
-                line += f"          # {comment}"
-            lines.append(line)
+            line = f"{fname}: " + " | ".join(str(v) for v in field.get("values", []))
         elif ftype == "list":
-            default = field.get("default", "[]")
-            lines.append(f"{fname}: {default}")
+            line = f"{fname}: {field.get('default', '[]')}"
         elif "default" in field:
-            lines.append(f"{fname}: {field['default']}")
+            line = f"{fname}: {field['default']}"
         else:
-            lines.append(f"{fname}:")
+            line = f"{fname}:"
+        # Comment every field carrying a description, not just enums. SCHEMA.md is the
+        # only place the ingest and lint agents see what a field means, so a caveat on a
+        # string or date field — "the office that ran the job, not where it shot" — was
+        # written into _type.yaml and then silently dropped here.
+        comment = str(field.get("description", "")).strip()
+        if comment:
+            line += f"          # {comment}"
+        lines.append(line)
     lines.append("---")
     lines.append("```")
 

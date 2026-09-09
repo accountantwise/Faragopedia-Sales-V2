@@ -416,6 +416,40 @@ async def get_field_schema(wm: WM, entity_type: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# The field-type vocabulary _type.yaml already supports; see setup_wizard.EntityTypeField
+# and the built-in clients/contacts types, which between them use all five.
+VALID_FIELD_TYPES = {"string", "date", "integer", "enum", "list"}
+
+
+def validate_type_fields(fields) -> None:
+    """Reject a malformed `fields` list before it reaches _type.yaml.
+
+    An invalid schema here is silently corrosive rather than loud: schema_builder
+    renders whatever it finds, so a field without a name or an enum without values
+    produces a broken SCHEMA.md, and SCHEMA.md is the document the ingest and lint
+    agents read for every entity type — not just this folder's.
+    """
+    if not isinstance(fields, list):
+        raise HTTPException(status_code=422, detail="fields must be a list")
+    for i, field in enumerate(fields):
+        if not isinstance(field, dict):
+            raise HTTPException(status_code=422, detail=f"fields[{i}] must be an object")
+        if not str(field.get("name", "")).strip():
+            raise HTTPException(status_code=422, detail=f"fields[{i}] is missing a name")
+        ftype = field.get("type", "string")
+        if ftype not in VALID_FIELD_TYPES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"fields[{i}] has unknown type '{ftype}'; "
+                       f"expected one of {', '.join(sorted(VALID_FIELD_TYPES))}",
+            )
+        if ftype == "enum" and not field.get("values"):
+            raise HTTPException(
+                status_code=422,
+                detail=f"fields[{i}] ('{field['name']}') is an enum and needs a values list",
+            )
+
+
 @router.post("/folders")
 async def create_folder(wm: WM, payload: dict):
     name = payload.get("name", "").strip()
@@ -425,8 +459,23 @@ async def create_folder(wm: WM, payload: dict):
         raise HTTPException(status_code=422, detail="name and display_name are required")
     if not re.match(r"^[a-z][a-z0-9-]*$", name):
         raise HTTPException(status_code=400, detail="Folder name must be lowercase alphanumeric with hyphens")
+
+    # All optional. Absent, create_folder writes the same minimal type it always has,
+    # so the UI's New Folder dialog keeps working byte-for-byte unchanged.
+    fields = payload.get("fields")
+    sections = payload.get("sections")
+    singular = (payload.get("singular") or "").strip() or None
+    if fields is not None:
+        validate_type_fields(fields)
+    if sections is not None:
+        if not isinstance(sections, list) or not all(isinstance(x, str) for x in sections):
+            raise HTTPException(status_code=422, detail="sections must be a list of strings")
+
     try:
-        await wm.create_folder(name, display_name, description)
+        await wm.create_folder(
+            name, display_name, description,
+            fields=fields, sections=sections, singular=singular,
+        )
         return {"message": f"Folder '{name}' created", "folder": name}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

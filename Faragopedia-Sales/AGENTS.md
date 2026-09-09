@@ -48,6 +48,8 @@ current direction.
 | Tagging System     | Frontmatter + Shared  | —        |
 | External API Auth  | Cloudflare Access (Service Token) + backend API-key middleware | [ADR 0003](docs/decisions/0003-external-api-exposure-auth.md) |
 | Link View (Graph)  | Single-pass `GET /pages/graph` + hand-rolled SVG (no graph lib) | [ADR 0005](docs/decisions/0005-link-view-graph-architecture.md) |
+| Source-doc links   | Key + closed lookup table, `GET /api/job/{key}` -> 302 | [ADR 0006](docs/decisions/0006-source-document-link-resolver.md) |
+| Markdown rendering | react-markdown + **remark-gfm** — v9 core is CommonMark, so tables need it | - |
 
 ---
 

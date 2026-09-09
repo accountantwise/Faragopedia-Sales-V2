@@ -10,6 +10,7 @@ from api.routes import router as api_router, set_wiki_manager
 from api.setup_routes import setup_router
 from api.export_routes import export_router
 from api.workspace_routes import workspace_router
+from api.job_links import job_links_router
 from agent.setup_wizard import is_setup_complete
 from agent.workspace_manager import (
     initialize_workspaces, get_active_workspace_id,
@@ -49,6 +50,9 @@ app.include_router(api_router, prefix="/api")
 app.include_router(setup_router, prefix="/api/setup")
 app.include_router(export_router, prefix="/api/export")
 app.include_router(workspace_router, prefix="/api/workspaces")
+# Source-document link resolver. Under /api so the wiki frontend's same-origin proxy
+# serves it to a browser without a separate access policy.
+app.include_router(job_links_router, prefix="/api")
 
 initialize_workspaces()
 active_id = get_active_workspace_id()

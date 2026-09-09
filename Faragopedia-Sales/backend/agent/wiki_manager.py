@@ -1127,23 +1127,44 @@ class WikiManager:
                     with open(fpath, "w", encoding="utf-8") as f:
                         f.write(new_content)
 
-    async def create_folder(self, folder_name: str, display_name: str, description: str = ""):
-        """Create a new entity folder with a _type.yaml file."""
+    async def create_folder(
+        self,
+        folder_name: str,
+        display_name: str,
+        description: str = "",
+        fields: list[dict] | None = None,
+        sections: list[str] | None = None,
+        singular: str | None = None,
+    ):
+        """Create a new entity folder with a _type.yaml file.
+
+        fields/sections/singular are optional: omitted, they fall back to the minimal
+        two-field type this method has always written, so the UI's New Folder dialog
+        (which sends only name/display_name/description) is unaffected. Passing them
+        lets an API caller create a folder whose _type.yaml is as expressive as the ones
+        the setup wizard writes directly — previously the only way to get a real field
+        schema was to bypass this method.
+
+        singular is explicit rather than guessed because the rstrip("s") fallback strips
+        every trailing "s": "jobs" -> "job" is right by luck, "classes" -> "clas" is not.
+        """
         folder_path = os.path.join(self.wiki_dir, folder_name)
         if os.path.exists(folder_path):
             raise ValueError(f"Folder '{folder_name}' already exists")
+
+        resolved_singular = singular or folder_name.rstrip("s")
 
         async with self._write_lock:
             os.makedirs(folder_path)
             type_data = {
                 "name": display_name,
                 "description": description,
-                "singular": folder_name.rstrip("s"),
-                "fields": [
-                    {"name": "type", "type": "string", "default": folder_name.rstrip("s")},
+                "singular": resolved_singular,
+                "fields": fields if fields is not None else [
+                    {"name": "type", "type": "string", "default": resolved_singular},
                     {"name": "name", "type": "string", "required": True},
                 ],
-                "sections": ["Overview", "Notes"],
+                "sections": sections if sections is not None else ["Overview", "Notes"],
             }
             with open(os.path.join(folder_path, "_type.yaml"), "w", encoding="utf-8") as f:
                 yaml.dump(type_data, f, default_flow_style=False, sort_keys=False)
@@ -1396,33 +1417,53 @@ class WikiManager:
         skipped: list[str] = []
         errors: dict[str, str] = {}
 
-        for filename, content in files:
-            resolution = resolutions.get(filename, "overwrite")
+        # Held across the whole batch, matching create_folder/patch_frontmatter_field:
+        # a bulk import racing a lint or a folder rename would otherwise interleave
+        # writes with an index rebuild and leave the index describing a half-written set.
+        async with self._write_lock:
+            for filename, content in files:
+                resolution = resolutions.get(filename, "overwrite")
 
-            if resolution == "skip":
-                skipped.append(filename)
-                continue
+                if resolution == "skip":
+                    skipped.append(filename)
+                    continue
 
-            if isinstance(resolution, dict) and "rename" in resolution:
-                target_name = resolution["rename"]
-            else:
-                target_name = filename
+                if isinstance(resolution, dict) and "rename" in resolution:
+                    target_name = resolution["rename"]
+                else:
+                    target_name = filename
 
-            target_path = os.path.join(folder_path, target_name)
+                target_path = os.path.join(folder_path, target_name)
 
-            if isinstance(resolution, dict) and "rename" in resolution and os.path.exists(target_path):
-                errors[filename] = f"Rename target '{target_name}' already exists"
-                continue
+                if isinstance(resolution, dict) and "rename" in resolution and os.path.exists(target_path):
+                    errors[filename] = f"Rename target '{target_name}' already exists"
+                    continue
 
-            try:
-                with open(target_path, "wb") as fh:
-                    fh.write(content)
-                imported.append(f"{folder}/{target_name}")
-            except OSError as e:
-                errors[filename] = str(e)
+                try:
+                    with open(target_path, "wb") as fh:
+                        fh.write(content)
+                    imported.append(f"{folder}/{target_name}")
+                except OSError as e:
+                    errors[filename] = str(e)
 
+        # Outside the lock, as elsewhere — these read the tree, they don't write pages.
+        #
+        # _rebuild_search_index also rewrites wiki/_meta/index.md, so the index a reader
+        # actually sees was never stale here. update_index maintains the separate legacy
+        # wiki/index.md, which the API cannot even serve (the path validator rejects it)
+        # but which fourteen other write paths in this class still update. Called here
+        # only so import is not the one operation that leaves it behind; if that file is
+        # genuinely dead it should be removed from all fifteen call sites at once.
+        #
+        # The log entry is the substantive addition: every other write path records
+        # itself and a bulk import of 91 pages left no audit trail at all.
         if imported:
             self._rebuild_search_index()
+            self.update_index()
+            self._append_to_log(
+                "import_pages",
+                f"Imported {len(imported)} page(s) into '{folder}'",
+            )
 
         return {"imported": imported, "skipped": skipped, "errors": errors}
 

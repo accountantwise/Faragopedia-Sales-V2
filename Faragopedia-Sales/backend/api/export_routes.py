@@ -13,6 +13,7 @@ from fastapi.responses import Response
 from api.routes import set_wiki_manager
 from agent.workspace_manager import (
     get_wiki_dir, get_sources_dir, get_archive_dir, get_snapshots_dir, get_schema_dir,
+    get_active_workspace_id, create_workspace,
 )
 
 export_router = APIRouter()
@@ -138,6 +139,9 @@ async def import_bundle(file: UploadFile = File(...)):
             actual_staging = staging / prefix.rstrip("/") if prefix else staging
 
             try:
+                if get_active_workspace_id() is None:
+                    create_workspace(wiki_config.get("wiki_name") or "Default")
+
                 if bundle_type == "full":
                     _restore_full(actual_staging)
                     _reinit_wiki_manager()

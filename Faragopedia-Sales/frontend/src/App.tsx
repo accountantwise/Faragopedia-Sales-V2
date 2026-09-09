@@ -8,6 +8,7 @@ import LintView from './components/LintView';
 import LinkView from './components/LinkView';
 import { Loader2, MessageSquare, Send, Menu, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { API_BASE } from './config';
 import SettingsDrawer from './components/SettingsDrawer';
 import { useOperationToasts } from './OperationToastContext';
@@ -337,6 +338,7 @@ const App: React.FC = () => {
                             <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                           ) : (
                             <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
                               className="text-sm leading-relaxed whitespace-pre-wrap"
                               components={{
                                 a: ({ node, ...props }) => {
