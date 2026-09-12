@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import yaml
 
@@ -153,6 +153,34 @@ def discover_entity_types(wiki_dir: str) -> Dict[str, Dict]:
     return types
 
 
+def _render_table_section(section: Dict) -> List[str]:
+    """Render a `sections` entry that requires a markdown table (e.g. callsheets'
+    People roster), instead of a plain `## Heading` placeholder.
+
+    Only entity types that opt in by using the {name, table_columns} dict form (rather
+    than a plain string) get this treatment, so other entity types' sections are
+    unaffected. Without a literal example table here, the ingest LLM free-forms the
+    section as a bullet list and silently drops every column but name/role — this is
+    the fix for that.
+    """
+    name = section["name"]
+    columns = section["table_columns"]
+    header = "| " + " | ".join(columns) + " |"
+    rule = "|" + "|".join("-" * (len(c) + 2) for c in columns) + "|"
+    example_row = "| " + " | ".join(f"<{c.lower()}>" for c in columns) + " |"
+    return [
+        f"## {name}",
+        "",
+        f"Always render this section as a markdown table with exactly these columns "
+        f"(one row per person, never a bullet list):",
+        "",
+        header,
+        rule,
+        example_row,
+        "",
+    ]
+
+
 def render_type_schema_section(folder_name: str, type_data: Dict) -> str:
     """Render one entity type as a SCHEMA.md subsection."""
     singular = type_data.get("singular", folder_name.rstrip("s"))
@@ -189,10 +217,17 @@ def render_type_schema_section(folder_name: str, type_data: Dict) -> str:
     lines.append("---")
     lines.append("```")
 
-    if sections:
+    plain_sections = [s for s in sections if isinstance(s, str)]
+    table_sections = [s for s in sections if isinstance(s, dict)]
+
+    if plain_sections:
         lines.append("")
-        section_str = " · ".join(f"`## {s}`" for s in sections)
+        section_str = " · ".join(f"`## {s}`" for s in plain_sections)
         lines.append(f"Sections: {section_str}")
+
+    for table_section in table_sections:
+        lines.append("")
+        lines.extend(_render_table_section(table_section))
 
     lines.append("")
     lines.append("---")
