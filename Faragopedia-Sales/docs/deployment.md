@@ -74,7 +74,12 @@ the cached CSS, leaving an invisible full-width sheet over the map (see
 `docs/status.md`, Link View round 3).
 
 **After every redeploy that touches frontend styling:** purge the Cloudflare
-cache for the zone (or enable Development Mode while testing).
+cache for the zone (or enable Development Mode while testing). Note
+(2026-09-10): the `CLOUDFLARE_AIWISE_API_TOKEN` in the internal `.env` is
+scoped to `zone:read`/`zone_settings:read`/`dns_records:edit`/`dns_records:read`
+only — it cannot call `purge_cache` (confirmed: 401). Either add Cache Purge
+permission to that token, or purge manually via the Cloudflare dashboard
+(`ai-wise.uk` zone → Caching → Configuration → Purge Cache).
 
 **Durable fixes (not yet implemented):** add a Cloudflare cache-bypass rule
 for the frontend hostname, or serve a production `vite build` (hashed asset
