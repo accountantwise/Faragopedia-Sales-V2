@@ -153,32 +153,43 @@ def discover_entity_types(wiki_dir: str) -> Dict[str, Dict]:
     return types
 
 
-def _render_table_section(section: Dict) -> List[str]:
-    """Render a `sections` entry that requires a markdown table (e.g. callsheets'
-    People roster), instead of a plain `## Heading` placeholder.
+def _render_detailed_section(section: Dict) -> List[str]:
+    """Render a `sections` entry carrying its own formatting guidance — free-text
+    `instructions`, a `table_columns` spec, or both — instead of a plain `## Heading`
+    placeholder.
 
-    Only entity types that opt in by using the {name, table_columns} dict form (rather
-    than a plain string) get this treatment, so other entity types' sections are
-    unaffected. Without a literal example table here, the ingest LLM free-forms the
-    section as a bullet list and silently drops every column but name/role — this is
-    the fix for that.
+    Only entity types that opt in by using this {name, ...} dict form (rather than a
+    plain string) get this treatment, so other entity types' sections are unaffected.
+    Callsheets need this for every section (Overview, Shoot Days, People, Source): a
+    bare `## People` placeholder let the ingest LLM free-form the roster as a bullet
+    list and silently drop every column but name/role, and the same under-specification
+    let Shoot Days/Overview/Source drift from the direct-upload pipeline's structure
+    (day grouping by campaign, the source-file table, the placeholder-name caveat).
     """
     name = section["name"]
-    columns = section["table_columns"]
-    header = "| " + " | ".join(columns) + " |"
-    rule = "|" + "|".join("-" * (len(c) + 2) for c in columns) + "|"
-    example_row = "| " + " | ".join(f"<{c.lower()}>" for c in columns) + " |"
-    return [
-        f"## {name}",
-        "",
-        f"Always render this section as a markdown table with exactly these columns "
-        f"(one row per person, never a bullet list):",
-        "",
-        header,
-        rule,
-        example_row,
-        "",
-    ]
+    lines = [f"## {name}", ""]
+
+    instructions = section.get("instructions", "").strip()
+    if instructions:
+        lines.append(instructions)
+        lines.append("")
+
+    columns = section.get("table_columns")
+    if columns:
+        header = "| " + " | ".join(columns) + " |"
+        rule = "|" + "|".join("-" * (len(c) + 2) for c in columns) + "|"
+        example_row = "| " + " | ".join(f"<{c.lower()}>" for c in columns) + " |"
+        lines += [
+            "Always render this section as a markdown table with exactly these "
+            "columns (one row per entry, never a bullet list):",
+            "",
+            header,
+            rule,
+            example_row,
+            "",
+        ]
+
+    return lines
 
 
 def render_type_schema_section(folder_name: str, type_data: Dict) -> str:
@@ -217,17 +228,23 @@ def render_type_schema_section(folder_name: str, type_data: Dict) -> str:
     lines.append("---")
     lines.append("```")
 
-    plain_sections = [s for s in sections if isinstance(s, str)]
-    table_sections = [s for s in sections if isinstance(s, dict)]
-
-    if plain_sections:
+    def flush_plain(batch: List[str]) -> None:
+        if not batch:
+            return
         lines.append("")
-        section_str = " · ".join(f"`## {s}`" for s in plain_sections)
+        section_str = " · ".join(f"`## {s}`" for s in batch)
         lines.append(f"Sections: {section_str}")
 
-    for table_section in table_sections:
+    plain_batch: List[str] = []
+    for section in sections:
+        if isinstance(section, str):
+            plain_batch.append(section)
+            continue
+        flush_plain(plain_batch)
+        plain_batch = []
         lines.append("")
-        lines.extend(_render_table_section(table_section))
+        lines.extend(_render_detailed_section(section))
+    flush_plain(plain_batch)
 
     lines.append("")
     lines.append("---")
