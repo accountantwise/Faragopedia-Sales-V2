@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { Loader2, Network, X, FileText, Search } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { API_BASE } from '../config';
+import '../wiki-doc.css';
 
 interface GraphNode {
   id: string;
@@ -550,9 +552,31 @@ const LinkView: React.FC = () => {
                       ))}
                     </div>
                   )}
-                  <div className="prose prose-sm prose-slate dark:prose-invert max-w-none break-words">
+                  <div className="wiki-doc prose prose-sm prose-slate dark:prose-invert max-w-none break-words">
                     <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
                       components={{
+                        // Callsheet roster tables run to five columns and some role
+                        // titles are long, so give them the same horizontal-scroll box
+                        // as the full wiki view (WikiView.tsx) rather than overflowing
+                        // the panel.
+                        table: ({ node: _n, ...props }) => (
+                          <div className="wiki-table-scroll">
+                            <table {...props} />
+                          </div>
+                        ),
+                        // Same staff/freelance badge treatment as WikiView.tsx — ingest
+                        // writes these as inline code (`staff (UK)`, `freelance`) since
+                        // markdown carries no attribute syntax.
+                        code: ({ node: _n, children, ...props }) => {
+                          const text = String(children);
+                          const badge = /^staff\b/i.test(text)
+                            ? 'staff'
+                            : /^freelance$/i.test(text)
+                            ? 'freelance'
+                            : undefined;
+                          return <code {...props} data-badge={badge}>{children}</code>;
+                        },
                         a: ({ node: _n, ...props }) => {
                           if (props.href?.startsWith('#')) {
                             const pagePath = `${props.href.slice(1).replace(/__/g, '/')}.md`;
